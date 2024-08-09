@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Query, Depends
 from typing import Optional
 from datetime import date
-from pydantic import BaseModel
+
 
 from app.bookings.router import router as router_bookings
 
@@ -31,14 +31,3 @@ def get_hotels(
     search_args: HotelsSearchArgs = Depends(),
 ):
     return search_args
-
-
-class SBooking(BaseModel):
-    room_id: int
-    date_form: date
-    date_to: date
-
-
-@app.post("/booking")
-def add_booking(booking: SBooking):
-    return booking
