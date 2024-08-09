@@ -3,7 +3,7 @@ from typing import Optional
 from datetime import date
 from pydantic import BaseModel
 
-from bookings.router import router as router_bookings
+from .bookings.router import router as router_bookings
 
 app = FastAPI()
 
@@ -39,6 +39,6 @@ class SBooking(BaseModel):
     date_to: date
 
 
-# @app.post("/booking")
-# def add_booking(booking: SBooking):
-#     pass
+@app.post("/booking")
+def add_booking(booking: SBooking):
+    return booking

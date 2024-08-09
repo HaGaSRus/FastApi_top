@@ -1,6 +1,6 @@
 from app.database import async_session_maker
 from sqlalchemy import select
-from bookings.models import Bookings
+from .models import Bookings
 
 
 class BookingDAO:
