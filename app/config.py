@@ -1,8 +1,4 @@
-from dotenv import load_dotenv
 from pydantic import BaseSettings
-import os
-
-load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
 
 
 class Settings(BaseSettings):
@@ -16,9 +12,11 @@ class Settings(BaseSettings):
     def DATABASE_URL(self):
         return f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASS}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
 
+    SECRET_KEY: str
+    ALGORITHM: str
 
-class Config:
-    env_file = ".env"
+    class Config:
+        env_file = ".env"
 
 
 settings = Settings()
