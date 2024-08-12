@@ -7,6 +7,7 @@ from app.bookings.router import router as router_bookings
 
 app = FastAPI()
 
+
 app.include_router(router_users)
 app.include_router(router_bookings)
 
@@ -26,9 +27,3 @@ class HotelsSearchArgs:
         self.has_spa = has_spa
         self.stars = stars
 
-
-@app.get("/hotels")
-def get_hotels(
-    search_args: HotelsSearchArgs = Depends(),
-):
-    return search_args
