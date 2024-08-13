@@ -4,7 +4,7 @@ from fastapi import Request, Depends
 from jose import jwt, JWTError
 
 from app.config import settings
-from app.exceptions import TokenExpireException, TokenAbsentException, IncorrectTokenFormatException, UserIsNotPresentException
+from app.exceptions import TokenExpiredException, TokenAbsentException, IncorrectTokenFormatException, UserIsNotPresentException
 from app.users.dao import UsersDAO
 from app.users.models import Users
 
@@ -25,7 +25,7 @@ async def get_current_user(token: str = Depends(get_token)):
         raise IncorrectTokenFormatException
     expire: str = payload.get("exp")
     if (not expire) or (int(expire) < datetime.utcnow().timestamp()):
-        raise TokenExpireException
+        raise TokenExpiredException
     user_id: str = payload.get("sub")
     if not user_id:
         raise UserIsNotPresentException

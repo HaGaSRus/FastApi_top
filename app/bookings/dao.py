@@ -5,7 +5,7 @@ from app.dao.base import BaseDAO
 from sqlalchemy import delete, insert, select, func, and_, or_
 
 from app.database import engine, async_session_maker
-from app.hotels.models import Rooms
+from app.hotels.rooms.models import Rooms
 
 
 class BookingDAO(BaseDAO):
