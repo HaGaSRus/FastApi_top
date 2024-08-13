@@ -35,3 +35,5 @@ async def authenticate_user(email: EmailStr, password: str):
     if not user and not verify_password(password, user.password):
         return None
     return user
+
+

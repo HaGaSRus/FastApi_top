@@ -65,3 +65,8 @@ class CannotAddDataToDatabase(BookingException):
 class CannotProcessCSV(BookingException):
     status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
     detail = "Не удалось обработать CSV файл"
+
+
+class UserNotFound(HTTPException):
+    status_code = status.HTTP_404_NOT_FOUND
+    detail = "Пользователь с такой почтой не найден"

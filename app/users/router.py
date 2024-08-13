@@ -49,7 +49,7 @@ async def logout_user(response: Response):
 
 
 @router_auth.post("/reset_password")
-async def logout_user(response: Response):
+async def reset_password(response: Response):
     pass
 
 
