@@ -1,3 +1,4 @@
+import uvicorn
 from fastapi import FastAPI, Query, Depends
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.cors import CORSMiddleware
@@ -22,15 +23,17 @@ app.include_router(router_auth)
 app.include_router(router_pages)
 app.include_router(router_images)
 
-origins = [
-    "http://localhost:3000",
-]
+origins = ["*"]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origns=origins,
+    allow_origins=origins,
     allow_credentials=True,
-    allow_method=["GET", "POST", "OPTIONS", "DELETE", "PATCH", "PUT"],
-    allow_headers=["Content-Type", "Set-Cookie", "Access-Control-Allow-Headers", "Access-Authorization"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
+
+
+# if __name__ == "__main__":
+#     uvicorn.run(app, port=8000)
