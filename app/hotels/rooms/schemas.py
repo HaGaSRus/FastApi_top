@@ -23,5 +23,3 @@ class SRoomInfo(SRoom):
 
     class Config:
         orm_mode = True
-
-
