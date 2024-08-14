@@ -48,7 +48,7 @@ async def logout_user(response: Response):
     response.delete_cookie("booking_access_token")
 
 
-@router_auth.post("/reset_password")
+@router_auth.patch("/reset_password")
 async def reset_password(response: Response):
     pass
 
