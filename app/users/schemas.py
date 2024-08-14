@@ -11,3 +11,8 @@ class SUserAuth(BaseModel):
     lastname: str
     roles_user: Optional[str] = Field(default="User")
 
+
+class SUserSingUp(BaseModel):
+    username: str
+    email: EmailStr
+    password: str

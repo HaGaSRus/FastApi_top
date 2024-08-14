@@ -10,7 +10,7 @@ from app.users.dependencies import get_current_user, get_current_admin_user
 from app.users.models import Users
 from app.exceptions import UserAlreadyExistsException, IncorrectEmailOrPasswordException
 
-from app.users.schemas import SUserAuth
+from app.users.schemas import SUserAuth, SUserSingUp
 
 router_auth = APIRouter(
     prefix="/auth",
@@ -42,7 +42,7 @@ async def register_user(user_data: SUserAuth):
 
 
 @router_auth.post("/login")
-async def login_user(response: Response, user_data: SUserAuth):
+async def login_user(response: Response, user_data: SUserSingUp):
     user = await authenticate_user(user_data.email, user_data.password)
     if not user:
         raise IncorrectEmailOrPasswordException
