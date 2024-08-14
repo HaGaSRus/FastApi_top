@@ -5,3 +5,6 @@ class SUserAuth(BaseModel):
     username: str
     email: EmailStr
     password: str
+
+
+class SModerAuth(BaseModel):
