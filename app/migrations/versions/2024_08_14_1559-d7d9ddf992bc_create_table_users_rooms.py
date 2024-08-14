@@ -1,8 +1,8 @@
-"""Create tableUsers UsersPermissions, UsersRoles
+"""Create table users, rooms
 
-Revision ID: 496f58feb551
+Revision ID: d7d9ddf992bc
 Revises: 
-Create Date: 2024-08-14 12:27:10.353750
+Create Date: 2024-08-14 15:59:23.511457
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = "496f58feb551"
+revision = "d7d9ddf992bc"
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -26,7 +26,7 @@ def upgrade() -> None:
         sa.Column("hashed_password", sa.String(), nullable=False),
         sa.Column("firstname", sa.String(), nullable=False),
         sa.Column("lastname", sa.String(), nullable=False),
-        sa.Column("is_superuser", sa.String(), nullable=True),
+        sa.Column("roles_user", sa.String(), nullable=True),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("email"),
     )
@@ -62,7 +62,12 @@ def upgrade() -> None:
         "users_roles",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("user_id", sa.Integer(), nullable=False),
-        sa.Column("permission_id", sa.Integer(), nullable=False),
+        sa.Column(
+            "permission_id",
+            sa.Integer(),
+            server_default=sa.text("1"),
+            nullable=True,
+        ),
         sa.ForeignKeyConstraint(
             ["permission_id"],
             ["users_permissions.id"],
