@@ -23,7 +23,7 @@ router_users = APIRouter(
 )
 
 
-@router_auth.post("/register",)
+@router_auth.post("/register",status_code=status.HTTP_200_OK)
 async def register_user(user_data: SUserAuth):
     existing_user = await UsersDAO.find_one_or_none(email=user_data.email)
     if existing_user:
@@ -56,9 +56,9 @@ async def logout_user(response: Response):
     response.delete_cookie("booking_access_token")
 
 
-@router_auth.patch("/reset_password")
-async def reset_password(response: Response):
-    pass
+@router_auth.delete("/delete")
+async def delete_user(user_data: Users = Depends(get_current_user)):
+    await UsersDAO.delete(user_data.id)
 
 
 @router_users.get("/me")

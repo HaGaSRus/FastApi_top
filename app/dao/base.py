@@ -33,3 +33,18 @@ class BaseDAO:
             query = insert(cls.model).values(**data)
             await session.execute(query)
             await session.commit()
+
+    @classmethod
+    async def delete(cls, model_id: int):
+        async with async_session_maker() as session:
+            # Сначала получаем объект из базы данных
+            query = select(cls.model).filter_by(id=model_id)
+            result = await session.execute(query)
+            instance = result.scalar_one_or_none()
+
+            # Если объект существует, удаляем его
+            if instance:
+                await session.delete(instance)
+                await session.commit()
+            else:
+                raise ValueError("User not found")
