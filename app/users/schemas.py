@@ -9,7 +9,7 @@ class SUserAuth(BaseModel):
     password: str
     firstname: str
     lastname: str
-    roles_user: Optional[str] = Field(default="User")
+
 
 
 class SUserSingUp(BaseModel):
