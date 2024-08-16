@@ -1,51 +1,56 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, text, Boolean
+from typing import List
+from sqlalchemy import Column, Integer, String, ForeignKey, Table
 from sqlalchemy.orm import relationship, Mapped, mapped_column
-
 from app.database import Base
+
+# Определение таблицы связи между пользователями и ролями (many-to-many)
+role_user_association = Table(
+    'role_user_association',
+    Base.metadata,
+    Column('user_id', Integer, ForeignKey('users.id', ondelete='CASCADE'), primary_key=True),
+    Column('role_id', Integer, ForeignKey('roles.id', ondelete='CASCADE'), primary_key=True)
+)
 
 
 class Users(Base):
     __tablename__ = "users"
 
-    id = Column(Integer, primary_key=True, nullable=False)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    username: Mapped[str] = mapped_column(String, nullable=False)
+    email: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    hashed_password: Mapped[str] = mapped_column(String, nullable=False)
+    firstname: Mapped[str] = mapped_column(String, nullable=False)
+    lastname: Mapped[str] = mapped_column(String, nullable=False)
 
-    username = Column(String, nullable=False)
-    email = Column(String, nullable=False, unique=True)
-    hashed_password = Column(String, nullable=False)
-    firstname = Column(String, nullable=False)
-    lastname = Column(String, nullable=False)
-    # is_superuser = Column(Boolean, default=False)
-    roles_user = Column(String, nullable=True)
-
-    # Связи между таблицами UsersPermissions и UsersRoles
-    permissions = relationship("UsersPermissions", back_populates="user", cascade="all, delete-orphan")
-    roles = relationship("UsersRoles", cascade='all, delete-orphan', back_populates="user", uselist=True)
-
-
-class UsersPermissions(Base):
-    __tablename__ = "users_permissions"
-
-    id = Column(Integer, primary_key=True, nullable=False)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete='CASCADE'), nullable=False)
-    is_user = Column(Boolean, default=True, server_default=text("true"), nullable=False)
-    is_moderator = Column(Boolean, default=False, nullable=False, server_default=text("false"))
-    is_super_admin = Column(Boolean, default=False, nullable=False, server_default=text("false"))
-    # Связь с таблицей Users
-    user = relationship("Users", back_populates="permissions")
-
-    # Связь с таблицей UsersRoles
-    roles = relationship("UsersRoles", back_populates="permission", uselist=False)
+    # Связь many-to-many с ролями через таблицу связи
+    roles: Mapped[List['Roles']] = relationship(
+        secondary=role_user_association,  # Используем объект таблицы связи
+        back_populates='users'
+    )
 
 
-class UsersRoles(Base):
-    __tablename__ = "users_roles"
+class Roles(Base):
+    __tablename__ = "roles"
 
-    id = Column(Integer, primary_key=True, nullable=False)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete='CASCADE'), nullable=False)
-    permission_id = Column(Integer, ForeignKey("users_permissions.id"), nullable=True, server_default=text("1"))
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String, nullable=False, unique=True)
 
-    # Связь с таблицей Users
-    user = relationship("Users", back_populates="roles")
+    # Связь many-to-many с пользователями через таблицу связи
+    users: Mapped[List[Users]] = relationship(
+        secondary=role_user_association,  # Используем объект таблицы связи
+        back_populates='roles'
+    )
 
-    # Связь с таблицей UsersPermissions
-    permission = relationship("UsersPermissions", back_populates="roles")
+    # Связь one-to-many с правами
+    permissions: Mapped[List['Permissions']] = relationship('Permissions', back_populates='role')
+
+
+class Permissions(Base):
+    __tablename__ = "permissions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    role_id: Mapped[int] = mapped_column(Integer, ForeignKey('roles.id', ondelete='CASCADE'))
+
+    # Связь с таблицей Roles (one-to-many)
+    role: Mapped[Roles] = relationship('Roles', back_populates='permissions')
