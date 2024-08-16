@@ -1,3 +1,5 @@
+from typing import Optional
+
 from passlib.context import CryptContext
 from jose import jwt
 from datetime import datetime, timedelta
@@ -30,10 +32,20 @@ def create_access_token(data: dict) -> str:
     return encoded_jwt
 
 
-async def authenticate_user(email: EmailStr, password: str):
-    user = await UsersDAO.find_one_or_none(email=email)
-    if not user and not verify_password(password, user.password):
-        return None
-    return user
+# async def authenticate_user(email: EmailStr, password: str):
+#     user = await UsersDAO.find_one_or_none(email=email)
+#     if not user and not verify_password(password, user.password):
+#         return None
+#     return user
 
 
+async def authenticate_user(email: Optional[EmailStr], username: Optional[str], password: str):
+    user = None
+    if email:
+        user = await UsersDAO.find_one_or_none(email=email)
+    if username:
+        user = await UsersDAO.find_one_or_none(username=username)
+
+    if user and verify_password(password, user.hashed_password):  # Убедитесь, что атрибут называется hashed_password
+        return user
+    return None
