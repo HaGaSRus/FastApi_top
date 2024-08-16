@@ -1,10 +1,18 @@
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 import uvicorn
+
+from app.admin.views import UserAdmin
+from app.database import engine
 from app.users.router import router_auth, router_users
 from app.utils import init_permissions, init_roles
+from sqladmin import Admin
+
 
 app = FastAPI()
+admin = Admin(app, engine)
+
+admin.add_view(UserAdmin)
 
 app.include_router(router_users)
 app.include_router(router_auth)
