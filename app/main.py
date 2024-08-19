@@ -1,13 +1,16 @@
-from fastapi import FastAPI
-from starlette.middleware.cors import CORSMiddleware
+import time
+
 import uvicorn
+from fastapi import FastAPI, Request
+from sqladmin import Admin
+from starlette.middleware.cors import CORSMiddleware
+
 
 from app.admin.views import UserAdmin
 from app.database import engine
 from app.users.router import router_auth, router_users
 from app.utils import init_permissions, init_roles
-from sqladmin import Admin
-
+from app.logger import logger
 
 app = FastAPI()
 admin = Admin(app, engine)
@@ -26,6 +29,17 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def add_process_time_header(request: Request, call_next):
+    start_time = time.time()
+    response = await call_next(request)
+    process_time = time.time() - start_time
+    logger.info("Request handling time", extra={
+        "process_time": round(process_time, 4)
+    })
+    return response
 
 
 @app.on_event("startup")
