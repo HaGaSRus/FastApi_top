@@ -19,6 +19,7 @@ async def init_roles():
 
         await session.commit()
 
+
 async def init_permissions():
     async with async_session_maker() as session:
         # Начало транзакции
