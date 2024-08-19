@@ -11,6 +11,7 @@ from app.users.models import Users
 from app.exceptions import UserAlreadyExistsException, UserInCorrectEmailOrUsername, UserCreated
 
 from app.users.schemas import SUserAuth, SUserSingUp
+from fastapi_versioning import version
 
 router_auth = APIRouter(
     prefix="/auth",
@@ -24,6 +25,7 @@ router_users = APIRouter(
 
 
 @router_auth.post("/register", status_code=status.HTTP_200_OK)
+@version(1)
 async def register_user(user_data: SUserAuth):
     existing_user = await UsersDAO.find_one_or_none(email=user_data.email)
     if existing_user:
@@ -46,6 +48,7 @@ async def register_user(user_data: SUserAuth):
 
 
 @router_auth.post("/login")
+@version(1)
 async def login_user(response: Response, user_data: SUserSingUp):
     user = await authenticate_user(user_data.email, user_data.username, user_data.password)
     if not user:
@@ -56,16 +59,19 @@ async def login_user(response: Response, user_data: SUserSingUp):
 
 
 @router_auth.post("/logout")
+@version(1)
 async def logout_user(response: Response):
     response.delete_cookie("booking_access_token")
 
 
 @router_auth.delete("/delete")
+@version(1)
 async def delete_user(user_data: Users = Depends(get_current_user)):
     await UsersDAO.delete(user_data.id)
 
 
 @router_users.get("/me")
+@version(1)
 async def read_users_me(current_user: Users = Depends(get_current_user)):
     return current_user
 
