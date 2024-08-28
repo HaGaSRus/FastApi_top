@@ -1,7 +1,8 @@
 from datetime import datetime
 
-from fastapi import Request, Depends
+from fastapi import Request, Depends, HTTPException
 from jose import jwt, JWTError
+from starlette import status
 
 from app.config import settings
 from app.exceptions import TokenExpiredException, TokenAbsentException, IncorrectTokenFormatException, UserIsNotPresentException
@@ -10,7 +11,7 @@ from app.users.models import Users
 
 
 def get_token(request: Request):
-    token = request.cookies.get("booking_access_token")
+    token = request.cookies.get("access_token")
     if not token:
         raise TokenAbsentException
     return token
@@ -36,6 +37,6 @@ async def get_current_user(token: str = Depends(get_token)):
 
 
 async def get_current_admin_user(current_user: Users = Depends(get_current_user)):
-    # if current_user.role != "admin":
-    #     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+    if current_user.role != "admin":
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
     return  current_user
