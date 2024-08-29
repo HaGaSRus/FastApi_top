@@ -24,3 +24,11 @@ class SUserSingUp(BaseModel):
         return values
 
 
+class UserResponse(BaseModel):
+    username: str
+    firstname: str
+
+    class Config:
+        orm_mode = True
+
+
