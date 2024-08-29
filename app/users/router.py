@@ -10,7 +10,7 @@ from app.users.auth import (
 from app.users.dependencies import get_current_user, get_current_admin_user
 from app.users.models import Users
 from app.exceptions import UserAlreadyExistsException, UserInCorrectEmailOrUsername, UserCreated
-from app.users.schemas import SUserAuth, SUserSingUp
+from app.users.schemas import SUserAuth, SUserSingUp, UserResponse
 from fastapi_versioning import version
 from app.logger import logger
 
@@ -46,9 +46,6 @@ async def register_user(user_data: SUserAuth):
         await UsersRolesDAO.add(user_id=new_user.id, role_name="user")
     raise UserCreated
 
-@router_auth.get("/")
-def root(last_visit = Cookie()):
-    return  {"last visit": last_visit}
 
 @router_auth.post("/login")
 @version(1)
@@ -71,28 +68,18 @@ async def login_user(response: Response, user_data: SUserSingUp):
     return {"access_token": access_token}
 
 
-
-@router_auth.post("/logout", status_code=status.HTTP_200_OK)
-@version(1)
-async def logout_user(response: Response):
-    # Удаление куки при выходе
-    response.delete_cookie("access_token")
-    return {"message": "Successfully logged out"}
-
 @router_auth.delete("/delete", status_code=status.HTTP_200_OK)
 @version(1)
 async def delete_user(user_data: Users = Depends(get_current_user)):
     await UsersDAO.delete(user_data.id)
     return {"message": "User deleted successfully"}
 
-@router_users.get("/me", status_code=status.HTTP_200_OK)
+
+@router_users.get("/me", status_code=status.HTTP_200_OK, response_model=UserResponse)
 @version(1)
 async def read_users_me(current_user: Users = Depends(get_current_user)):
     # Возвращает данные текущего пользователя
     return current_user
 
-# @router.get("/all")
-# async def read_users_me(current_user: Users = Depends(get_current_admin_user)):
-#     return await UsersDAO.find_all()
 
 
