@@ -36,7 +36,7 @@ class UserResponse(BaseModel):
     email: str
     # firstname: str
     # lastname: str
-    roles: List[Role]  # Измените на список объектов Role
+    roles: List[Role]
 
     class Config:
         orm_mode = True
