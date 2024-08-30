@@ -1,5 +1,6 @@
-from typing import Optional
+# app/users/schemas.py
 
+from typing import Optional, List
 from pydantic import BaseModel, EmailStr, root_validator
 
 
@@ -11,7 +12,7 @@ class SUserAuth(BaseModel):
     lastname: str
 
 
-class SUserSingUp(BaseModel):
+class SUserSignUp(BaseModel):
     username: Optional[str] = None
     email: Optional[EmailStr] = None
     password: str
@@ -24,11 +25,18 @@ class SUserSingUp(BaseModel):
         return values
 
 
+class Role(BaseModel):
+    id: int
+    name: str
+
+
 class UserResponse(BaseModel):
+    # id: int
     username: str
-    firstname: str
+    email: str
+    # firstname: str
+    # lastname: str
+    roles: List[Role]  # Измените на список объектов Role
 
     class Config:
         orm_mode = True
-
-

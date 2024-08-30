@@ -10,7 +10,7 @@ from app.users.dependencies import get_current_user
 from app.users.models import Users
 from app.exceptions import UserInCorrectEmailOrUsername, UserCreated, \
     UserNameAlreadyExistsException, UserEmailAlreadyExistsException
-from app.users.schemas import SUserAuth, SUserSingUp, UserResponse
+from app.users.schemas import SUserAuth, SUserSignUp, UserResponse
 from fastapi_versioning import version
 
 
@@ -55,7 +55,7 @@ async def register_user(user_data: SUserAuth):
 
 @router_auth.post("/login")
 @version(1)
-async def login_user(response: Response, user_data: SUserSingUp):
+async def login_user(response: Response, user_data: SUserSignUp):
     user = await authenticate_user(user_data.email, user_data.username, user_data.password)
     if not user:
         raise UserInCorrectEmailOrUsername
@@ -84,8 +84,5 @@ async def delete_user(user_data: Users = Depends(get_current_user)):
 @router_users.get("/me", status_code=status.HTTP_200_OK, response_model=UserResponse)
 @version(1)
 async def read_users_me(current_user: Users = Depends(get_current_user)):
-    # Возвращает данные текущего пользователя
-    return current_user
-
-
-
+    user_with_roles = await UsersDAO().get_user_with_roles(current_user.id)
+    return user_with_roles
