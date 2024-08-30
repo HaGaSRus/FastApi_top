@@ -22,7 +22,7 @@ def verify_password(plain_password, hashed_password) -> bool:
 
 def create_access_token(data: dict) -> str:
     to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(minutes=1)
+    expire = datetime.utcnow() + timedelta(minutes=60)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(
         to_encode,
@@ -42,6 +42,6 @@ async def authenticate_user(email: Optional[EmailStr], username: Optional[str], 
     if username:
         user = await UsersDAO.find_one_or_none(username=username)
 
-    if user and verify_password(password, user.hashed_password):  # Убедитесь, что атрибут называется hashed_password
+    if user and verify_password(password, user.hashed_password):
         return user
     return None

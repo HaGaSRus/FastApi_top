@@ -9,9 +9,14 @@ class HootLineException(HTTPException):
         super().__init__(status_code=self.status_code, detail=self.detail)
 
 
-class UserAlreadyExistsException(HootLineException):
+class UserNameAlreadyExistsException(HootLineException):
     status_code = status.HTTP_409_CONFLICT
-    detail = "Пользователь уже существует"
+    detail = "Пользователь с таким username уже существует"
+
+
+class UserEmailAlreadyExistsException(HootLineException):
+    status_code = status.HTTP_409_CONFLICT
+    detail = "Пользователь с таким email уже существует"
 
 
 class TokenExpiredException(HootLineException):
