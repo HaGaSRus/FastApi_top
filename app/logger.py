@@ -4,7 +4,13 @@ from datetime import datetime
 import pytz
 from app.config import settings
 
+
 class CustomJsonFormatter(jsonlogger.JsonFormatter):
+    def __init__(self, *args, **kwargs):
+        # Устанавливаем ensure_ascii=False для корректного отображения русских символов
+        kwargs['json_ensure_ascii'] = False
+        super(CustomJsonFormatter, self).__init__(*args, **kwargs)
+
     def add_fields(self, log_record, record, message_dict):
         super(CustomJsonFormatter, self).add_fields(log_record, record, message_dict)
         if not log_record.get("timestamp"):
@@ -18,15 +24,18 @@ class CustomJsonFormatter(jsonlogger.JsonFormatter):
         else:
             log_record["level"] = record.levelname
 
-# Set up the formatter for logging
+
+# Настройте форматировщик для ведения журнала с помощью json_ensure_ascii=False
 formatter = CustomJsonFormatter(
     "%(timestamp)s %(level)s %(message)s %(module)s %(funcName)s"
 )
 
-# Set up the handler and logger
+#  Настраиваем обработчик и логгер
 logHandler = logging.StreamHandler()
 logHandler.setFormatter(formatter)
 
 logger = logging.getLogger()
 logger.addHandler(logHandler)
 logger.setLevel(settings.LOG_LEVEL)
+
+

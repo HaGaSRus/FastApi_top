@@ -1,5 +1,4 @@
-from fastapi import APIRouter, HTTPException, status, Response, Depends, Cookie
-from starlette.responses import JSONResponse
+from fastapi import APIRouter, status, Response, Depends
 
 from app.users.dao import UsersDAO, UsersRolesDAO
 from app.users.auth import (
@@ -7,12 +6,13 @@ from app.users.auth import (
     authenticate_user,
     create_access_token,
 )
-from app.users.dependencies import get_current_user, get_current_admin_user
+from app.users.dependencies import get_current_user
 from app.users.models import Users
-from app.exceptions import UserAlreadyExistsException, UserInCorrectEmailOrUsername, UserCreated
+from app.exceptions import UserInCorrectEmailOrUsername, UserCreated, \
+    UserNameAlreadyExistsException, UserEmailAlreadyExistsException
 from app.users.schemas import SUserAuth, SUserSingUp, UserResponse
 from fastapi_versioning import version
-from app.logger import logger
+
 
 router_auth = APIRouter(
     prefix="/auth",
@@ -24,12 +24,18 @@ router_users = APIRouter(
     tags=["Пользователи"]
 )
 
+
 @router_auth.post("/register", status_code=status.HTTP_200_OK)
 @version(1)
 async def register_user(user_data: SUserAuth):
-    existing_user = await UsersDAO.find_one_or_none(email=user_data.email)
-    if existing_user:
-        raise UserAlreadyExistsException
+    # Проверяем, существует ли уже пользователь с таким username или email
+    existing_user_by_username = await UsersDAO.find_one_or_none(username=user_data.username)
+    existing_user_by_email = await UsersDAO.find_one_or_none(email=user_data.email)
+
+    if existing_user_by_username:
+        raise UserNameAlreadyExistsException
+    if existing_user_by_email:
+        raise UserEmailAlreadyExistsException
 
     hashed_password = get_password_hash(user_data.password)
 
@@ -61,8 +67,8 @@ async def login_user(response: Response, user_data: SUserSingUp):
         httponly=False,  # Чтобы кука была доступна только для HTTP запросов, а не через JavaScript
         samesite='lax',  # Политика безопасности куки
         secure=False,
-        max_age=60,   # Срок жизни куки в секундах
-        expires=60 ,   # Время истечения срока действия куки
+        max_age=3600,   # Срок жизни куки в секундах
+        expires=3601 ,   # Время истечения срока действия куки
 
     )
     return {"access_token": access_token}

@@ -22,7 +22,7 @@ class UsersRolesDAO(BaseDAO):
             role = role.scalar_one_or_none()
 
             if not role:
-                raise ValueError("Role not found")
+                raise ValueError("Роль не найдена")
 
             # Вставка в таблицу ассоциаций
             stmt = insert(role_user_association).values(user_id=user_id, role_id=role.id)

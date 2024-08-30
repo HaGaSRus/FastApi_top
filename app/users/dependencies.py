@@ -17,7 +17,7 @@ from app.users.models import Users
 
 
 def get_token(request: Request):
-    """Extracts token from cookies or headers."""
+    """Извлекает токен из файлов cookie или заголовков."""
     token = request.cookies.get("access_token")
     if not token:
         token = request.headers.get("access_token")
