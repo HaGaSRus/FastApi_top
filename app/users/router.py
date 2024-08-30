@@ -61,8 +61,8 @@ async def login_user(response: Response, user_data: SUserSingUp):
         httponly=False,  # Чтобы кука была доступна только для HTTP запросов, а не через JavaScript
         samesite='lax',  # Политика безопасности куки
         secure=False,
-        max_age=86400,   # Срок жизни куки в секундах
-        expires=86400 ,   # Время истечения срока действия куки
+        max_age=60,   # Срок жизни куки в секундах
+        expires=60 ,   # Время истечения срока действия куки
 
     )
     return {"access_token": access_token}
