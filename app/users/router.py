@@ -12,6 +12,7 @@ from app.exceptions import UserInCorrectEmailOrUsername, UserCreated, \
     UserNameAlreadyExistsException, UserEmailAlreadyExistsException
 from app.users.schemas import SUserAuth, SUserSignUp, UserResponse
 from fastapi_versioning import version
+from app.users.schemas import SUserAuth, SUserSingUp
 
 
 router_auth = APIRouter(
@@ -54,9 +55,11 @@ async def register_user(user_data: SUserAuth):
 
 
 @router_auth.post("/login")
+
 @version(1)
 async def login_user(response: Response, user_data: SUserSignUp):
     user = await authenticate_user(user_data.email, user_data.username, user_data.password)
+
     if not user:
         raise UserInCorrectEmailOrUsername
     access_token = create_access_token({"sub": str(user.id), "username": str(user.username)})
