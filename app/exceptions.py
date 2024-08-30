@@ -1,7 +1,7 @@
 from fastapi import HTTPException, status
 
 
-class BookingException(HTTPException):
+class HootLineException(HTTPException):
     status_code = 500
     detail = ""
 
@@ -9,65 +9,41 @@ class BookingException(HTTPException):
         super().__init__(status_code=self.status_code, detail=self.detail)
 
 
-class UserAlreadyExistsException(BookingException):
+class UserNameAlreadyExistsException(HootLineException):
     status_code = status.HTTP_409_CONFLICT
-    detail = "Пользователь уже существует"
+    detail = "Пользователь с таким username уже существует"
 
 
-class IncorrectEmailOrPasswordException(BookingException):
-    status_code = status.HTTP_401_UNAUTHORIZED
-    detail = "Неверная почта или пароль"
+class UserEmailAlreadyExistsException(HootLineException):
+    status_code = status.HTTP_409_CONFLICT
+    detail = "Пользователь с таким email уже существует"
 
 
-class TokenExpiredException(BookingException):
+class TokenExpiredException(HootLineException):
     status_code = status.HTTP_401_UNAUTHORIZED
     detail = "Срок действия токена истек"
 
 
-class TokenAbsentException(BookingException):
+class TokenAbsentException(HootLineException):
     status_code = status.HTTP_401_UNAUTHORIZED
     detail = "Токен отсутствует"
 
 
-class IncorrectTokenFormatException(BookingException):
+class IncorrectTokenFormatException(HootLineException):
     status_code = status.HTTP_401_UNAUTHORIZED
     detail = "Неверный формат токена"
 
 
-class UserIsNotPresentException(BookingException):
+class UserIsNotPresentException(HootLineException):
     status_code = status.HTTP_401_UNAUTHORIZED
 
 
-class RoomFullyBooked(BookingException):
-    status_code = status.HTTP_409_CONFLICT
-    detail = "Не осталось свободных номеров"
+class UserInCorrectEmailOrUsername(HootLineException):
+    status_code = status.HTTP_401_UNAUTHORIZED
+    detail = "Пользователь с таким именем пользователя не найден"
 
 
-class RoomCannotBeBooked(BookingException):
-    status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
-    detail = "Не удалось забронировать номер ввиду неизвестной ошибки"
+class UserCreated(HootLineException):
+    status_code = status.HTTP_201_CREATED
+    detail = "Пользователь успешно создан"
 
-
-class DateFromCannotBeAfterDateTo(BookingException):
-    status_code = status.HTTP_400_BAD_REQUEST
-    detail = "Дата заезда не может быть позже даты выезда"
-
-
-class CannotBookHotelForLongPeriod(BookingException):
-    status_code = status.HTTP_400_BAD_REQUEST
-    detail = "Невозможно забронировать отель сроком более месяца"
-
-
-class CannotAddDataToDatabase(BookingException):
-    status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
-    detail = "Не удалось добавить запись"
-
-
-class CannotProcessCSV(BookingException):
-    status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
-    detail = "Не удалось обработать CSV файл"
-
-
-class UserNotFound(HTTPException):
-    status_code = status.HTTP_404_NOT_FOUND
-    detail = "Пользователь с такой почтой не найден"

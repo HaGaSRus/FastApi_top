@@ -1,7 +1,12 @@
+from typing import Literal
+
 from pydantic import BaseSettings
 
 
 class Settings(BaseSettings):
+    MODE: Literal["DEV", "TEST", "PROD"]
+    LOG_LEVEL: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+
     DB_HOST: str
     DB_PORT: int
     DB_USER: str

@@ -19,6 +19,7 @@ async def init_roles():
 
         await session.commit()
 
+
 async def init_permissions():
     async with async_session_maker() as session:
         # Начало транзакции
@@ -27,7 +28,7 @@ async def init_permissions():
                 {"name": "create_user", "role_id": 1},  # Укажите реальный role_id
                 {"name": "delete_user", "role_id": 1},
                 {"name": "view_reports", "role_id": 1},
-                {"name": "view_content", "role_id": 2}  # Укажите реальный role_id
+                {"name": "view_content", "role_id": 1}  # Укажите реальный role_id
             ]
 
             # Проверка существующих разрешений

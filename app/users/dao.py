@@ -1,19 +1,42 @@
-from sqlalchemy import insert
+# dao.py
 
+from sqlalchemy import insert
+from sqlalchemy.future import select
+from sqlalchemy.orm import joinedload
 from app.dao.base import BaseDAO
 from app.database import async_session_maker
 from app.users.models import Users, Roles, Permissions, role_user_association
-from sqlalchemy.future import select
 
 
 class UsersDAO(BaseDAO):
     model = Users
 
+    async def get_user_with_roles(self, user_id: int):
+        async with async_session_maker() as session:
+            # Получение пользователя с ролями
+            result = await session.execute(
+                select(Users).options(joinedload(Users.roles)).where(Users.id == user_id)
+            )
+            user = result.unique().scalar_one_or_none()
+
+            # Если пользователь найден, преобразуем в формат, соответствующий модели UserResponse
+            if user:
+                user_dict = {
+                    "id": user.id,
+                    "username": user.username,
+                    "email": user.email,
+                    "firstname": user.firstname,
+                    "lastname": user.lastname,
+                    "roles": [role.__dict__ for role in user.roles]  # Преобразуем роли в словари
+                }
+                return user_dict
+
+            return None
 
 class UsersRolesDAO(BaseDAO):
     model = Roles
 
-    async def add(user_id: int, role_name: str):
+    async def add(self, user_id: int, role_name: str):
         async with async_session_maker() as session:
             # Получение роли по имени
             role = await session.execute(
@@ -22,14 +45,12 @@ class UsersRolesDAO(BaseDAO):
             role = role.scalar_one_or_none()
 
             if not role:
-                raise ValueError("Role not found")
+                raise ValueError("Роль не найдена")
 
             # Вставка в таблицу ассоциаций
             stmt = insert(role_user_association).values(user_id=user_id, role_id=role.id)
             await session.execute(stmt)
             await session.commit()
 
-
 class UserPermissionsDAO(BaseDAO):
     model = Permissions
-

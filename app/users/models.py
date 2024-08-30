@@ -11,12 +11,11 @@ role_user_association = Table(
     Column('role_id', Integer, ForeignKey('roles.id', ondelete='CASCADE'), primary_key=True)
 )
 
-
 class Users(Base):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    username: Mapped[str] = mapped_column(String, nullable=False)
+    username: Mapped[str] = mapped_column(String, unique=True, nullable=False)
     email: Mapped[str] = mapped_column(String, nullable=False, unique=True)
     hashed_password: Mapped[str] = mapped_column(String, nullable=False)
     firstname: Mapped[str] = mapped_column(String, nullable=False)
@@ -27,7 +26,6 @@ class Users(Base):
         secondary=role_user_association,  # Используем объект таблицы связи
         back_populates='users'
     )
-
 
 class Roles(Base):
     __tablename__ = "roles"
@@ -43,7 +41,6 @@ class Roles(Base):
 
     # Связь one-to-many с правами
     permissions: Mapped[List['Permissions']] = relationship('Permissions', back_populates='role')
-
 
 class Permissions(Base):
     __tablename__ = "permissions"
