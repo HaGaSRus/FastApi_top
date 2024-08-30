@@ -59,7 +59,7 @@ async def login_user(response: Response, user_data: SUserSingUp):
     user = await authenticate_user(user_data.email, user_data.username, user_data.password)
     if not user:
         raise UserInCorrectEmailOrUsername
-    access_token = create_access_token({"sub": str(user.id)})
+    access_token = create_access_token({"sub": str(user.id), "username": str(user.username)})
     response.set_cookie(
         key="access_token",
         value=access_token,
