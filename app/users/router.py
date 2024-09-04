@@ -70,7 +70,6 @@ async def login_user(response: Response, user_data: SUserSignUp):
     response.set_cookie(
         key="access_token",
         value=access_token,
-        # domain="http://192.168.188.53:8080",
         httponly=False,  # Чтобы кука была доступна только для HTTP запросов, а не через JavaScript
         samesite='lax',  # Политика безопасности куки
         secure=False,
