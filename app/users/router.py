@@ -94,6 +94,7 @@ async def read_users_me(current_user: Users = Depends(get_current_user)):
     user_with_roles = await UsersDAO().get_user_with_roles(current_user.id)
     return user_with_roles
 
+
 # Эндпоинт для запроса на восстановление пароля
 @router_auth.post("/forgot-password", status_code=status.HTTP_200_OK)
 @version(1)
@@ -106,6 +107,7 @@ async def forgot_password(email: EmailStr):
     reset_token = create_access_token({"sub": email})
     await send_reset_password_email(email, reset_token)
     return {"message": "Инструкции по восстановлению пароля отправлены на вашу почту."}
+
 
 # Эндпоинт для сброса пароля
 @router_auth.post("/reset-password", status_code=status.HTTP_200_OK)
