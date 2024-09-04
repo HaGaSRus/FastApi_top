@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseSettings
+from pydantic import BaseSettings, EmailStr
 
 
 class Settings(BaseSettings):
@@ -19,6 +19,18 @@ class Settings(BaseSettings):
 
     SECRET_KEY: str
     ALGORITHM: str
+
+    # Настройки почты
+
+    MAIL_USERNAME: str
+    MAIL_PASSWORD: str
+    MAIL_FROM: EmailStr
+    MAIL_PORT: int
+    MAIL_SERVER: str
+    MAIL_FROM_NAME: str = "Support"
+    MAIL_TLS: bool = True
+    MAIL_SSL: bool = False
+
 
     class Config:
         env_file = ".env"

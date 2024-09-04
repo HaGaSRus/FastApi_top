@@ -1,5 +1,7 @@
+from fastapi_mail import ConnectionConfig, MessageSchema, FastMail
 from sqlalchemy import select, insert
 
+from app.config import settings
 from app.database import async_session_maker
 from app.users.models import Roles, Permissions
 
@@ -43,3 +45,29 @@ async def init_permissions():
                 stmt = insert(Permissions).values(new_permissions)
                 await session.execute(stmt)
                 await session.commit()
+
+
+
+conf = ConnectionConfig(
+    MAIL_USERNAME=settings.MAIL_USERNAME,
+    MAIL_PASSWORD=settings.MAIL_PASSWORD,
+    MAIL_FROM=settings.MAIL_FROM,
+    MAIL_PORT=settings.MAIL_PORT,
+    MAIL_SERVER=settings.MAIL_SERVER,
+    MAIL_FROM_NAME=settings.MAIL_FROM_NAME,
+    MAIL_TLS=settings.MAIL_TLS,
+    MAIL_SSL=settings.MAIL_SSL,
+    USE_CREDENTIALS=True,
+)
+
+async def send_reset_password_email(email: str, token: str):
+    message = MessageSchema(
+        subject="Запрос на сброс пароля",
+        recipients=[email],
+        body=f"Нажмите ссылку, чтобы сбросить пароль: http://localhost:8000/reset-password?token={token}",
+        subtype="html"
+    )
+
+    fm = FastMail(conf)
+    await fm.send_message(message)
+

@@ -4,6 +4,8 @@ from typing import Optional, List
 from pydantic import BaseModel, EmailStr, root_validator
 
 
+
+
 class SUserAuth(BaseModel):
     username: str
     email: EmailStr
@@ -40,3 +42,5 @@ class UserResponse(BaseModel):
 
     class Config:
         orm_mode = True
+
+

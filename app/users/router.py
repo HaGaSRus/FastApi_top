@@ -1,10 +1,16 @@
-from fastapi import APIRouter, status, Response, Depends
+import jwt
+from fastapi import APIRouter, status, Response, Depends, HTTPException
+from jose import JWTError
+from pydantic import EmailStr
+from sqlalchemy.sql.functions import user
 
+from app.config import settings
 from app.users.dao import UsersDAO, UsersRolesDAO
 from app.users.auth import (
     get_password_hash,
     authenticate_user,
     create_access_token,
+    create_reset_token,
 )
 from app.users.dependencies import get_current_user
 from app.users.models import Users
@@ -13,6 +19,7 @@ from app.exceptions import UserInCorrectEmailOrUsername, UserCreated, \
 from app.users.schemas import SUserAuth, SUserSignUp, UserResponse
 from fastapi_versioning import version
 
+from app.utils import send_reset_password_email
 
 router_auth = APIRouter(
     prefix="/auth",
@@ -86,3 +93,37 @@ async def delete_user(user_data: Users = Depends(get_current_user)):
 async def read_users_me(current_user: Users = Depends(get_current_user)):
     user_with_roles = await UsersDAO().get_user_with_roles(current_user.id)
     return user_with_roles
+
+# Эндпоинт для запроса на восстановление пароля
+@router_auth.post("/forgot-password", status_code=status.HTTP_200_OK)
+@version(1)
+async def forgot_password(email: EmailStr):
+    user = await UsersDAO.find_one_or_none(email=email)
+    if not user:
+        raise HTTPException(status_code=404, detail="Пользователь с таким email не найден")
+
+    # Передаем словарь с email
+    reset_token = create_access_token({"sub": email})
+    await send_reset_password_email(email, reset_token)
+    return {"message": "Инструкции по восстановлению пароля отправлены на вашу почту."}
+
+# Эндпоинт для сброса пароля
+@router_auth.post("/reset-password", status_code=status.HTTP_200_OK)
+@version(1)
+async def reset_password(token: str, new_password: str):
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        email: str = payload.get("sub")
+        if email is None:
+            raise HTTPException(status_code=400, detail="Некорректный токен")
+    except JWTError:
+        raise HTTPException(status_code=400, detail="Некорректный или истекший токен")
+
+    # Обновление пароля
+    hashed_password = get_password_hash(new_password)
+    await UsersDAO.update(user.id, hashed_password=hashed_password)
+
+    return {"message": "Пароль успешно обновлен"}
+
+
+
