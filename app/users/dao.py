@@ -33,6 +33,13 @@ class UsersDAO(BaseDAO):
 
             return None
 
+    @classmethod
+    async def get_user_by_email(cls, email: str):
+        async with async_session_maker() as session:
+            query = select(cls.model).filter_by(email=email)
+            result = await session.execute(query)
+            return result.scalar_one_or_none()
+
 class UsersRolesDAO(BaseDAO):
     model = Roles
 

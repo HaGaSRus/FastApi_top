@@ -1,5 +1,3 @@
-# app/users/schemas.py
-
 from typing import Optional, List
 from pydantic import BaseModel, EmailStr, root_validator
 
@@ -33,14 +31,16 @@ class Role(BaseModel):
 
 
 class UserResponse(BaseModel):
-    # id: int
     username: str
     email: str
-    # firstname: str
-    # lastname: str
     roles: List[Role]
 
     class Config:
         orm_mode = True
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
 
 

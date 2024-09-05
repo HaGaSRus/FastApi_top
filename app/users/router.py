@@ -5,6 +5,7 @@ from pydantic import EmailStr
 from sqlalchemy.sql.functions import user
 
 from app.config import settings
+from app.logger import logger
 from app.users.dao import UsersDAO, UsersRolesDAO
 from app.users.auth import (
     get_password_hash,
@@ -16,7 +17,7 @@ from app.users.dependencies import get_current_user
 from app.users.models import Users
 from app.exceptions import UserInCorrectEmailOrUsername, UserCreated, \
     UserNameAlreadyExistsException, UserEmailAlreadyExistsException
-from app.users.schemas import SUserAuth, SUserSignUp, UserResponse
+from app.users.schemas import SUserAuth, SUserSignUp, UserResponse, ResetPasswordRequest
 from fastapi_versioning import version
 
 from app.utils import send_reset_password_email
@@ -111,20 +112,33 @@ async def forgot_password(email: EmailStr):
 # Эндпоинт для сброса пароля
 @router_auth.post("/reset-password", status_code=status.HTTP_200_OK)
 @version(1)
-async def reset_password(token: str, new_password: str):
+async def reset_password(reset_password_request: ResetPasswordRequest):
+    token = reset_password_request.token
+    new_password = reset_password_request.new_password
+
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        logger.info(f"Токен успешно декодирован: {payload}")
+
         email: str = payload.get("sub")
         if email is None:
+            logger.error("Токен не содержит допустимой темы (email)")
             raise HTTPException(status_code=400, detail="Некорректный токен")
-    except JWTError:
+    except JWTError as e:
+        logger.error(f"JWT Error: {e}")
         raise HTTPException(status_code=400, detail="Некорректный или истекший токен")
+
+    # Ensure the method exists in UsersDAO
+    user = await UsersDAO.get_user_by_email(email)
+    if user is None:
+        logger.error(f"Пользователь не найден по электронной почте: {email}")
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
 
     # Обновление пароля
     hashed_password = get_password_hash(new_password)
     await UsersDAO.update(user.id, hashed_password=hashed_password)
 
+    logger.info(f"Пароль для пользователя успешно сброшен: {email}")
     return {"message": "Пароль успешно обновлен"}
-
 
 
