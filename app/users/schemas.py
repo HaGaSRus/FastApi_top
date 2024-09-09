@@ -24,7 +24,7 @@ class SUserSignUp(BaseModel):
 
 
 class Role(BaseModel):
-    id: int
+    # id: int
     name: str
 
 

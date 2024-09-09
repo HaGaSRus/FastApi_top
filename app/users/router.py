@@ -2,7 +2,6 @@ from typing import List
 
 import jwt
 from fastapi import APIRouter, status, Response, Depends, HTTPException
-from jose import JWTError
 from jwt.exceptions import ExpiredSignatureError, PyJWTError
 
 
