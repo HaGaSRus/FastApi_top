@@ -1,12 +1,9 @@
-from sqlalchemy import select, insert
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
-from sqlalchemy.future import select
 from app.config import settings
 
-
 # Создание асинхронного движка
-engine = create_async_engine(settings.DATABASE_URL)
+engine = create_async_engine(settings.DATABASE_URL, echo=True)
 
 # Фабрика сессий
 async_session_maker = sessionmaker(
@@ -16,5 +13,3 @@ async_session_maker = sessionmaker(
 # Базовый класс для моделей
 class Base(DeclarativeBase):
     pass
-
-
