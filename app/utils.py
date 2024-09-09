@@ -28,7 +28,7 @@ async def init_permissions():
         async with session.begin():
             permissions = [
                 {"name": "create_user", "role_id": 1},  # Укажите реальный role_id
-                {"name": "delete_user", "role_id": 1},
+                {"name": "delete_user", "role_id": 2},
                 {"name": "view_reports", "role_id": 1},
                 {"name": "view_content", "role_id": 1}  # Укажите реальный role_id
             ]

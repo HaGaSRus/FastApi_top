@@ -1,3 +1,5 @@
+from typing import List
+
 import jwt
 from fastapi import APIRouter, status, Response, Depends, HTTPException
 from jose import JWTError
@@ -13,7 +15,7 @@ from app.users.auth import (
     create_access_token,
     create_reset_token,
 )
-from app.users.dependencies import get_current_user
+from app.users.dependencies import get_current_user, get_current_admin_user
 from app.users.models import Users
 from app.exceptions import UserInCorrectEmailOrUsername, UserCreated, \
     UserNameAlreadyExistsException, UserEmailAlreadyExistsException
@@ -36,9 +38,12 @@ router_users = APIRouter(
 @router_auth.post("/register", status_code=status.HTTP_200_OK)
 @version(1)
 async def register_user(user_data: SUserAuth):
+    users_dao = UsersDAO()
+    users_roles_dao = UsersRolesDAO()
+
     # Проверяем, существует ли уже пользователь с таким username или email
-    existing_user_by_username = await UsersDAO.find_one_or_none(username=user_data.username)
-    existing_user_by_email = await UsersDAO.find_one_or_none(email=user_data.email)
+    existing_user_by_username = await users_dao.find_one_or_none(username=user_data.username)
+    existing_user_by_email = await users_dao.find_one_or_none(email=user_data.email)
 
     if existing_user_by_username:
         raise UserNameAlreadyExistsException
@@ -47,7 +52,7 @@ async def register_user(user_data: SUserAuth):
 
     hashed_password = get_password_hash(user_data.password)
 
-    await UsersDAO.add(
+    new_user = await users_dao.add(
         username=user_data.username,
         firstname=user_data.firstname,
         lastname=user_data.lastname,
@@ -55,9 +60,9 @@ async def register_user(user_data: SUserAuth):
         hashed_password=hashed_password,
     )
 
-    new_user = await UsersDAO.find_one_or_none(email=user_data.email)
     if new_user:
-        await UsersRolesDAO.add(user_id=new_user.id, role_name="user")
+        await users_roles_dao.add(user_id=new_user.id, role_name="user")
+
     raise UserCreated
 
 
@@ -143,3 +148,10 @@ async def reset_password(reset_password_request: ResetPasswordRequest):
     return {"message": "Пароль успешно обновлен"}
 
 
+@router_users.get("/all-users", status_code=status.HTTP_200_OK, response_model=List[UserResponse])
+@version(1)
+async def get_all_users(current_user: Users = Depends(get_current_admin_user)) -> List[UserResponse]:
+    """Получение всех пользователей. Доступно только администраторам."""
+    # Получение всех пользователей
+    users_all = await UsersDAO.find_all()
+    return users_all

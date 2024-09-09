@@ -9,6 +9,20 @@ from app.users.models import Users, Roles, Permissions, role_user_association
 class UsersDAO(BaseDAO):
     model = Users
 
+    async def add(self, username: str, firstname: str, lastname: str, email: str, hashed_password: str):
+        async with async_session_maker() as session:
+            # Создание нового пользователя
+            new_user = Users(
+                username=username,
+                firstname=firstname,
+                lastname=lastname,
+                email=email,
+                hashed_password=hashed_password
+            )
+            session.add(new_user)
+            await session.commit()
+            return new_user
+
     async def get_user_with_roles(self, user_id: int):
         async with async_session_maker() as session:
             # Получение пользователя с ролями
