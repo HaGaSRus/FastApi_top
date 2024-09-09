@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     MAIL_FROM: EmailStr
     MAIL_PORT: int
     MAIL_SERVER: str
-    MAIL_FROM_NAME: str = "Support"
+    MAIL_FROM_NAME: str = "Hot_Line"
     MAIL_TLS: bool = True
     MAIL_SSL: bool = False
 

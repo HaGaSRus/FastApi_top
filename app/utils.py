@@ -1,8 +1,11 @@
+import time
+
 from fastapi_mail import ConnectionConfig, MessageSchema, FastMail
 from sqlalchemy import select, insert
 
 from app.config import settings
 from app.database import async_session_maker
+from app.logger import logger
 from app.users.models import Roles, Permissions
 
 
@@ -60,14 +63,22 @@ conf = ConnectionConfig(
     USE_CREDENTIALS=True,
 )
 
+
 async def send_reset_password_email(email: str, token: str):
+    start_time = time.time()
+    logger.info(f"Отправка письма для сброса пароля на адрес: {email}")
+
+    body_content = f"Нажмите ссылку, чтобы сбросить пароль: http://192.168.188.53:8080/reset-password?token={token}"
+    logger.info(f"Тело письма: {body_content}")
+
     message = MessageSchema(
         subject="Запрос на сброс пароля",
         recipients=[email],
-        body=f"Нажмите ссылку, чтобы сбросить пароль: http://localhost:8000/reset-password?token={token}",
-        subtype="html"
+        body=body_content,
+        subtype="plain"
     )
 
     fm = FastMail(conf)
     await fm.send_message(message)
-
+    logger.info(f"Письмо для сброса пароля отправлено на адрес: {email}")
+    logger.info(f"Время выполнения: {time.time() - start_time} секунд")

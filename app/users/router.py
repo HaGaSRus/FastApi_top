@@ -3,8 +3,8 @@ from typing import List
 import jwt
 from fastapi import APIRouter, status, Response, Depends, HTTPException
 from jose import JWTError
-from pydantic import EmailStr
-from sqlalchemy.sql.functions import user
+from jwt.exceptions import ExpiredSignatureError, PyJWTError
+
 
 from app.config import settings
 from app.logger import logger
@@ -88,9 +88,9 @@ async def login_user(response: Response, user_data: SUserSignUp):
 
 @router_auth.delete("/delete", status_code=status.HTTP_200_OK)
 @version(1)
-async def delete_user(user_data: Users = Depends(get_current_user)):
+async def delete_user(user_data: Users = Depends(get_current_admin_user)):
     await UsersDAO.delete(user_data.id)
-    return {"message": "User deleted successfully"}
+    return {"message": "Пользователь успешно удален"}
 
 
 @router_users.get("/me", status_code=status.HTTP_200_OK, response_model=UserResponse)
@@ -117,12 +117,12 @@ async def forgot_password(request: ForgotPasswordRequest):
 
 # Эндпоинт для сброса пароля
 @router_auth.post("/reset-password", status_code=status.HTTP_200_OK)
-@version(1)
 async def reset_password(reset_password_request: ResetPasswordRequest):
     token = reset_password_request.token
     new_password = reset_password_request.new_password
 
     try:
+        # Попытка декодирования токена
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         logger.info(f"Токен успешно декодирован: {payload}")
 
@@ -130,11 +130,17 @@ async def reset_password(reset_password_request: ResetPasswordRequest):
         if email is None:
             logger.error("Токен не содержит допустимой темы (email)")
             raise HTTPException(status_code=400, detail="Некорректный токен")
-    except JWTError as e:
-        logger.error(f"JWT Error: {e}")
+
+    # Обработка конкретных исключений
+    except ExpiredSignatureError:
+        logger.error("Токен истёк")
+        raise HTTPException(status_code=401, detail="Токен истёк. Пожалуйста, запросите новый.")
+
+    except PyJWTError as e:
+        logger.error(f"Ошибка JWT: {e}")
         raise HTTPException(status_code=400, detail="Некорректный или истекший токен")
 
-    # Ensure the method exists in UsersDAO
+    # Убедитесь, что метод существует в UsersDAO
     user = await UsersDAO.get_user_by_email(email)
     if user is None:
         logger.error(f"Пользователь не найден по электронной почте: {email}")
