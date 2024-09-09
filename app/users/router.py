@@ -17,7 +17,7 @@ from app.users.dependencies import get_current_user
 from app.users.models import Users
 from app.exceptions import UserInCorrectEmailOrUsername, UserCreated, \
     UserNameAlreadyExistsException, UserEmailAlreadyExistsException
-from app.users.schemas import SUserAuth, SUserSignUp, UserResponse, ResetPasswordRequest
+from app.users.schemas import SUserAuth, SUserSignUp, UserResponse, ResetPasswordRequest, ForgotPasswordRequest
 from fastapi_versioning import version
 
 from app.utils import send_reset_password_email
@@ -98,13 +98,14 @@ async def read_users_me(current_user: Users = Depends(get_current_user)):
 # Эндпоинт для запроса на восстановление пароля
 @router_auth.post("/forgot-password", status_code=status.HTTP_200_OK)
 @version(1)
-async def forgot_password(email: EmailStr):
+async def forgot_password(request: ForgotPasswordRequest):
+    email = request.email
     user = await UsersDAO.find_one_or_none(email=email)
     if not user:
         raise HTTPException(status_code=404, detail="Пользователь с таким email не найден")
 
-    # Передаем словарь с email
-    reset_token = create_access_token({"sub": email})
+    # Передаем строку email в функцию create_reset_token
+    reset_token = create_reset_token(email)
     await send_reset_password_email(email, reset_token)
     return {"message": "Инструкции по восстановлению пароля отправлены на вашу почту."}
 

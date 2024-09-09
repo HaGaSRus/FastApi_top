@@ -27,8 +27,6 @@ def create_access_token(data: dict, expires_delta: timedelta = timedelta(minutes
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
 
-# def create_refresh_token(data: dict) -> str:
-
 
 async def authenticate_user(email: Optional[EmailStr], username: Optional[str], password: str):
     user = None
@@ -44,7 +42,8 @@ async def authenticate_user(email: Optional[EmailStr], username: Optional[str], 
 
 def create_reset_token(email: str) -> str:
     expire = datetime.utcnow() + timedelta(minutes=15)
-    to_encode = {"exp": expire, "sub": email}
+    to_encode = {"exp": expire, "sub": email}  # создаем словарь внутри функции
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
+
 

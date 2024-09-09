@@ -2,8 +2,6 @@ from typing import Optional, List
 from pydantic import BaseModel, EmailStr, root_validator
 
 
-
-
 class SUserAuth(BaseModel):
     username: str
     email: EmailStr
@@ -44,3 +42,5 @@ class ResetPasswordRequest(BaseModel):
     new_password: str
 
 
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr

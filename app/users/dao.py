@@ -1,5 +1,3 @@
-# dao.py
-
 from sqlalchemy import insert
 from sqlalchemy.future import select
 from sqlalchemy.orm import joinedload
