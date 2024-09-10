@@ -52,35 +52,25 @@ async def get_current_user(token: str = Depends(get_token)) -> Users:
         logger.error("Идентификатор пользователя не найден в токене")
         raise UserIsNotPresentException
 
-    async with async_session_maker() as session:  # Предполагается, что async_session_maker создаёт AsyncSession
+    async with async_session_maker() as session:
         result = await session.execute(
             select(Users).options(selectinload(Users.roles)).where(Users.id == int(user_id))
         )
         user = result.scalar_one_or_none()
 
-    if not user:
-        logger.error(f"Пользователь с идентификатором {user_id} не найден")
-        raise UserIsNotPresentException
+        if not user:
+            logger.error(f"Пользователь с идентификатором {user_id} не найден")
+            raise UserIsNotPresentException
 
-    logger.info(f"Пользователь получен: {user}")
-    return user
+        logger.info(f"Пользователь получен: {user}")
+        return user
 
 
 async def get_current_admin_user(current_user: Users = Depends(get_current_user)) -> Users:
-    """Проверяет, что текущий пользователь является администратором."""
-    try:
-        if getattr(current_user, 'roles', None) != "admin":
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="У вас нет разрешения на доступ к этому ресурсу."
-            )
-    except DetachedInstanceError:
-        # Обрабатываем отсоединённый экземпляр, возможно, переполучив пользователя с ролями
-        async with async_session_maker() as session:
-            current_user = await session.merge(current_user)
-            if getattr(current_user, 'roles', None) != "admin":
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="У вас нет разрешения на доступ к этому ресурсу."
-                )
+    # Предполагается, что роли пользователя хранятся в current_user.roles
+    if not current_user or not any(role.name == "admin" for role in current_user.roles):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="У вас нет разрешения на доступ к этому ресурсу."
+        )
     return current_user

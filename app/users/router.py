@@ -15,6 +15,7 @@ router_users = APIRouter(
     tags=["Пользователи"]
 )
 
+
 @router_users.delete("/delete", status_code=status.HTTP_200_OK)
 @version(1)
 async def delete_user(user_data: Users = Depends(get_current_admin_user)):
@@ -81,8 +82,8 @@ async def update_user_roles(
     users_roles_dao = UsersRolesDAO
 
     # Очистка текущих ролей при необходимости и добавление новых ролей
-    await users_roles_dao.clear_roles(user_id=user_id) # Если необходимо очистить
-    await users_roles_dao.add_roles(user_id=user_id, roles_names=update_roles.roles)
+    await users_roles_dao.clear_roles(user_id=user_id)  # Если необходимо очистить
+    await users_roles_dao.add_roles(user_id=user_id, role_names=update_roles.roles)  # Измените roles_names на role_names
 
     return {"message": "Роли успешно обновлены."}
 
