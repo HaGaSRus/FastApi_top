@@ -4,7 +4,8 @@ from jwt.exceptions import ExpiredSignatureError, PyJWTError
 from app.auth.auth import get_password_hash, authenticate_user, create_access_token, create_reset_token
 from app.config import settings
 from app.dao.dao import UsersDAO
-from app.exceptions import UserInCorrectEmailOrUsername
+from app.exceptions import UserInCorrectEmailOrUsername, PasswordRecoveryInstructions, IncorrectTokenFormatException, \
+    TokenExpiredException, UserIsNotPresentException, PasswordUpdatedSuccessfully
 from app.logger.logger import logger
 from app.auth.schemas import SUserSignUp, ForgotPasswordRequest, ResetPasswordRequest
 
@@ -55,12 +56,12 @@ async def forgot_password(request: ForgotPasswordRequest):
     email = request.email
     user = await UsersDAO.find_one_or_none(email=email)
     if not user:
-        raise HTTPException(status_code=404, detail="Пользователь с таким email не найден")
+        raise UserInCorrectEmailOrUsername
 
     # Передаем строку email в функцию create_reset_token
     reset_token = create_reset_token(email)
     await send_reset_password_email(email, reset_token)
-    return {"message": "Инструкции по восстановлению пароля отправлены на вашу почту."}
+    return PasswordRecoveryInstructions
 
 
 # Эндпоинт для сброса пароля
@@ -77,26 +78,26 @@ async def reset_password(reset_password_request: ResetPasswordRequest):
         email: str = payload.get("sub")
         if email is None:
             logger.error("Токен не содержит допустимой темы (email)")
-            raise HTTPException(status_code=400, detail="Некорректный токен")
+            raise IncorrectTokenFormatException
 
     # Обработка конкретных исключений
     except ExpiredSignatureError:
         logger.error("Токен истёк")
-        raise HTTPException(status_code=401, detail="Токен истёк. Пожалуйста, запросите новый.")
+        raise TokenExpiredException
 
     except PyJWTError as e:
         logger.error(f"Ошибка JWT: {e}")
-        raise HTTPException(status_code=400, detail="Некорректный или истекший токен")
+        raise TokenExpiredException
 
     # Убедитесь, что метод существует в UsersDAO
     user = await UsersDAO.get_user_by_email(email)
     if user is None:
         logger.error(f"Пользователь не найден по электронной почте: {email}")
-        raise HTTPException(status_code=404, detail="Пользователь не найден")
+        raise UserIsNotPresentException
 
     # Обновление пароля
     hashed_password = get_password_hash(new_password)
     await UsersDAO.update(user.id, hashed_password=hashed_password)
 
     logger.info(f"Пароль для пользователя успешно сброшен: {email}")
-    return {"message": "Пароль успешно обновлен"}
+    return PasswordUpdatedSuccessfully

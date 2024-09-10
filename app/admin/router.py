@@ -7,7 +7,8 @@ from app.auth.auth import get_password_hash
 from app.dao.dao import UsersDAO, UsersRolesDAO
 from app.dao.dependencies import get_current_admin_user
 from app.database import async_session_maker
-from app.exceptions import UserEmailAlreadyExistsException, UserNameAlreadyExistsException, UserCreated
+from app.exceptions import UserEmailAlreadyExistsException, UserNameAlreadyExistsException, UserCreated, UserChangeRole, \
+    DeleteUser
 from app.users.models import Users
 from sqlalchemy.orm import selectinload
 from sqlalchemy.future import select
@@ -120,7 +121,7 @@ async def update_user_roles(
     await users_roles_dao.clear_roles(user_id=user_id)  # Очистка ролей
     await users_roles_dao.add_roles(user_id=user_id, role_names=update_roles.roles)  # Добавление новых ролей
 
-    return {"message": "Роли успешно обновлены."}
+    return UserChangeRole
 
 
 @router_admin.delete("/delete", status_code=status.HTTP_200_OK)
@@ -129,4 +130,4 @@ async def delete_user(user_id: int, current_user: Users = Depends(get_current_ad
     """Удаление пользователя. Только для администратора"""
     users_dao = UsersDAO()
     await users_dao.delete(user_id)
-    return {"message": "Пользователь успешно удален"}
+    return DeleteUser

@@ -36,14 +36,36 @@ class IncorrectTokenFormatException(HootLineException):
 
 class UserIsNotPresentException(HootLineException):
     status_code = status.HTTP_401_UNAUTHORIZED
+    detail = "Пользователь не существует"
 
 
 class UserInCorrectEmailOrUsername(HootLineException):
     status_code = status.HTTP_401_UNAUTHORIZED
-    detail = "Пользователь с таким именем пользователя не найден"
+    detail = "Пользователь с такой почтой не найден"
 
 
 class UserCreated(HootLineException):
     status_code = status.HTTP_201_CREATED
     detail = "Пользователь успешно создан"
+
+
+class UserChangeRole(HootLineException):
+    status_code = status.HTTP_200_OK
+    detail = "Роли успешно обновлены"
+
+
+class DeleteUser(HootLineException):
+    status_code = status.HTTP_202_ACCEPTED
+    detail = "Пользователь успешно удален"
+
+
+class PasswordRecoveryInstructions(HootLineException):
+    status_code = status.HTTP_200_OK
+    detail = "Инструкции по восстановлению пароля отправлены на вашу почту."
+
+
+class PasswordUpdatedSuccessfully(HootLineException):
+    status_code = status.HTTP_200_OK
+    detail = "Пароль успешно обновлен"
+
 
