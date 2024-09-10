@@ -8,7 +8,6 @@ from app.exceptions import UserCreated, UserNameAlreadyExistsException, UserEmai
     UserInCorrectEmailOrUsername
 from app.logger.logger import logger
 from app.auth.schemas import SUserAuth, SUserSignUp, ForgotPasswordRequest, ResetPasswordRequest
-from app.users.schemas import UserResponse
 from app.utils import send_reset_password_email
 from fastapi_versioning import version
 
@@ -53,13 +52,12 @@ async def register_user(user_data: SUserAuth):
 @router_auth.post("/login")
 @version(1)
 async def login_user(response: Response, user_data: SUserSignUp):
-    users_dao = UsersDAO()
     user = await authenticate_user(user_data.email, user_data.username, user_data.password)
     if not user:
         raise UserInCorrectEmailOrUsername
 
     # Получаем пользователя с ролями
-    user_with_roles = await users_dao.get_user_with_roles(user.id)  # Используем экземпляр для вызова метода
+    user_with_roles = await UsersDAO().get_user_with_roles(user.id)  # Используем экземпляр для вызова метода
     if not user_with_roles:
         raise UserInCorrectEmailOrUsername
 

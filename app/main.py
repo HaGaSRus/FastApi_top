@@ -1,10 +1,11 @@
+from contextlib import asynccontextmanager
 from urllib.request import Request
-
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 from fastapi_versioning import VersionedFastAPI
 import uvicorn
 import time
+from typing import AsyncIterator
 
 from app.logger.middleware import LoggingMiddleware
 from app.users.router import router_users
@@ -12,7 +13,18 @@ from app.auth.router import router_auth
 from app.utils import init_permissions, init_roles
 from app.logger.logger import logger
 
-app = FastAPI()
+# Определяем функцию жизненного цикла с использованием asynccontextmanager
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    # Код, выполняемый при запуске приложения
+    await init_roles()
+    await init_permissions()
+    yield
+    # Код, выполняемый при завершении работы (если требуется)
+
+# Создаем приложение FastAPI с контекстом жизненного цикла
+app = FastAPI(lifespan=lifespan)
+
 
 app.include_router(router_users)
 app.include_router(router_auth)
@@ -46,15 +58,7 @@ async def add_process_time_header(request: Request, call_next):
     })
     return response
 
-@app.on_event("startup")
-async def on_startup():
-    await init_roles()
-    await init_permissions()
 
-@app.on_event("shutdown")
-async def on_shutdown():
-    # Ваш код для завершения работы, если нужен
-    pass
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)

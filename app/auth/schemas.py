@@ -30,3 +30,4 @@ class ResetPasswordRequest(BaseModel):
 
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
+

@@ -13,7 +13,8 @@ from app.users.schemas import UserResponse
 class UsersDAO(BaseDAO):
     model = Users
 
-    async def add(self, username: str, firstname: str, lastname: str, email: str, hashed_password: str):
+    @classmethod
+    async def add(cls, username: str, firstname: str, lastname: str, email: str, hashed_password: str):
         async with async_session_maker() as session:
             # Создание нового пользователя
             new_user = Users(
@@ -27,33 +28,22 @@ class UsersDAO(BaseDAO):
             await session.commit()
             return new_user
 
-    async def get_user_with_roles(self, user_id: int) -> Optional[UserResponse]:
+    @classmethod
+    async def get_user_with_roles(cls, user_id: int) -> Optional[UserResponse]:
         async with async_session_maker() as session:
-            # Получение пользователя с ролями
             result = await session.execute(
                 select(Users).options(joinedload(Users.roles)).where(Users.id == user_id)
             )
             user = result.unique().scalar_one_or_none()
-            role = []
+
             if user:
-                # Преобразование ролей в список объектов, соответствующих модели Role
-                roles_data = [{"name": role.name} for role in user.roles]  # Создаем список словарей для ролей
-
-                for value in roles_data:
-                     role.append(value['name'])
-
-                # value['name']
-
-                # keys= roles_data.values()
-                # print(keys)
-
-
+                roles = [role.name for role in user.roles]  # Прямое преобразование в список строк
                 user_data: Dict[str, Any] = {
                     "username": user.username,
                     "email": user.email,
-                    "roles": role  # Передаем преобразованные данные ролей
+                    "roles": roles
                 }
-                return UserResponse(**user_data)  # Создаем экземпляр UserResponse
+                return UserResponse(**user_data)
 
             return None
 
@@ -67,7 +57,8 @@ class UsersDAO(BaseDAO):
 class UsersRolesDAO(BaseDAO):
     model = Roles
 
-    async def add(self, user_id: int, role_name: str):
+    @classmethod
+    async def add(cls, user_id: int, role_name: str):
         async with async_session_maker() as session:
             # Получение роли по имени
             role = await session.execute(
@@ -94,7 +85,8 @@ class UsersRolesDAO(BaseDAO):
             await session.execute(stmt)
             await session.commit()
 
-    async def clear_roles(self, user_id: int):
+    @classmethod
+    async def clear_roles(cls, user_id: int):
         """Удаляет все роли пользователя."""
         async with async_session_maker() as session:
             # Удаляем все записи для данного пользователя из таблицы ассоциаций
@@ -105,7 +97,8 @@ class UsersRolesDAO(BaseDAO):
             )
             await session.commit()
 
-    async def add_roles(self, user_id: int, role_names: List[str]):
+    @classmethod
+    async def add_roles(cls, user_id: int, role_names: List[str]):
         """Добавляет указанные роли пользователю."""
         async with async_session_maker() as session:
             for role_name in role_names:
