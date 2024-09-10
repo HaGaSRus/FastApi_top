@@ -3,11 +3,11 @@ from fastapi import APIRouter, status, Response, HTTPException
 from jwt.exceptions import ExpiredSignatureError, PyJWTError
 from app.auth.auth import get_password_hash, authenticate_user, create_access_token, create_reset_token
 from app.config import settings
-from app.dao.dao import UsersDAO, UsersRolesDAO
-from app.exceptions import UserCreated, UserNameAlreadyExistsException, UserEmailAlreadyExistsException, \
-    UserInCorrectEmailOrUsername
+from app.dao.dao import UsersDAO
+from app.exceptions import UserInCorrectEmailOrUsername
 from app.logger.logger import logger
-from app.auth.schemas import SUserAuth, SUserSignUp, ForgotPasswordRequest, ResetPasswordRequest
+from app.auth.schemas import SUserSignUp, ForgotPasswordRequest, ResetPasswordRequest
+
 from app.utils import send_reset_password_email
 from fastapi_versioning import version
 
@@ -16,37 +16,6 @@ router_auth = APIRouter(
     prefix="/auth",
     tags=["Регистрация и изменение данных пользователя"],
 )
-
-
-@router_auth.post("/register", status_code=status.HTTP_200_OK)
-@version(1)
-async def register_user(user_data: SUserAuth):
-    users_dao = UsersDAO()
-    users_roles_dao = UsersRolesDAO()
-
-    # Проверяем, существует ли уже пользователь с таким username или email
-    existing_user_by_username = await users_dao.find_one_or_none(username=user_data.username)
-    existing_user_by_email = await users_dao.find_one_or_none(email=user_data.email)
-
-    if existing_user_by_username:
-        raise UserNameAlreadyExistsException
-    if existing_user_by_email:
-        raise UserEmailAlreadyExistsException
-
-    hashed_password = get_password_hash(user_data.password)
-
-    new_user = await users_dao.add(
-        username=user_data.username,
-        firstname=user_data.firstname,
-        lastname=user_data.lastname,
-        email=user_data.email,
-        hashed_password=hashed_password,
-    )
-
-    if new_user:
-        await users_roles_dao.add(user_id=new_user.id, role_name="user")
-
-    raise UserCreated
 
 
 @router_auth.post("/login")

@@ -2,14 +2,6 @@ from typing import Optional, List
 from pydantic import BaseModel, EmailStr, model_validator
 
 
-class SUserAuth(BaseModel):
-    username: str
-    email: EmailStr
-    password: str
-    firstname: str
-    lastname: str
-
-
 class SUserSignUp(BaseModel):
     username: Optional[str] = None
     email: Optional[EmailStr] = None

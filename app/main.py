@@ -10,8 +10,10 @@ from typing import AsyncIterator
 from app.logger.middleware import LoggingMiddleware
 from app.users.router import router_users
 from app.auth.router import router_auth
+from app.admin.router import router_admin
 from app.utils import init_permissions, init_roles
 from app.logger.logger import logger
+
 
 # Определяем функцию жизненного цикла с использованием asynccontextmanager
 @asynccontextmanager
@@ -28,6 +30,7 @@ app = FastAPI(lifespan=lifespan)
 
 app.include_router(router_users)
 app.include_router(router_auth)
+app.include_router(router_admin)
 
 app = VersionedFastAPI(app,
                        version_format='{major}',

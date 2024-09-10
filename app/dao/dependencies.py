@@ -5,7 +5,7 @@ from fastapi import Request, Depends, HTTPException
 from jose import jwt, JWTError
 from sqlalchemy.future import select
 from starlette import status
-from sqlalchemy.orm import joinedload, selectinload
+from sqlalchemy.orm import selectinload
 from app.config import settings
 from app.database import async_session_maker
 from app.exceptions import (
@@ -15,10 +15,8 @@ from app.exceptions import (
     UserIsNotPresentException,
 )
 from app.logger.logger import logger
-from app.dao.dao import UsersDAO
+
 from app.users.models import Users
-from sqlalchemy.orm.exc import DetachedInstanceError
-from sqlalchemy.ext.asyncio import AsyncSession
 
 
 def get_token(request: Request) -> str:

@@ -1,8 +1,8 @@
-from typing import Dict, Any, Optional, List
+from typing import Optional, List
 
 from sqlalchemy import insert, delete
 from sqlalchemy.future import select
-from sqlalchemy.orm import joinedload, selectinload
+from sqlalchemy.orm import selectinload
 from app.dao.base import BaseDAO
 from app.database import async_session_maker
 from app.logger.logger import logger
