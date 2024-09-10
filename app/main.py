@@ -6,10 +6,11 @@ from fastapi_versioning import VersionedFastAPI
 import uvicorn
 import time
 
-from app.middleware import LoggingMiddleware
-from app.users.router import router_auth, router_users
+from app.logger.middleware import LoggingMiddleware
+from app.users.router import router_users
+from app.auth.router import router_auth
 from app.utils import init_permissions, init_roles
-from app.logger import logger
+from app.logger.logger import logger
 
 app = FastAPI()
 

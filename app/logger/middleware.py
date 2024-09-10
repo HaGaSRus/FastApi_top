@@ -3,7 +3,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 import time
 
-from app.logger import logger
+from app.logger.logger import logger
 
 
 class LoggingMiddleware(BaseHTTPMiddleware):

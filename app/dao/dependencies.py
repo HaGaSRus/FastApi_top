@@ -12,8 +12,8 @@ from app.exceptions import (
     IncorrectTokenFormatException,
     UserIsNotPresentException,
 )
-from app.logger import logger
-from app.users.dao import UsersDAO
+from app.logger.logger import logger
+from app.dao.dao import UsersDAO
 from app.users.models import Users
 
 def get_token(request: Request) -> str:

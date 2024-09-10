@@ -3,7 +3,7 @@ from fastapi_mail import ConnectionConfig, MessageSchema, FastMail
 from sqlalchemy import select, insert
 from app.config import settings
 from app.database import async_session_maker
-from app.logger import logger
+from app.logger.logger import logger
 from app.users.models import Roles, Permissions
 
 async def init_roles():
