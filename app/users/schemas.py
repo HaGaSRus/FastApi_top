@@ -16,10 +16,10 @@ class UserResponse(BaseModel):
 
 
 class UpdateUserRequest(BaseModel):
-    username: Optional[str]
-    email: Optional[EmailStr]
-    firstname: Optional[str]
-    lastname: Optional[str]
+    username: Optional[str] = None
+    email: Optional[EmailStr] = None
+    firstname: Optional[str] = None
+    lastname: Optional[str] = None
 
 
 class UpdateUserRolesRequest(BaseModel):

@@ -38,7 +38,7 @@ async def get_all_users(current_user: Users = Depends(get_current_admin_user)) -
     return users_all
 
 
-@router_users.put("/update", status_code=status.HTTP_200_OK, response_model=UserResponse)
+@router_users.post("/update", status_code=status.HTTP_200_OK, response_model=UpdateUserRequest)
 @version(1)
 async def update_user(
         update_data: UpdateUserRequest,
@@ -60,17 +60,17 @@ async def update_user(
 
     # Обновляем данные пользователя
     updated_user = await users_dao.update(
-        user_id=current_user.id,
+        model_id=current_user.id,
         username=update_data.username,
         email=update_data.email,
-        firstname=update_user.firstname,
+        firstname=update_data.firstname,
         lastname=update_data.lastname,
     )
 
     return updated_user
 
 
-@router_users.put("/update-roles", status_code=status.HTTP_200_OK)
+@router_users.post("/update-roles", status_code=status.HTTP_200_OK)
 @version(1)
 async def update_user_roles(
         user_id: int,

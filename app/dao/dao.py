@@ -39,6 +39,7 @@ class UsersDAO(BaseDAO):
             if user:
                 roles = [role.name for role in user.roles]  # Прямое преобразование в список строк
                 user_data: Dict[str, Any] = {
+                    "id": user.id,
                     "username": user.username,
                     "email": user.email,
                     "roles": roles
@@ -53,6 +54,30 @@ class UsersDAO(BaseDAO):
             query = select(cls.model).filter_by(email=email)
             result = await session.execute(query)
             return result.scalar_one_or_none()
+
+    @classmethod
+    async def update(cls, model_id: int, username: Optional[str] = None, email: Optional[str] = None,
+                     firstname: Optional[str] = None, lastname: Optional[str] = None):
+        async with async_session_maker() as session:
+            # Получаем текущие данные пользователя
+            stmt = select(Users).where(Users.id == model_id)
+            result = await session.execute(stmt)
+            user = result.scalar()
+
+            # Обновляем только те поля, которые не равны None
+            if username is not None:
+                user.username = username
+            if email is not None:
+                user.email = email
+            if firstname is not None:
+                user.firstname = firstname
+            if lastname is not None:
+                user.lastname = lastname
+
+            # Сохраняем изменения
+            await session.commit()
+            return user
+
 
 class UsersRolesDAO(BaseDAO):
     model = Roles
@@ -128,6 +153,7 @@ class UsersRolesDAO(BaseDAO):
                 await session.execute(stmt)
 
             await session.commit()
+
 
 class UserPermissionsDAO(BaseDAO):
     model = Permissions

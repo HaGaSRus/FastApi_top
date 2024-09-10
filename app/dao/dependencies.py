@@ -3,9 +3,11 @@ from typing import Optional
 
 from fastapi import Request, Depends, HTTPException
 from jose import jwt, JWTError
+from sqlalchemy.future import select
 from starlette import status
-
+from sqlalchemy.orm import joinedload, selectinload
 from app.config import settings
+from app.database import async_session_maker
 from app.exceptions import (
     TokenExpiredException,
     TokenAbsentException,
@@ -15,6 +17,9 @@ from app.exceptions import (
 from app.logger.logger import logger
 from app.dao.dao import UsersDAO
 from app.users.models import Users
+from sqlalchemy.orm.exc import DetachedInstanceError
+from sqlalchemy.ext.asyncio import AsyncSession
+
 
 def get_token(request: Request) -> str:
     """Извлекает токен из файлов cookie или заголовков."""
@@ -26,6 +31,7 @@ def get_token(request: Request) -> str:
         raise TokenAbsentException
     logger.info(f"Токен извлечен: {token}")
     return token
+
 
 async def get_current_user(token: str = Depends(get_token)) -> Users:
     """Проверяем токен и получаем текущего пользователя."""
@@ -46,7 +52,12 @@ async def get_current_user(token: str = Depends(get_token)) -> Users:
         logger.error("Идентификатор пользователя не найден в токене")
         raise UserIsNotPresentException
 
-    user = await UsersDAO.find_by_id(int(user_id))
+    async with async_session_maker() as session:  # Предполагается, что async_session_maker создаёт AsyncSession
+        result = await session.execute(
+            select(Users).options(selectinload(Users.roles)).where(Users.id == int(user_id))
+        )
+        user = result.scalar_one_or_none()
+
     if not user:
         logger.error(f"Пользователь с идентификатором {user_id} не найден")
         raise UserIsNotPresentException
@@ -54,11 +65,22 @@ async def get_current_user(token: str = Depends(get_token)) -> Users:
     logger.info(f"Пользователь получен: {user}")
     return user
 
+
 async def get_current_admin_user(current_user: Users = Depends(get_current_user)) -> Users:
     """Проверяет, что текущий пользователь является администратором."""
-    if getattr(current_user, 'role', None) != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="У вас нет разрешения на доступ к этому ресурсу."
-        )
+    try:
+        if getattr(current_user, 'roles', None) != "admin":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="У вас нет разрешения на доступ к этому ресурсу."
+            )
+    except DetachedInstanceError:
+        # Обрабатываем отсоединённый экземпляр, возможно, переполучив пользователя с ролями
+        async with async_session_maker() as session:
+            current_user = await session.merge(current_user)
+            if getattr(current_user, 'roles', None) != "admin":
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="У вас нет разрешения на доступ к этому ресурсу."
+                )
     return current_user
