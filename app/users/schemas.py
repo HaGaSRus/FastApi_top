@@ -5,6 +5,17 @@ from pydantic import BaseModel, EmailStr
 class Role(BaseModel):
     name: str
 
+class UserSchema(BaseModel):
+    id: int
+    username: str
+    email: str
+    firstname: str
+    lastname: str
+    roles: list
+
+    class Config:
+        from_attributes = True
+
 
 class UserResponse(BaseModel):
     username: str

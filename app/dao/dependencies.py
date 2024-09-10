@@ -74,3 +74,4 @@ async def get_current_admin_user(current_user: Users = Depends(get_current_user)
             detail="У вас нет разрешения на доступ к этому ресурсу."
         )
     return current_user
+
