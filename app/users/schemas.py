@@ -1,7 +1,5 @@
-# app/users/schemas.py
-
 from typing import Optional, List
-from pydantic import BaseModel, EmailStr, root_validator
+from pydantic import BaseModel, EmailStr, model_validator
 
 
 class SUserAuth(BaseModel):
@@ -17,7 +15,7 @@ class SUserSignUp(BaseModel):
     email: Optional[EmailStr] = None
     password: str
 
-    @root_validator
+    @model_validator(mode='before')
     def check_username_or_email(cls, values):
         username, email = values.get('username'), values.get('email')
         if not username and not email:
@@ -26,18 +24,22 @@ class SUserSignUp(BaseModel):
 
 
 class Role(BaseModel):
-    id: int
     name: str
 
 
 class UserResponse(BaseModel):
-    # id: int
     username: str
     email: str
-    # firstname: str
-    # lastname: str
     roles: List[Role]
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr

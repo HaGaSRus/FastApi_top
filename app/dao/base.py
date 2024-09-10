@@ -1,6 +1,6 @@
 from app.database import async_session_maker
 
-from sqlalchemy import select, insert
+from sqlalchemy import select, insert, update
 
 
 class BaseDAO:
@@ -48,3 +48,10 @@ class BaseDAO:
                 await session.commit()
             else:
                 raise ValueError("User not found")
+
+    @classmethod
+    async def update(cls, model_id: int, **data):
+        async with async_session_maker() as session:
+            stmt = update(cls.model).where(cls.model.id == model_id).values(**data)
+            await session.execute(stmt)
+            await session.commit()

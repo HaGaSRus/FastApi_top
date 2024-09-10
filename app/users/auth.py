@@ -20,19 +20,12 @@ def verify_password(plain_password, hashed_password) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
 
-def create_access_token(data: dict) -> str:
-    to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(minutes=60)
+def create_access_token(data: dict, expires_delta: timedelta = timedelta(minutes=15)):
+    to_encode = data.copy()  # убедитесь, что data - это словарь, а не строка
+    expire = datetime.utcnow() + expires_delta
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(
-        to_encode,
-        settings.SECRET_KEY,
-        settings.ALGORITHM,
-    )
+    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
-
-# def create_refresh_token(data: dict) -> str:
-
 
 
 async def authenticate_user(email: Optional[EmailStr], username: Optional[str], password: str):
@@ -45,3 +38,12 @@ async def authenticate_user(email: Optional[EmailStr], username: Optional[str], 
     if user and verify_password(password, user.hashed_password):
         return user
     return None
+
+
+def create_reset_token(email: str) -> str:
+    expire = datetime.utcnow() + timedelta(minutes=15)
+    to_encode = {"exp": expire, "sub": email}  # создаем словарь внутри функции
+    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    return encoded_jwt
+
+

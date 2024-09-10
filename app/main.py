@@ -1,13 +1,11 @@
-import time
+from urllib.request import Request
 
-import uvicorn
-from fastapi import FastAPI, Request
-from sqladmin import Admin
+from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 from fastapi_versioning import VersionedFastAPI
+import uvicorn
+import time
 
-from app.admin.views import UserAdmin
-from app.database import engine
 from app.middleware import LoggingMiddleware
 from app.users.router import router_auth, router_users
 from app.utils import init_permissions, init_roles
@@ -37,7 +35,6 @@ app.add_middleware(
 
 app.add_middleware(LoggingMiddleware)
 
-
 @app.middleware("http")
 async def add_process_time_header(request: Request, call_next):
     start_time = time.time()
@@ -48,16 +45,15 @@ async def add_process_time_header(request: Request, call_next):
     })
     return response
 
-
-admin = Admin(app, engine)
-admin.add_view(UserAdmin)
-
-
 @app.on_event("startup")
 async def on_startup():
     await init_roles()
     await init_permissions()
 
+@app.on_event("shutdown")
+async def on_shutdown():
+    # Ваш код для завершения работы, если нужен
+    pass
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)

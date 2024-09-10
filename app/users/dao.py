@@ -1,5 +1,3 @@
-# dao.py
-
 from sqlalchemy import insert
 from sqlalchemy.future import select
 from sqlalchemy.orm import joinedload
@@ -10,6 +8,20 @@ from app.users.models import Users, Roles, Permissions, role_user_association
 
 class UsersDAO(BaseDAO):
     model = Users
+
+    async def add(self, username: str, firstname: str, lastname: str, email: str, hashed_password: str):
+        async with async_session_maker() as session:
+            # Создание нового пользователя
+            new_user = Users(
+                username=username,
+                firstname=firstname,
+                lastname=lastname,
+                email=email,
+                hashed_password=hashed_password
+            )
+            session.add(new_user)
+            await session.commit()
+            return new_user
 
     async def get_user_with_roles(self, user_id: int):
         async with async_session_maker() as session:
@@ -32,6 +44,13 @@ class UsersDAO(BaseDAO):
                 return user_dict
 
             return None
+
+    @classmethod
+    async def get_user_by_email(cls, email: str):
+        async with async_session_maker() as session:
+            query = select(cls.model).filter_by(email=email)
+            result = await session.execute(query)
+            return result.scalar_one_or_none()
 
 class UsersRolesDAO(BaseDAO):
     model = Roles

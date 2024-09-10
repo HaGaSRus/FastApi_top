@@ -1,0 +1,758 @@
+dao/base.py
+
+from app.database import async_session_maker
+
+from sqlalchemy import select, insert
+
+
+class BaseDAO:
+    model = None
+
+    @classmethod
+    async def find_by_id(cls, model_id: int):
+        async with async_session_maker() as session:
+            query = select(cls.model).filter_by(id=model_id)
+            result = await session.execute(query)
+            return result.scalar_one_or_none()
+
+    @classmethod
+    async def find_one_or_none(cls, **filter_by):
+        async with async_session_maker() as session:
+            query = select(cls.model).filter_by(**filter_by)
+            result = await session.execute(query)
+            return result.scalar_one_or_none()
+
+    @classmethod
+    async def find_all(cls, **filter_by):
+        async with async_session_maker() as session:
+            query = select(cls.model).filter_by(**filter_by)
+            result = await session.execute(query)
+            return result.scalars().all()
+
+    @classmethod
+    async def add(cls, **data):
+        async with async_session_maker() as session:
+            query = insert(cls.model).values(**data)
+            await session.execute(query)
+            await session.commit()
+
+    @classmethod
+    async def delete(cls, model_id: int):
+        async with async_session_maker() as session:
+            # Сначала получаем объект из базы данных
+            query = select(cls.model).filter_by(id=model_id)
+            result = await session.execute(query)
+            instance = result.scalar_one_or_none()
+
+            # Если объект существует, удаляем его
+            if instance:
+                await session.delete(instance)
+                await session.commit()
+            else:
+                raise ValueError("User not found")
+
+
+users/auth.py
+
+from typing import Optional
+
+from passlib.context import CryptContext
+from jose import jwt
+from datetime import datetime, timedelta
+
+from pydantic import EmailStr
+
+from app.users.dao import UsersDAO
+from app.config import settings
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+def get_password_hash(password: str) -> str:
+    return pwd_context.hash(password)
+
+
+def verify_password(plain_password, hashed_password) -> bool:
+    return pwd_context.verify(plain_password, hashed_password)
+
+
+def create_access_token(data: dict) -> str:
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(minutes=60)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(
+        to_encode,
+        settings.SECRET_KEY,
+        settings.ALGORITHM,
+    )
+    return encoded_jwt
+
+# def create_refresh_token(data: dict) -> str:
+
+
+
+async def authenticate_user(email: Optional[EmailStr], username: Optional[str], password: str):
+    user = None
+    if email:
+        user = await UsersDAO.find_one_or_none(email=email)
+    if username:
+        user = await UsersDAO.find_one_or_none(username=username)
+
+    if user and verify_password(password, user.hashed_password):
+        return user
+    return None
+
+
+users/dao.py
+
+# dao.py
+
+from sqlalchemy import insert
+from sqlalchemy.future import select
+from sqlalchemy.orm import joinedload
+from app.dao.base import BaseDAO
+from app.database import async_session_maker
+from app.users.models import Users, Roles, Permissions, role_user_association
+
+
+class UsersDAO(BaseDAO):
+    model = Users
+
+    async def get_user_with_roles(self, user_id: int):
+        async with async_session_maker() as session:
+            # Получение пользователя с ролями
+            result = await session.execute(
+                select(Users).options(joinedload(Users.roles)).where(Users.id == user_id)
+            )
+            user = result.unique().scalar_one_or_none()
+
+            # Если пользователь найден, преобразуем в формат, соответствующий модели UserResponse
+            if user:
+                user_dict = {
+                    "id": user.id,
+                    "username": user.username,
+                    "email": user.email,
+                    "firstname": user.firstname,
+                    "lastname": user.lastname,
+                    "roles": [role.__dict__ for role in user.roles]  # Преобразуем роли в словари
+                }
+                return user_dict
+
+            return None
+
+class UsersRolesDAO(BaseDAO):
+    model = Roles
+
+    async def add(self, user_id: int, role_name: str):
+        async with async_session_maker() as session:
+            # Получение роли по имени
+            role = await session.execute(
+                select(Roles).where(Roles.name == role_name)
+            )
+            role = role.scalar_one_or_none()
+
+            if not role:
+                raise ValueError("Роль не найдена")
+
+            # Вставка в таблицу ассоциаций
+            stmt = insert(role_user_association).values(user_id=user_id, role_id=role.id)
+            await session.execute(stmt)
+            await session.commit()
+
+class UserPermissionsDAO(BaseDAO):
+    model = Permissions
+
+
+users/dependencies.py
+
+from datetime import datetime
+
+from fastapi import Request, Depends, HTTPException
+from jose import jwt, JWTError
+from starlette import status
+
+from app.config import settings
+from app.exceptions import (
+    TokenExpiredException,
+    TokenAbsentException,
+    IncorrectTokenFormatException,
+    UserIsNotPresentException,
+)
+from app.logger import logger
+from app.users.dao import UsersDAO
+from app.users.models import Users
+
+
+def get_token(request: Request):
+    """Извлекает токен из файлов cookie или заголовков."""
+    token = request.cookies.get("access_token")
+    if not token:
+        token = request.headers.get("access_token")
+    if not token:
+        logger.error("Токен отсутствует в файлах cookie и заголовках.")
+        raise TokenAbsentException
+    logger.info(f"Токен извлечен: {token}")
+    return token
+
+
+
+async def get_current_user(token: str = Depends(get_token)):
+    """Проверяем токен и получаем текущего пользователя."""
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        logger.info(f"Токен успешно декодирован: {payload}")
+    except JWTError as e:
+        logger.error(f"Ошибка декодирования токена: {str(e)}")
+        raise IncorrectTokenFormatException
+
+    expire: int = payload.get("exp")
+    if not expire or int(expire) < datetime.utcnow().timestamp():
+        logger.error("Срок действия токена истек")
+        raise TokenExpiredException
+
+    user_id: str = payload.get("sub")
+    if not user_id:
+        logger.error("Идентификатор пользователя не найден в токене")
+        raise UserIsNotPresentException
+
+    user = await UsersDAO.find_by_id(int(user_id))
+    if not user:
+        logger.error(f"Пользователь с идентификатором {user_id} не найден")
+        raise UserIsNotPresentException
+
+    logger.info(f"Пользователь получен: {user}")
+    return user
+
+
+async def get_current_admin_user(current_user: Users = Depends(get_current_user)):
+    """Validates that the current user is an admin."""
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="У вас нет разрешения на доступ к этому ресурсу."
+        )
+    return current_user
+
+
+users/models.py
+
+from typing import List
+from sqlalchemy import Column, Integer, String, ForeignKey, Table
+from sqlalchemy.orm import relationship, Mapped, mapped_column
+from app.database import Base
+
+# Определение таблицы связи между пользователями и ролями (many-to-many)
+role_user_association = Table(
+    'role_user_association',
+    Base.metadata,
+    Column('user_id', Integer, ForeignKey('users.id', ondelete='CASCADE'), primary_key=True),
+    Column('role_id', Integer, ForeignKey('roles.id', ondelete='CASCADE'), primary_key=True)
+)
+
+class Users(Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    username: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    email: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    hashed_password: Mapped[str] = mapped_column(String, nullable=False)
+    firstname: Mapped[str] = mapped_column(String, nullable=False)
+    lastname: Mapped[str] = mapped_column(String, nullable=False)
+
+    # Связь many-to-many с ролями через таблицу связи
+    roles: Mapped[List['Roles']] = relationship(
+        secondary=role_user_association,  # Используем объект таблицы связи
+        back_populates='users'
+    )
+
+class Roles(Base):
+    __tablename__ = "roles"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+
+    # Связь many-to-many с пользователями через таблицу связи
+    users: Mapped[List[Users]] = relationship(
+        secondary=role_user_association,  # Используем объект таблицы связи
+        back_populates='roles'
+    )
+
+    # Связь one-to-many с правами
+    permissions: Mapped[List['Permissions']] = relationship('Permissions', back_populates='role')
+
+class Permissions(Base):
+    __tablename__ = "permissions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    role_id: Mapped[int] = mapped_column(Integer, ForeignKey('roles.id', ondelete='CASCADE'))
+
+    # Связь с таблицей Roles (one-to-many)
+    role: Mapped[Roles] = relationship('Roles', back_populates='permissions')
+
+
+users/router.py
+
+from fastapi import APIRouter, status, Response, Depends
+
+from app.users.dao import UsersDAO, UsersRolesDAO
+from app.users.auth import (
+    get_password_hash,
+    authenticate_user,
+    create_access_token,
+)
+from app.users.dependencies import get_current_user
+from app.users.models import Users
+from app.exceptions import UserInCorrectEmailOrUsername, UserCreated, \
+    UserNameAlreadyExistsException, UserEmailAlreadyExistsException
+from app.users.schemas import SUserAuth, SUserSignUp, UserResponse
+from fastapi_versioning import version
+
+
+router_auth = APIRouter(
+    prefix="/auth",
+    tags=["Регистрация и изменение данных пользователя"],
+)
+
+router_users = APIRouter(
+    prefix="/users",
+    tags=["Пользователи"]
+)
+
+
+@router_auth.post("/register", status_code=status.HTTP_200_OK)
+@version(1)
+async def register_user(user_data: SUserAuth):
+    # Проверяем, существует ли уже пользователь с таким username или email
+    existing_user_by_username = await UsersDAO.find_one_or_none(username=user_data.username)
+    existing_user_by_email = await UsersDAO.find_one_or_none(email=user_data.email)
+
+    if existing_user_by_username:
+        raise UserNameAlreadyExistsException
+    if existing_user_by_email:
+        raise UserEmailAlreadyExistsException
+
+    hashed_password = get_password_hash(user_data.password)
+
+    await UsersDAO.add(
+        username=user_data.username,
+        firstname=user_data.firstname,
+        lastname=user_data.lastname,
+        email=user_data.email,
+        hashed_password=hashed_password,
+    )
+
+    new_user = await UsersDAO.find_one_or_none(email=user_data.email)
+    if new_user:
+        await UsersRolesDAO.add(user_id=new_user.id, role_name="user")
+    raise UserCreated
+
+
+@router_auth.post("/login")
+@version(1)
+async def login_user(response: Response, user_data: SUserSignUp):
+    user = await authenticate_user(user_data.email, user_data.username, user_data.password)
+    if not user:
+        raise UserInCorrectEmailOrUsername
+    access_token = create_access_token({"sub": str(user.id), "username": str(user.username)})
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        # domain="http://192.168.188.53:8080",
+        httponly=False,  # Чтобы кука была доступна только для HTTP запросов, а не через JavaScript
+        samesite='lax',  # Политика безопасности куки
+        secure=False,
+        max_age=3600,   # Срок жизни куки в секундах
+        expires=3601 ,   # Время истечения срока действия куки
+
+    )
+    return {"access_token": access_token}
+
+
+@router_auth.delete("/delete", status_code=status.HTTP_200_OK)
+@version(1)
+async def delete_user(user_data: Users = Depends(get_current_user)):
+    await UsersDAO.delete(user_data.id)
+    return {"message": "User deleted successfully"}
+
+
+@router_users.get("/me", status_code=status.HTTP_200_OK, response_model=UserResponse)
+@version(1)
+async def read_users_me(current_user: Users = Depends(get_current_user)):
+    user_with_roles = await UsersDAO().get_user_with_roles(current_user.id)
+    return user_with_roles
+
+
+
+users/schemas.py
+
+
+# app/users/schemas.py
+
+from typing import Optional, List
+from pydantic import BaseModel, EmailStr, root_validator
+
+
+
+
+class SUserAuth(BaseModel):
+    username: str
+    email: EmailStr
+    password: str
+    firstname: str
+    lastname: str
+
+
+class SUserSignUp(BaseModel):
+    username: Optional[str] = None
+    email: Optional[EmailStr] = None
+    password: str
+
+    @root_validator
+    def check_username_or_email(cls, values):
+        username, email = values.get('username'), values.get('email')
+        if not username and not email:
+            raise ValueError("Необходимо указать имя пользователя или почту")
+        return values
+
+
+class Role(BaseModel):
+    id: int
+    name: str
+
+
+class UserResponse(BaseModel):
+    # id: int
+    username: str
+    email: str
+    # firstname: str
+    # lastname: str
+    roles: List[Role]
+
+    class Config:
+        orm_mode = True
+
+
+
+config.py
+
+from typing import Literal
+
+from pydantic import BaseSettings
+
+
+class Settings(BaseSettings):
+    MODE: Literal["DEV", "TEST", "PROD"]
+    LOG_LEVEL: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+
+    DB_HOST: str
+    DB_PORT: int
+    DB_USER: str
+    DB_PASS: str
+    DB_NAME: str
+
+    @property
+    def DATABASE_URL(self):
+        return f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASS}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+
+    SECRET_KEY: str
+    ALGORITHM: str
+
+    class Config:
+        env_file = ".env"
+
+
+settings = Settings()
+
+
+database.py
+
+from sqlalchemy import select, insert
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import sessionmaker, DeclarativeBase
+from sqlalchemy.future import select
+from app.config import settings
+
+
+# Создание асинхронного движка
+engine = create_async_engine(settings.DATABASE_URL)
+
+# Фабрика сессий
+async_session_maker = sessionmaker(
+    bind=engine, class_=AsyncSession, expire_on_commit=False
+)
+
+# Базовый класс для моделей
+class Base(DeclarativeBase):
+    pass
+
+
+
+exceptions.py
+
+from fastapi import HTTPException, status
+
+
+class HootLineException(HTTPException):
+    status_code = 500
+    detail = ""
+
+    def __init__(self):
+        super().__init__(status_code=self.status_code, detail=self.detail)
+
+
+class UserNameAlreadyExistsException(HootLineException):
+    status_code = status.HTTP_409_CONFLICT
+    detail = "Пользователь с таким username уже существует"
+
+
+class UserEmailAlreadyExistsException(HootLineException):
+    status_code = status.HTTP_409_CONFLICT
+    detail = "Пользователь с таким email уже существует"
+
+
+class TokenExpiredException(HootLineException):
+    status_code = status.HTTP_401_UNAUTHORIZED
+    detail = "Срок действия токена истек"
+
+
+class TokenAbsentException(HootLineException):
+    status_code = status.HTTP_401_UNAUTHORIZED
+    detail = "Токен отсутствует"
+
+
+class IncorrectTokenFormatException(HootLineException):
+    status_code = status.HTTP_401_UNAUTHORIZED
+    detail = "Неверный формат токена"
+
+
+class UserIsNotPresentException(HootLineException):
+    status_code = status.HTTP_401_UNAUTHORIZED
+
+
+class UserInCorrectEmailOrUsername(HootLineException):
+    status_code = status.HTTP_401_UNAUTHORIZED
+    detail = "Пользователь с таким именем пользователя не найден"
+
+
+class UserCreated(HootLineException):
+    status_code = status.HTTP_201_CREATED
+    detail = "Пользователь успешно создан"
+
+
+logger.py
+
+from pythonjsonlogger import jsonlogger
+import logging
+from datetime import datetime
+import pytz
+from app.config import settings
+
+
+class CustomJsonFormatter(jsonlogger.JsonFormatter):
+    def __init__(self, *args, **kwargs):
+        # Устанавливаем ensure_ascii=False для корректного отображения русских символов
+        kwargs['json_ensure_ascii'] = False
+        super(CustomJsonFormatter, self).__init__(*args, **kwargs)
+
+    def add_fields(self, log_record, record, message_dict):
+        super(CustomJsonFormatter, self).add_fields(log_record, record, message_dict)
+        if not log_record.get("timestamp"):
+            # Get the current time in UTC and convert it to Yekaterinburg time zone
+            yekaterinburg_tz = pytz.timezone('Asia/Yekaterinburg')
+            now = datetime.utcnow().replace(tzinfo=pytz.utc).astimezone(yekaterinburg_tz)
+            formatted_time = now.strftime("%Y-%m-%d %H:%M:%S")  # Desired time format
+            log_record["timestamp"] = formatted_time
+        if log_record.get("level"):
+            log_record["level"] = log_record["level"].upper()
+        else:
+            log_record["level"] = record.levelname
+
+
+# Настройте форматировщик для ведения журнала с помощью json_ensure_ascii=False
+formatter = CustomJsonFormatter(
+    "%(timestamp)s %(level)s %(message)s %(module)s %(funcName)s"
+)
+
+#  Настраиваем обработчик и логгер
+logHandler = logging.StreamHandler()
+logHandler.setFormatter(formatter)
+
+logger = logging.getLogger()
+logger.addHandler(logHandler)
+logger.setLevel(settings.LOG_LEVEL)
+
+
+
+main.py
+
+
+import time
+
+import uvicorn
+from fastapi import FastAPI, Request
+from sqladmin import Admin
+from starlette.middleware.cors import CORSMiddleware
+from fastapi_versioning import VersionedFastAPI
+
+from app.admin.views import UserAdmin
+from app.database import engine
+from app.middleware import LoggingMiddleware
+from app.users.router import router_auth, router_users
+from app.utils import init_permissions, init_roles
+from app.logger import logger
+
+app = FastAPI()
+
+app.include_router(router_users)
+app.include_router(router_auth)
+
+app = VersionedFastAPI(app,
+                       version_format='{major}',
+                       prefix_format='/v{major}')
+
+origins = [
+    "http://localhost:8080",
+    "http://192.168.188.53:8080",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST"],
+    allow_headers=["*"],
+)
+
+app.add_middleware(LoggingMiddleware)
+
+
+@app.middleware("http")
+async def add_process_time_header(request: Request, call_next):
+    start_time = time.time()
+    response = await call_next(request)
+    process_time = time.time() - start_time
+    logger.info("Request handling time", extra={
+        "process_time": round(process_time, 4)
+    })
+    return response
+
+
+admin = Admin(app, engine)
+admin.add_view(UserAdmin)
+
+
+@app.on_event("startup")
+async def on_startup():
+    await init_roles()
+    await init_permissions()
+
+
+if __name__ == "__main__":
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)
+
+
+middleware.py
+
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
+import time
+
+from app.logger import logger
+
+
+class LoggingMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        start_time = time.time()  # Начало измерения времени обработки запроса
+
+        # Логируем запрос
+        logger.info({
+            "event": "request",
+            "method": request.method,
+            "url": str(request.url),
+            "headers": dict(request.headers),
+            # "body": await request.body()  # Опционально, для логирования тела запроса
+        })
+
+        try:
+            response = await call_next(request)
+
+            # Логируем ответ
+            logger.info({
+                "event": "response",
+                "status_code": response.status_code,
+                "headers": dict(response.headers),
+                # "body": b"".join([chunk async for chunk in response.body_iterator])  # Опционально, для логирования тела ответа
+            })
+
+            return response
+        except Exception as e:
+            # Логируем ошибку
+            logger.error({
+                "event": "error",
+                "message": str(e),
+                "method": request.method,
+                "url": str(request.url),
+            })
+            return Response(content="Internal Server Error", status_code=500)
+        finally:
+            # Логируем время обработки запроса
+            process_time = time.time() - start_time
+            logger.info({
+                "event": "process_time",
+                "method": request.method,
+                "url": str(request.url),
+                "process_time": process_time,
+            })
+
+
+utils.py
+
+from sqlalchemy import select, insert
+
+from app.database import async_session_maker
+from app.users.models import Roles, Permissions
+
+
+async def init_roles():
+    async with async_session_maker() as session:
+        roles = ["user", "admin", "moderator"]  # Список ролей, которые нужно добавить
+
+        for role_name in roles:
+            # Проверка существующих ролей
+            existing_role = await session.execute(select(Roles).where(Roles.name == role_name))
+            existing_role = existing_role.scalar_one_or_none()
+
+            if not existing_role:
+                new_role = Roles(name=role_name)
+                session.add(new_role)
+
+        await session.commit()
+
+
+async def init_permissions():
+    async with async_session_maker() as session:
+        # Начало транзакции
+        async with session.begin():
+            permissions = [
+                {"name": "create_user", "role_id": 1},  # Укажите реальный role_id
+                {"name": "delete_user", "role_id": 1},
+                {"name": "view_reports", "role_id": 1},
+                {"name": "view_content", "role_id": 1}  # Укажите реальный role_id
+            ]
+
+            # Проверка существующих разрешений
+            existing_permissions = await session.execute(select(Permissions.name, Permissions.role_id))
+            existing_permissions = {(perm[0], perm[1]) for perm in existing_permissions.fetchall()}
+
+            # Фильтрация новых разрешений
+            new_permissions = [perm for perm in permissions if (perm["name"], perm["role_id"]) not in existing_permissions]
+
+            if new_permissions:
+                # Вставка новых разрешений
+                stmt = insert(Permissions).values(new_permissions)
+                await session.execute(stmt)
+                await session.commit()
+
+
+Вот код всего моего приложения, можешь помочь реализовать восстановление пароля при помощи почты?
