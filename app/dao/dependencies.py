@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from fastapi import Request, Depends, Query
+from fastapi import Request, Depends
 from jose import jwt, JWTError
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload

@@ -16,7 +16,7 @@ class CustomJsonFormatter(jsonlogger.JsonFormatter):
         if not log_record.get("timestamp"):
             # Get the current time in UTC and convert it to Yekaterinburg time zone
             yekaterinburg_tz = pytz.timezone('Asia/Yekaterinburg')
-            now = datetime.utcnow().replace(tzinfo=pytz.utc).astimezone(yekaterinburg_tz)
+            now = datetime.now().replace(tzinfo=pytz.utc).astimezone(yekaterinburg_tz)
             formatted_time = now.strftime("%Y-%m-%d %H:%M:%S")  # Desired time format
             log_record["timestamp"] = formatted_time
         if log_record.get("level"):

@@ -1,7 +1,7 @@
 import jwt
 from fastapi import APIRouter, status, Response, HTTPException
 from jwt.exceptions import ExpiredSignatureError, PyJWTError
-from app.auth.auth import get_password_hash, authenticate_user, create_access_token, create_reset_token, verify_password
+from app.auth.auth import get_password_hash, create_access_token, create_reset_token, verify_password
 from app.config import settings
 from app.dao.dao import UsersDAO
 from app.exceptions import UserInCorrectEmailOrUsername, PasswordRecoveryInstructions, IncorrectTokenFormatException, \

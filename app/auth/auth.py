@@ -1,11 +1,8 @@
 from typing import Optional
-
 from passlib.context import CryptContext
 from jose import jwt
 from datetime import datetime, timedelta
-
 from pydantic import EmailStr
-
 from app.dao.dao import UsersDAO
 from app.config import settings
 
@@ -22,7 +19,7 @@ def verify_password(plain_password, hashed_password) -> bool:
 
 def create_access_token(data: dict, expires_delta: timedelta = timedelta(minutes=90)):
     to_encode = data.copy()  # убедитесь, что data - это словарь, а не строка
-    expire = datetime.utcnow() + expires_delta
+    expire = datetime.now() + expires_delta
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
@@ -41,7 +38,7 @@ async def authenticate_user(email: Optional[EmailStr], username: Optional[str], 
 
 
 def create_reset_token(email: str) -> str:
-    expire = datetime.utcnow() + timedelta(minutes=15)
+    expire = datetime.now() + timedelta(minutes=15)
     to_encode = {"exp": expire, "sub": email}  # создаем словарь внутри функции
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
