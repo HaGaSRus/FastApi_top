@@ -5,10 +5,12 @@ from pydantic import BaseModel, EmailStr
 class Role(BaseModel):
     name: str
 
+
 class UserSchema(BaseModel):
     id: int
     username: str
     email: str
+    password: str
     firstname: str
     lastname: str
     roles: list
@@ -20,6 +22,8 @@ class UserSchema(BaseModel):
 class UserResponse(BaseModel):
     username: str
     email: str
+    firstname: str
+    lastname: str
     roles: list
 
     class Config:
@@ -29,6 +33,7 @@ class UserResponse(BaseModel):
 class UpdateUserRequest(BaseModel):
     username: Optional[str] = None
     email: Optional[EmailStr] = None
+    password: Optional[str] = None
     firstname: Optional[str] = None
     lastname: Optional[str] = None
 

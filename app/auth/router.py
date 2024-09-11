@@ -1,7 +1,7 @@
 import jwt
 from fastapi import APIRouter, status, Response, HTTPException
 from jwt.exceptions import ExpiredSignatureError, PyJWTError
-from app.auth.auth import get_password_hash, authenticate_user, create_access_token, create_reset_token
+from app.auth.auth import get_password_hash, authenticate_user, create_access_token, create_reset_token, verify_password
 from app.config import settings
 from app.dao.dao import UsersDAO
 from app.exceptions import UserInCorrectEmailOrUsername, PasswordRecoveryInstructions, IncorrectTokenFormatException, \
@@ -21,15 +21,38 @@ router_auth = APIRouter(
 
 @router_auth.post("/login")
 @version(1)
-async def login_user(response: Response, user_data: SUserSignUp):
-    user = await authenticate_user(user_data.email, user_data.username, user_data.password)
-    if not user:
-        raise UserInCorrectEmailOrUsername
+async def login_user(
+        response: Response,
+        user_data: SUserSignUp
+):
+    # Проверяем, существует ли пользователь с таким email или username
+    users_dao = UsersDAO()
+    user_by_email = await users_dao.find_one_or_none(email=user_data.email)
+    user_by_username = await users_dao.find_one_or_none(username=user_data.username)
+
+    if not user_by_email and not user_by_username:
+        raise HTTPException(
+            status_code=404,
+            detail="Пользователь с указанным email или username не найден"
+        )
+
+    # Выбираем существующего пользователя
+    user = user_by_email or user_by_username
+
+    # Проверяем корректность пароля
+    if not verify_password(user_data.password, user.hashed_password):
+        raise HTTPException(
+            status_code=401,
+            detail="Неверный пароль"
+        )
 
     # Получаем пользователя с ролями
-    user_with_roles = await UsersDAO().get_user_with_roles(user.id)  # Используем экземпляр для вызова метода
+    user_with_roles = await users_dao.get_user_with_roles(user.id)
     if not user_with_roles:
-        raise UserInCorrectEmailOrUsername
+        raise HTTPException(
+            status_code=401,
+            detail="Не удалось получить роли пользователя"
+        )
 
     access_token = create_access_token({
         "sub": str(user.id),

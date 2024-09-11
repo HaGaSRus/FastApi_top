@@ -1,5 +1,4 @@
 from typing import Optional, List
-
 from sqlalchemy import insert, delete
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
@@ -8,6 +7,7 @@ from app.database import async_session_maker
 from app.logger.logger import logger
 from app.users.models import Users, Roles, Permissions, role_user_association
 from app.users.schemas import UserResponse
+from sqlalchemy.exc import SQLAlchemyError
 
 
 class UsersDAO(BaseDAO):
@@ -40,6 +40,8 @@ class UsersDAO(BaseDAO):
                 user_data = UserResponse(
                     username=user.username,
                     email=user.email,
+                    firstname=user.firstname,
+                    lastname=user.lastname,
                     roles=[role.name for role in user.roles]  # Преобразуем роли в список строк
                 )
                 return user_data
@@ -56,26 +58,46 @@ class UsersDAO(BaseDAO):
 
     @classmethod
     async def update(cls, model_id: int, username: Optional[str] = None, email: Optional[str] = None,
-                     firstname: Optional[str] = None, lastname: Optional[str] = None):
+                     hashed_password: Optional[str] = None, firstname: Optional[str] = None,
+                     lastname: Optional[str] = None):
         async with async_session_maker() as session:
-            # Получаем текущие данные пользователя
-            stmt = select(Users).where(Users.id == model_id)
-            result = await session.execute(stmt)
-            user = result.scalar()
+            try:
+                # Получаем текущие данные пользователя
+                stmt = select(Users).where(Users.id == model_id)
+                result = await session.execute(stmt)
+                user = result.scalar()
 
-            # Обновляем только те поля, которые не равны None
-            if username is not None:
-                user.username = username
-            if email is not None:
-                user.email = email
-            if firstname is not None:
-                user.firstname = firstname
-            if lastname is not None:
-                user.lastname = lastname
+                if not user:
+                    logger.error(f"Пользователь с id={model_id} не найден.")
+                    raise ValueError("Пользователь не найден.")
 
-            # Сохраняем изменения
-            await session.commit()
-            return user
+                # Логирование перед обновлением
+                logger.info(f"Обновляем пользователя с id={model_id}: username={username}, email={email}")
+
+                # Обновляем только те поля, которые не равны None
+                if username is not None:
+                    user.username = username
+                if email is not None:
+                    user.email = email
+                if hashed_password is not None:  # Исправление здесь
+                    user.hashed_password = hashed_password
+                if firstname is not None:
+                    user.firstname = firstname
+                if lastname is not None:
+                    user.lastname = lastname
+
+                # Сохраняем изменения
+                await session.commit()
+
+                # Логирование после коммита
+                logger.info(f"Пользователь с id={model_id} успешно обновлён.")
+
+                return user
+
+            except SQLAlchemyError as e:
+                logger.error(f"Ошибка при обновлении пользователя с id={model_id}: {e}")
+                await session.rollback()
+                raise
 
 
 class UsersRolesDAO(BaseDAO):

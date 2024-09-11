@@ -69,3 +69,16 @@ class PasswordUpdatedSuccessfully(HootLineException):
     detail = "Пароль успешно обновлен"
 
 
+class UpdateUser(HootLineException):
+    status_code = status.HTTP_200_OK
+    detail = "Данные пользователя успешно обновлены"
+
+
+class UserNotFoundException(HootLineException):
+    status_code = status.HTTP_404_NOT_FOUND
+    detail = "Пользователь не существует"
+
+
+class PermissionDeniedException(HootLineException):
+    status_code = status.HTTP_403_FORBIDDEN
+    detail = "У вас нет прав для этого"

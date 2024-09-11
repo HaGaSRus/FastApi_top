@@ -1,11 +1,14 @@
-from fastapi import APIRouter, status, Depends
+from fastapi import APIRouter, status, Depends, Response
+
+from app.auth.auth import pwd_context
 from app.dao.dao import UsersDAO
 from app.dao.dependencies import get_current_user
+from app.logger.logger import logger
 from app.users.models import Users
-from app.exceptions import UserNameAlreadyExistsException, UserEmailAlreadyExistsException
+from app.exceptions import UserNameAlreadyExistsException, UserEmailAlreadyExistsException, UpdateUser
 from app.users.schemas import UserResponse, UpdateUserRequest
 from fastapi_versioning import version
-
+from app.exceptions import UserCreated
 
 router_users = APIRouter(
     prefix="/users",
@@ -20,8 +23,9 @@ async def read_users_me(current_user: Users = Depends(get_current_user)):
     return user_with_roles
 
 
+from fastapi import Response
 
-@router_users.post("/update", status_code=status.HTTP_200_OK, response_model=UpdateUserRequest)
+@router_users.post("/update", status_code=status.HTTP_200_OK)
 @version(1)
 async def update_user(
         update_data: UpdateUserRequest,
@@ -41,26 +45,23 @@ async def update_user(
         if existing_user and existing_user.id != current_user.id:
             raise UserEmailAlreadyExistsException
 
+    hashed_password = pwd_context.hash(update_data.password) if update_data.password else None
+
+    # Логирование перед обновлением
+    logger.info(
+        f"Обновление пользователя с id={current_user.id}: username={update_data.username}, email={update_data.email},"
+        f" hashed_password={hashed_password is not None}")
+
     # Обновляем данные пользователя
-    updated_user = await users_dao.update(
+    await users_dao.update(
         model_id=current_user.id,
         username=update_data.username,
         email=update_data.email,
+        hashed_password=hashed_password,
         firstname=update_data.firstname,
         lastname=update_data.lastname,
     )
 
-    return updated_user
-
-
-
-
-
-
-
-
-
-
-
+    return UpdateUser
 
 
