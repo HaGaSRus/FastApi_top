@@ -1,4 +1,6 @@
 import time
+import pytz
+from datetime import datetime
 from fastapi_mail import ConnectionConfig, MessageSchema, FastMail
 from sqlalchemy import select, insert
 from app.config import settings
@@ -74,3 +76,4 @@ async def send_reset_password_email(email: str, token: str):
     await fm.send_message(message)
     logger.info(f"Письмо для сброса пароля отправлено на адрес: {email}")
     logger.info(f"Время выполнения: {time.time() - start_time} секунд")
+

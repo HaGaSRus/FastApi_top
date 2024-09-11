@@ -1,4 +1,5 @@
 from typing import Optional
+import pytz
 from passlib.context import CryptContext
 from jose import jwt
 from datetime import datetime, timedelta
@@ -9,23 +10,33 @@ from app.config import settings
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
+def get_current_time_yekaterinburg() -> datetime:
+    # Возвращает текущее время в часовом поясе Екатеринбурга
+    yekaterinburg_tz = pytz.timezone('Asia/Yekaterinburg')
+    return datetime.now(yekaterinburg_tz)
+
+
 def get_password_hash(password: str) -> str:
+    # Хеширует пароль
     return pwd_context.hash(password)
 
 
-def verify_password(plain_password, hashed_password) -> bool:
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    # Проверяет, совпадает ли введенный пароль с хешированным
     return pwd_context.verify(plain_password, hashed_password)
 
 
 def create_access_token(data: dict, expires_delta: timedelta = timedelta(minutes=90)):
-    to_encode = data.copy()  # убедитесь, что data - это словарь, а не строка
-    expire = datetime.now() + expires_delta
-    to_encode.update({"exp": expire})
+    # Создает JWT токен с заданным временем жизни
+    to_encode = data.copy()  # Убедитесь, что data — это словарь
+    expire = get_current_time_yekaterinburg() + expires_delta
+    to_encode.update({"exp": expire.timestamp()})  # Конвертируем время в Unix timestamp
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
 
 
 async def authenticate_user(email: Optional[EmailStr], username: Optional[str], password: str):
+    # Проверяет пользователя по email или username и паролю
     user = None
     if email:
         user = await UsersDAO.find_one_or_none(email=email)
@@ -38,9 +49,8 @@ async def authenticate_user(email: Optional[EmailStr], username: Optional[str], 
 
 
 def create_reset_token(email: str) -> str:
-    expire = datetime.now() + timedelta(minutes=15)
-    to_encode = {"exp": expire, "sub": email}  # создаем словарь внутри функции
+    # Создает JWT токен для сброса пароля с заданным временем жизни
+    expire = get_current_time_yekaterinburg() + timedelta(minutes=15)
+    to_encode = {"exp": expire.timestamp(), "sub": email}  # Конвертируем время в Unix timestamp
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
-
-
