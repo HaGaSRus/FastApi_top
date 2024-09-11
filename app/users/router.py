@@ -1,4 +1,4 @@
-from fastapi import APIRouter, status, Depends, Response
+from fastapi import APIRouter, status, Depends
 
 from app.auth.auth import pwd_context
 from app.dao.dao import UsersDAO
@@ -8,7 +8,7 @@ from app.users.models import Users
 from app.exceptions import UserNameAlreadyExistsException, UserEmailAlreadyExistsException, UpdateUser
 from app.users.schemas import UserResponse, UpdateUserRequest
 from fastapi_versioning import version
-from app.exceptions import UserCreated
+
 
 router_users = APIRouter(
     prefix="/users",
@@ -61,5 +61,4 @@ async def update_user(
     )
 
     return UpdateUser
-
 

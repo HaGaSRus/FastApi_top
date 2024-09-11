@@ -42,3 +42,14 @@ class UpdateUserRolesRequest(BaseModel):
     roles: List[str]
 
 
+class AllUserResponse(BaseModel):
+    id: int
+    username: str
+    email: str
+    firstname: str
+    lastname: str
+    roles: list
+
+    class Config:
+        from_attributes = True
+

@@ -14,7 +14,7 @@ from app.users.models import Users
 from sqlalchemy.orm import selectinload
 from sqlalchemy.future import select
 
-from app.users.schemas import UserSchema, Role, UpdateUserRolesRequest
+from app.users.schemas import Role, UpdateUserRolesRequest, AllUserResponse
 from app.admin.schemas import SUserAuth
 
 router_admin = APIRouter(
@@ -54,9 +54,9 @@ async def register_user(user_data: SUserAuth, current_user: Users = Depends(get_
     raise UserCreated
 
 
-@router_admin.get("/all-users", status_code=status.HTTP_200_OK, response_model=List[UserSchema])
+@router_admin.get("/all-users", status_code=status.HTTP_200_OK, response_model=List[AllUserResponse])
 @version(1)
-async def get_all_users(current_user: Users = Depends(get_current_admin_user)) -> List[UserSchema]:
+async def get_all_users(current_user: Users = Depends(get_current_admin_user)) -> List[AllUserResponse]:
     """Получение всех пользователей. Доступно только администраторам."""
     async with async_session_maker() as session:
         users_all = await session.execute(
@@ -64,7 +64,7 @@ async def get_all_users(current_user: Users = Depends(get_current_admin_user)) -
         )
         users_all = users_all.scalars().all()
 
-    user_responses = [UserSchema(
+    user_responses = [AllUserResponse(
         id=user.id,
         username=user.username,
         email=user.email,

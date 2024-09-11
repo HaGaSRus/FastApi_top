@@ -1,10 +1,9 @@
 from datetime import datetime
 from typing import Optional
 
-from fastapi import Request, Depends, HTTPException
+from fastapi import Request, Depends, Query
 from jose import jwt, JWTError
 from sqlalchemy.future import select
-from starlette import status
 from sqlalchemy.orm import selectinload
 from app.config import settings
 from app.database import async_session_maker
@@ -12,7 +11,7 @@ from app.exceptions import (
     TokenExpiredException,
     TokenAbsentException,
     IncorrectTokenFormatException,
-    UserIsNotPresentException,
+    UserIsNotPresentException, PermissionDeniedException,
 )
 from app.logger.logger import logger
 
@@ -41,7 +40,7 @@ async def get_current_user(token: str = Depends(get_token)) -> Users:
         raise IncorrectTokenFormatException
 
     expire: Optional[int] = payload.get("exp")
-    if not expire or int(expire) < datetime.utcnow().timestamp():
+    if not expire or int(expire) < datetime.now().timestamp():
         logger.error("Срок действия токена истек")
         raise TokenExpiredException
 
@@ -67,9 +66,6 @@ async def get_current_user(token: str = Depends(get_token)) -> Users:
 async def get_current_admin_user(current_user: Users = Depends(get_current_user)) -> Users:
     # Предполагается, что роли пользователя хранятся в current_user.roles
     if not current_user or not any(role.name == "admin" for role in current_user.roles):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="У вас нет разрешения на доступ к этому ресурсу."
-        )
+        raise PermissionDeniedException
     return current_user
 
