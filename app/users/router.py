@@ -23,8 +23,6 @@ async def read_users_me(current_user: Users = Depends(get_current_user)):
     return user_with_roles
 
 
-from fastapi import Response
-
 @router_users.post("/update", status_code=status.HTTP_200_OK)
 @version(1)
 async def update_user(

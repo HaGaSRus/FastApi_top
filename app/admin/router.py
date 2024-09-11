@@ -1,11 +1,11 @@
 from typing import List
 
-from fastapi import APIRouter, status, Depends, Response, Body
+from fastapi import APIRouter, status, Depends, Body
 from fastapi_versioning import version
 
 from app.auth.auth import get_password_hash, pwd_context
 from app.dao.dao import UsersDAO, UsersRolesDAO
-from app.dao.dependencies import get_current_admin_user, get_current_user
+from app.dao.dependencies import get_current_admin_user
 from app.database import async_session_maker
 from app.exceptions import UserEmailAlreadyExistsException, UserNameAlreadyExistsException, UserCreated, UserChangeRole, \
     DeleteUser, UserNotFoundException, PermissionDeniedException, UpdateUser
@@ -14,8 +14,8 @@ from app.users.models import Users
 from sqlalchemy.orm import selectinload
 from sqlalchemy.future import select
 
-from app.users.schemas import UserSchema, Role, UpdateUserRequest, UpdateUserRolesRequest
-from app.admin.schemas import SUserAuth, UpdateUserRequestWithId
+from app.users.schemas import UserSchema, Role, UpdateUserRolesRequest
+from app.admin.schemas import SUserAuth
 
 router_admin = APIRouter(
     prefix="/auth",
@@ -79,15 +79,16 @@ async def get_all_users(current_user: Users = Depends(get_current_admin_user)) -
 @router_admin.post("/update-admin", status_code=status.HTTP_200_OK)
 @version(1)
 async def update_user(
-        update_user_request: UpdateUserRequestWithId = Body(...),
-        current_user: Users = Depends(get_current_admin_user),
+        user_id: int = Body(..., description="ID пользователя для обновления"),
+        username: str = Body(None, description="Новое имя пользователя"),
+        email: str = Body(None, description="Новый email пользователя"),
+        password: str = Body(None, description="Новый пароль пользователя"),
+        firstname: str = Body(None, description="Новое имя пользователя"),
+        lastname: str = Body(None, description="Новая фамилия пользователя"),
+        current_user: Users = Depends(get_current_admin_user)
 ):
     """Обновление информации о пользователе"""
     users_dao = UsersDAO()
-
-    # Извлечение user_id и update_data из запроса
-    user_id = update_user_request.user_id
-    update_data = update_user_request.update_data
 
     # Проверка, существует ли такой пользователь
     user_to_update = await users_dao.find_one_or_none(id=user_id)
@@ -98,31 +99,31 @@ async def update_user(
     if user_to_update.id != current_user.id:
         raise PermissionDeniedException
 
-    if update_data.username:
-        existing_user = await users_dao.find_one_or_none(username=update_data.username)
+    if username:
+        existing_user = await users_dao.find_one_or_none(username=username)
         if existing_user and existing_user.id != user_to_update.id:
             raise UserNameAlreadyExistsException
 
-    if update_data.email:
-        existing_user = await users_dao.find_one_or_none(email=update_data.email)
+    if email:
+        existing_user = await users_dao.find_one_or_none(email=email)
         if existing_user and existing_user.id != user_to_update.id:
             raise UserEmailAlreadyExistsException
 
-    hashed_password = pwd_context.hash(update_data.password) if update_data.password else None
+    hashed_password = pwd_context.hash(password) if password else None
 
     # Логирование перед обновлением
     logger.info(
-        f"Обновление пользователя с id={user_to_update.id}: username={update_data.username}, email={update_data.email},"
+        f"Обновление пользователя с id={user_to_update.id}: username={username}, email={email},"
         f" hashed_password={hashed_password is not None}")
 
     # Обновляем данные пользователя
     await users_dao.update(
         model_id=user_to_update.id,
-        username=update_data.username,
-        email=update_data.email,
+        username=username,
+        email=email,
         hashed_password=hashed_password,
-        firstname=update_data.firstname,
-        lastname=update_data.lastname,
+        firstname=firstname,
+        lastname=lastname,
     )
 
     return UpdateUser
