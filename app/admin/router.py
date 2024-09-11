@@ -1,5 +1,6 @@
 from typing import List
-
+from fastapi_pagination import Page, paginate, Params, add_pagination
+from fastapi_pagination.limit_offset import LimitOffsetPage, LimitOffsetParams
 from fastapi import APIRouter, status, Depends, Body
 from fastapi_versioning import version
 
@@ -11,9 +12,6 @@ from app.exceptions import UserEmailAlreadyExistsException, UserNameAlreadyExist
     DeleteUser, UserNotFoundException, PermissionDeniedException, UpdateUser
 from app.logger.logger import logger
 from app.users.models import Users
-from sqlalchemy.orm import selectinload
-from sqlalchemy.future import select
-
 from app.users.schemas import Role, UpdateUserRolesRequest, AllUserResponse
 from app.admin.schemas import SUserAuth
 
@@ -21,7 +19,6 @@ router_admin = APIRouter(
     prefix="/auth",
     tags=["Админка"],
 )
-
 
 @router_admin.post("/register", status_code=status.HTTP_201_CREATED)
 @version(1)
@@ -54,26 +51,6 @@ async def register_user(user_data: SUserAuth, current_user: Users = Depends(get_
     raise UserCreated
 
 
-@router_admin.get("/all-users", status_code=status.HTTP_200_OK, response_model=List[AllUserResponse])
-@version(1)
-async def get_all_users(current_user: Users = Depends(get_current_admin_user)) -> List[AllUserResponse]:
-    """Получение всех пользователей. Доступно только администраторам."""
-    async with async_session_maker() as session:
-        users_all = await session.execute(
-            select(Users).options(selectinload(Users.roles))
-        )
-        users_all = users_all.scalars().all()
-
-    user_responses = [AllUserResponse(
-        id=user.id,
-        username=user.username,
-        email=user.email,
-        firstname=user.firstname,
-        lastname=user.lastname,
-        roles=[Role(name=role.name) for role in user.roles],
-    ) for user in users_all]
-
-    return user_responses
 
 
 @router_admin.post("/update-admin", status_code=status.HTTP_200_OK)
@@ -153,3 +130,45 @@ async def delete_user(user_id: int, current_user: Users = Depends(get_current_ad
     users_dao = UsersDAO()
     await users_dao.delete(user_id)
     return DeleteUser
+
+
+
+# @router_admin.get("/all-users", status_code=status.HTTP_200_OK, response_model=Page[AllUserResponse])
+# @version(1)
+# async def get_all_users(
+#     current_user: Users = Depends(get_current_admin_user),
+#     params: Params = Depends()  # Получаем параметры пагинации из запроса
+# ):
+#     """Получение всех пользователей. Доступно только администраторам."""
+#     async with async_session_maker() as session:
+#         users_all = await session.execute(
+#             select(Users).options(selectinload(Users.roles))
+#         )
+#         users_all = users_all.scalars().all()
+#
+#     user_responses = [
+#         AllUserResponse(
+#             id=user.id,
+#             username=user.username,
+#             email=user.email,
+#             firstname=user.firstname,
+#             lastname=user.lastname,
+#             roles=[Role(name=role.name) for role in user.roles],
+#         ) for user in users_all
+#     ]
+#     # Задаем параметры по умолчанию
+#     DEFAULT_PAGE_SIZE = 10  # Количество элементов на странице по умолчанию
+#     MAX_PAGE_SIZE = 100  # Максимальное количество элементов на странице
+#
+#     # Настройка глобальных параметров пагинации
+#     class CustomParams(Params):
+#         size: int = DEFAULT_PAGE_SIZE  # Устанавливаем значение по умолчанию
+#         max_size: int = MAX_PAGE_SIZE  # Максимальное количество элементов
+#
+#     add_pagination(router_admin, params=CustomParams)  # Добавляем пагинацию с кастомными параметрами
+#
+#     # Применение кастомных параметров пагинации
+#     return paginate(user_responses, params=params)
+#
+# # Регистрация пагинации в FastAPI
+# add_pagination(router_admin)

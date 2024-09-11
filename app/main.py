@@ -8,6 +8,7 @@ import time
 from typing import AsyncIterator
 
 from app.logger.middleware import LoggingMiddleware
+from app.admin.pagination import router_pagination
 from app.users.router import router_users
 from app.auth.router import router_auth
 from app.admin.router import router_admin
@@ -31,6 +32,7 @@ app = FastAPI(lifespan=lifespan)
 app.include_router(router_users)
 app.include_router(router_auth)
 app.include_router(router_admin)
+app.include_router(router_pagination)
 
 app = VersionedFastAPI(app,
                        version_format='{major}',
