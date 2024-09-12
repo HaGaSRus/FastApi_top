@@ -8,6 +8,7 @@ from app.logger.logger import logger
 from app.users.models import Users, Roles, Permissions, role_user_association
 from app.users.schemas import UserResponse
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy import or_
 
 
 class UsersDAO(BaseDAO):
@@ -27,6 +28,19 @@ class UsersDAO(BaseDAO):
             session.add(new_user)
             await session.commit()
             return new_user
+
+    @classmethod
+    async def find_by_username_or_email(cls, username: Optional[str] = None, email: Optional[str] = None):
+        async with async_session_maker() as session:
+            query = select(cls.model)
+            if username and email:
+                query = query.where(or_(cls.model.username == username, cls.model.email == email))
+            elif username:
+                query = query.where(cls.model.username == username)
+            elif email:
+                query = query.where(cls.model.email == email)
+            result = await session.execute(query)
+            return result.scalar()
 
     @classmethod
     async def get_user_with_roles(cls, user_id: int) -> Optional[UserResponse]:

@@ -82,3 +82,24 @@ class UserNotFoundException(HootLineException):
 class PermissionDeniedException(HootLineException):
     status_code = status.HTTP_403_FORBIDDEN
     detail = "У вас нет прав для этого"
+
+
+class ErrorUpdatingUser(HootLineException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    detail = "Ошибка при обновлении пользователя"
+
+
+class EmailOrUsernameWasNotFound(HootLineException):
+    status_code = status.HTTP_404_NOT_FOUND
+    detail = "Пользователь с указанным email или username не найден"
+
+
+class InvalidPassword(HootLineException):
+    status_code = status.HTTP_401_UNAUTHORIZED
+    detail = "Неверный пароль"
+
+
+class FailedToGetUserRoles(HootLineException):
+    status_code = status.HTTP_401_UNAUTHORIZED
+    detail = "Не удалось получить роли пользователя"
+

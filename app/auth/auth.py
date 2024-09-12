@@ -36,12 +36,12 @@ def create_access_token(data: dict, expires_delta: timedelta = timedelta(minutes
 
 
 async def authenticate_user(email: Optional[EmailStr], username: Optional[str], password: str):
-    # Проверяет пользователя по email или username и паролю
+    users_dao = UsersDAO()  # Создание экземпляра
     user = None
     if email:
-        user = await UsersDAO.find_one_or_none(email=email)
-    if username:
-        user = await UsersDAO.find_one_or_none(username=username)
+        user = await users_dao.find_one_or_none(email=email)
+    elif username:
+        user = await users_dao.find_one_or_none(username=username)
 
     if user and verify_password(password, user.hashed_password):
         return user

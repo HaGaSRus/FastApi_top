@@ -1,12 +1,12 @@
 from typing import Optional, List
-
+from sqlalchemy import or_
 from fastapi import APIRouter, status, Depends, Body
 from fastapi_versioning import version
 from app.auth.auth import get_password_hash, pwd_context
 from app.dao.dao import UsersDAO, UsersRolesDAO
 from app.dao.dependencies import get_current_admin_user
 from app.exceptions import UserEmailAlreadyExistsException, UserNameAlreadyExistsException, UserCreated, UserChangeRole, \
-    DeleteUser, UserNotFoundException, UpdateUser
+    DeleteUser, UserNotFoundException, UpdateUser, ErrorUpdatingUser
 from app.logger.logger import logger
 from app.users.models import Users
 from app.admin.schemas import SUserAuth, UserIdRequest
@@ -23,14 +23,16 @@ async def register_user(user_data: SUserAuth, current_user: Users = Depends(get_
     users_dao = UsersDAO()
     users_roles_dao = UsersRolesDAO()
 
-    # Проверяем, существует ли уже пользователь с таким username или email
-    existing_user_by_username = await users_dao.find_one_or_none(username=user_data.username)
-    existing_user_by_email = await users_dao.find_one_or_none(email=user_data.email)
+    existing_user = await users_dao.find_by_username_or_email(
+        username=user_data.username,
+        email=user_data.email
+    )
 
-    if existing_user_by_username:
-        raise UserNameAlreadyExistsException
-    if existing_user_by_email:
-        raise UserEmailAlreadyExistsException
+    if existing_user:
+        if existing_user.username == user_data.username:
+            raise UserNameAlreadyExistsException
+        if existing_user.email == user_data.email:
+            raise UserEmailAlreadyExistsException
 
     hashed_password = get_password_hash(user_data.password)
 
@@ -88,14 +90,18 @@ async def update_user(
         f" hashed_password={hashed_password is not None}")
 
     # Обновляем данные пользователя
-    await users_dao.update(
-        model_id=user_to_update.id,
-        username=username,
-        email=email,
-        hashed_password=hashed_password,
-        firstname=firstname,
-        lastname=lastname,
-    )
+    try:
+        await users_dao.update(
+            model_id=user_to_update.id,
+            username=username,
+            email=email,
+            hashed_password=hashed_password,
+            firstname=firstname,
+            lastname=lastname,
+        )
+    except Exception as e:
+        logger.error(f"Ошибка при обновлении пользователя: {e}")
+        raise ErrorUpdatingUser
 
     # Если переданы новые роли, обновляем их
     if update_roles is not None:

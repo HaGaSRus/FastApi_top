@@ -2,6 +2,8 @@ from app.database import async_session_maker
 
 from sqlalchemy import select, insert, update
 
+from app.exceptions import UserNotFoundException
+
 
 class BaseDAO:
     model = None
@@ -47,7 +49,7 @@ class BaseDAO:
                 await session.delete(instance)
                 await session.commit()
             else:
-                raise ValueError("User not found")
+                raise UserNotFoundException
 
     @classmethod
     async def update(cls, model_id: int, **data):
