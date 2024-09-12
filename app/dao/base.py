@@ -1,6 +1,10 @@
-from app.database import async_session_maker
+from typing import Optional
 
-from sqlalchemy import select, insert, update
+from app.database import async_session_maker
+from sqlalchemy import select, insert, update, delete
+from app.exceptions import UserNotFoundException
+from sqlalchemy.exc import SQLAlchemyError
+from app.logger.logger import logger
 
 
 class BaseDAO:
@@ -9,49 +13,93 @@ class BaseDAO:
     @classmethod
     async def find_by_id(cls, model_id: int):
         async with async_session_maker() as session:
-            query = select(cls.model).filter_by(id=model_id)
-            result = await session.execute(query)
-            return result.scalar_one_or_none()
+            try:
+                query = select(cls.model).filter_by(id=model_id)
+                result = await session.execute(query)
+                instance = result.scalar_one_or_none()
+                if instance is None:
+                    logger.warning(f"Экземпляр с идентификатором {model_id} не найден.")
+                return instance
+            except SQLAlchemyError as e:
+                logger.error(f"Ошибка поиска по идентификатору {model_id}: {e}")
+                raise
 
     @classmethod
-    async def find_one_or_none(cls, **filter_by):
+    async def find_one_or_none(cls, **filter_by) -> Optional[model]:
         async with async_session_maker() as session:
-            query = select(cls.model).filter_by(**filter_by)
-            result = await session.execute(query)
-            return result.scalar_one_or_none()
+            try:
+                query = select(cls.model).filter_by(**filter_by)
+                result = await session.execute(query)
+                instance = result.scalar_one_or_none()
+                return instance
+            except SQLAlchemyError as e:
+                logger.error(f"Ошибка при поиске с помощью фильтра {filter_by}: {e}")
+                raise
 
     @classmethod
-    async def find_all(cls, **filter_by):
+    async def find_all(cls, **filter_by) -> list:
         async with async_session_maker() as session:
-            query = select(cls.model).filter_by(**filter_by)
-            result = await session.execute(query)
-            return result.scalars().all()
+            try:
+                query = select(cls.model).filter_by(**filter_by)
+                result = await session.execute(query)
+                instances = result.scalars().all()
+                return instances
+            except SQLAlchemyError as e:
+                logger.error(f"Ошибка при поиске всех с помощью фильтра {filter_by}: {e}")
+                raise
 
     @classmethod
-    async def add(cls, **data):
+    async def add(cls, **data) -> model:
         async with async_session_maker() as session:
-            query = insert(cls.model).values(**data)
-            await session.execute(query)
-            await session.commit()
+            try:
+                query = insert(cls.model).values(**data).returning(cls.model)
+                result = await session.execute(query)
+                await session.commit()
+                instance = result.scalar_one()
+                logger.info(f"Добавлен новый экземпляр: {instance}")
+                return instance
+            except SQLAlchemyError as e:
+                await session.rollback()
+                logger.error(f"Ошибка при добавлении экземпляра с данными. {data}: {e}")
+                raise
 
     @classmethod
     async def delete(cls, model_id: int):
         async with async_session_maker() as session:
-            # Сначала получаем объект из базы данных
-            query = select(cls.model).filter_by(id=model_id)
-            result = await session.execute(query)
-            instance = result.scalar_one_or_none()
+            try:
+                # Проверяем, существует ли объект перед удалением
+                query = select(cls.model).filter_by(id=model_id)
+                result = await session.execute(query)
+                instance = result.scalar_one_or_none()
 
-            # Если объект существует, удаляем его
-            if instance:
-                await session.delete(instance)
+                if not instance:
+                    logger.warning(f"Экземпляр с идентификатором {model_id} не найден для удаления.")
+                    raise UserNotFoundException
+
+                # Выполняем удаление
+                stmt = delete(cls.model).where(cls.model.id == model_id)
+                await session.execute(stmt)
                 await session.commit()
-            else:
-                raise ValueError("User not found")
+                logger.info(f"Удален экземпляр с идентификатором {model_id}")
+            except SQLAlchemyError as e:
+                await session.rollback()
+                logger.error(f"Ошибка удаления экземпляра с идентификатором {model_id}: {e}")
+                raise
 
     @classmethod
     async def update(cls, model_id: int, **data):
         async with async_session_maker() as session:
-            stmt = update(cls.model).where(cls.model.id == model_id).values(**data)
-            await session.execute(stmt)
-            await session.commit()
+            try:
+                stmt = update(cls.model).where(cls.model.id == model_id).values(**data)
+                result = await session.execute(stmt)
+
+                if result.rowcount == 0:
+                    logger.warning(f"Экземпляр с идентификатором {model_id} для обновления не найден.")
+                    raise UserNotFoundException
+
+                await session.commit()
+                logger.info(f"Обновлен экземпляр с идентификатором {model_id} с данными {data}.")
+            except SQLAlchemyError as e:
+                await session.rollback()
+                logger.error(f"Ошибка обновления экземпляра с идентификатором {model_id}: {e}")
+                raise

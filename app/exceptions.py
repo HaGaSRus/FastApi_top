@@ -36,14 +36,70 @@ class IncorrectTokenFormatException(HootLineException):
 
 class UserIsNotPresentException(HootLineException):
     status_code = status.HTTP_401_UNAUTHORIZED
+    detail = "Пользователь не существует"
 
 
 class UserInCorrectEmailOrUsername(HootLineException):
     status_code = status.HTTP_401_UNAUTHORIZED
-    detail = "Пользователь с таким именем пользователя не найден"
+    detail = "Пользователь с такой почтой не найден"
 
 
 class UserCreated(HootLineException):
     status_code = status.HTTP_201_CREATED
     detail = "Пользователь успешно создан"
+
+
+class UserChangeRole(HootLineException):
+    status_code = status.HTTP_200_OK
+    detail = "Роли успешно обновлены"
+
+
+class DeleteUser(HootLineException):
+    status_code = status.HTTP_202_ACCEPTED
+    detail = "Пользователь успешно удален"
+
+
+class PasswordRecoveryInstructions(HootLineException):
+    status_code = status.HTTP_200_OK
+    detail = "Инструкции по восстановлению пароля отправлены на вашу почту."
+
+
+class PasswordUpdatedSuccessfully(HootLineException):
+    status_code = status.HTTP_200_OK
+    detail = "Пароль успешно обновлен"
+
+
+class UpdateUser(HootLineException):
+    status_code = status.HTTP_200_OK
+    detail = "Данные пользователя успешно обновлены"
+
+
+class UserNotFoundException(HootLineException):
+    status_code = status.HTTP_404_NOT_FOUND
+    detail = "Пользователь не существует"
+
+
+class PermissionDeniedException(HootLineException):
+    status_code = status.HTTP_403_FORBIDDEN
+    detail = "У вас нет прав для этого"
+
+
+class ErrorUpdatingUser(HootLineException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    detail = "Ошибка при обновлении пользователя"
+
+
+class EmailOrUsernameWasNotFound(HootLineException):
+    status_code = status.HTTP_404_NOT_FOUND
+    detail = "Пользователь с указанным email или username не найден"
+
+
+class InvalidPassword(HootLineException):
+    status_code = status.HTTP_401_UNAUTHORIZED
+    detail = "Неверный пароль"
+
+
+class FailedToGetUserRoles(HootLineException):
+    status_code = status.HTTP_401_UNAUTHORIZED
+    detail = "Не удалось получить роли пользователя"
 

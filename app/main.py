@@ -1,25 +1,40 @@
-from urllib.request import Request
-
-from fastapi import FastAPI
-from starlette.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi_versioning import VersionedFastAPI
 import uvicorn
 import time
+from typing import AsyncIterator
 
-from app.middleware import LoggingMiddleware
-from app.users.router import router_auth, router_users
+from app.logger.middleware import LoggingMiddleware
+from app.admin.pagination_and_filtration import router_pagination, router_filter
+from app.users.router import router_users
+from app.auth.router import router_auth
+from app.admin.router import router_admin
 from app.utils import init_permissions, init_roles
-from app.logger import logger
+from app.logger.logger import logger
 
-app = FastAPI()
+
+# Определяем функцию жизненного цикла с использованием asynccontextmanager
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    await init_roles()
+    await init_permissions()
+    yield
+
+app = FastAPI(lifespan=lifespan)
 
 app.include_router(router_users)
 app.include_router(router_auth)
+app.include_router(router_admin)
+app.include_router(router_pagination)
+app.include_router(router_filter)
 
 app = VersionedFastAPI(app,
                        version_format='{major}',
                        prefix_format='/v{major}')
 
+# Конфигурация CORS
 origins = [
     "http://localhost:8080",
     "http://192.168.188.53:8080",
@@ -35,6 +50,7 @@ app.add_middleware(
 
 app.add_middleware(LoggingMiddleware)
 
+
 @app.middleware("http")
 async def add_process_time_header(request: Request, call_next):
     start_time = time.time()
@@ -44,16 +60,6 @@ async def add_process_time_header(request: Request, call_next):
         "process_time": round(process_time, 4)
     })
     return response
-
-@app.on_event("startup")
-async def on_startup():
-    await init_roles()
-    await init_permissions()
-
-@app.on_event("shutdown")
-async def on_shutdown():
-    # Ваш код для завершения работы, если нужен
-    pass
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)
