@@ -76,8 +76,8 @@ async def get_filtered_users(
     async with async_session_maker() as session:
         query = select(Users).options(selectinload(Users.roles))
 
-        # Применяем фильтр к Query объекту
-        filtered_query = user_filter.filter(query)
+        # Применяем фильтры к запросу
+        filtered_query = user_filter.apply_filter(query)
 
         # Выполняем запрос к базе данных
         result = await session.execute(filtered_query)
