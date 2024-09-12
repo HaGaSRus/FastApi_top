@@ -1,9 +1,5 @@
-from typing import List
-from fastapi_pagination import Page, paginate, Params, add_pagination
-from fastapi_pagination.limit_offset import LimitOffsetPage, LimitOffsetParams
 from fastapi import APIRouter, status, Depends, Body
 from fastapi_versioning import version
-
 from app.auth.auth import get_password_hash, pwd_context
 from app.dao.dao import UsersDAO, UsersRolesDAO
 from app.dao.dependencies import get_current_admin_user
@@ -13,12 +9,13 @@ from app.exceptions import UserEmailAlreadyExistsException, UserNameAlreadyExist
 from app.logger.logger import logger
 from app.users.models import Users
 from app.users.schemas import Role, UpdateUserRolesRequest, AllUserResponse
-from app.admin.schemas import SUserAuth
+from app.admin.schemas import SUserAuth, UserIdRequest
 
 router_admin = APIRouter(
     prefix="/auth",
     tags=["Админка"],
 )
+
 
 @router_admin.post("/register", status_code=status.HTTP_201_CREATED)
 @version(1)
@@ -49,8 +46,6 @@ async def register_user(user_data: SUserAuth, current_user: Users = Depends(get_
         await users_roles_dao.add(user_id=new_user.id, role_name="user")
 
     raise UserCreated
-
-
 
 
 @router_admin.post("/update-admin", status_code=status.HTTP_200_OK)
@@ -109,7 +104,7 @@ async def update_user(
 @router_admin.post("/update-roles", status_code=status.HTTP_200_OK)
 @version(1)
 async def update_user_roles(
-        user_id: int,
+        user_request: UserIdRequest,
         update_roles: UpdateUserRolesRequest,
         current_user: Users = Depends(get_current_admin_user),
 ):
@@ -117,18 +112,18 @@ async def update_user_roles(
     users_roles_dao = UsersRolesDAO()
 
     # Очистка текущих ролей и добавление новых ролей
-    await users_roles_dao.clear_roles(user_id=user_id)  # Очистка ролей
-    await users_roles_dao.add_roles(user_id=user_id, role_names=update_roles.roles)  # Добавление новых ролей
+    await users_roles_dao.clear_roles(user_request.user_id)  # Очистка ролей
+    await users_roles_dao.add_roles(user_request.user_id, role_names=update_roles.roles)  # Добавление новых ролей
 
     return UserChangeRole
 
 
-@router_admin.delete("/delete", status_code=status.HTTP_200_OK)
+@router_admin.post("/delete", status_code=status.HTTP_200_OK)
 @version(1)
-async def delete_user(user_id: int, current_user: Users = Depends(get_current_admin_user)):
+async def delete_user(user_request: UserIdRequest, current_user: Users = Depends(get_current_admin_user)):
     """Удаление пользователя. Только для администратора"""
     users_dao = UsersDAO()
-    await users_dao.delete(user_id)
+    await users_dao.delete(user_request.user_id)
     return DeleteUser
 
 

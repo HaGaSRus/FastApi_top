@@ -8,7 +8,7 @@ import time
 from typing import AsyncIterator
 
 from app.logger.middleware import LoggingMiddleware
-from app.admin.pagination import router_pagination
+from app.admin.pagination_and_filtration import router_pagination, router_filter
 from app.users.router import router_users
 from app.auth.router import router_auth
 from app.admin.router import router_admin
