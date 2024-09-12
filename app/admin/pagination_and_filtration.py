@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status, Query
+from fastapi import APIRouter, Depends, status, Query, HTTPException
 from fastapi_pagination import paginate, Page, Params, add_pagination
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
@@ -44,25 +44,28 @@ async def get_all_users(
     params: CustomParams = Depends()  # Используем кастомные параметры пагинации
 ):
     """Получение всех пользователей. Доступно только администраторам."""
-    async with async_session_maker() as session:
-        users_all = await session.execute(
-            select(Users).options(selectinload(Users.roles))
-        )
-        users_all = users_all.scalars().all()
+    try:
+        async with async_session_maker() as session:
+            stmt = select(Users).options(selectinload(Users.roles)).limit(params.size).offset((params.page - 1) * params.size)
+            result = await session.execute(stmt)
+            users_all = result.scalars().all()
 
-    user_responses = [
-        AllUserResponse(
-            id=user.id,
-            username=user.username,
-            email=user.email,
-            firstname=user.firstname,
-            lastname=user.lastname,
-            roles=[Role(name=role.name) for role in user.roles],
-        ) for user in users_all
-    ]
+        user_responses = [
+            AllUserResponse(
+                id=user.id,
+                username=user.username,
+                email=user.email,
+                firstname=user.firstname,
+                lastname=user.lastname,
+                roles=[Role(name=role.name) for role in user.roles],
+            ) for user in users_all
+        ]
 
-    # Применение кастомных параметров пагинации
-    return paginate(user_responses, params=params)
+        # Применение кастомных параметров пагинации
+        return paginate(user_responses, params=params)
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router_filter.get("/users", response_model=Page[AllUserResponse])
