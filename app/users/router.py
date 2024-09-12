@@ -5,7 +5,8 @@ from app.dao.dao import UsersDAO
 from app.dao.dependencies import get_current_user
 from app.logger.logger import logger
 from app.users.models import Users
-from app.exceptions import UserNameAlreadyExistsException, UserEmailAlreadyExistsException, UpdateUser
+from app.exceptions import UserNameAlreadyExistsException, UserEmailAlreadyExistsException, UpdateUser, \
+    ErrorUpdatingUser
 from app.users.schemas import UserResponse, UpdateUserRequest
 from fastapi_versioning import version
 
@@ -36,29 +37,36 @@ async def update_user(
     if update_data.username:
         existing_user = await users_dao.find_one_or_none(username=update_data.username)
         if existing_user and existing_user.id != current_user.id:
+            logger.error(f"Имя пользователя {update_data.username} уже используется.")
             raise UserNameAlreadyExistsException
 
     if update_data.email:
         existing_user = await users_dao.find_one_or_none(email=update_data.email)
         if existing_user and existing_user.id != current_user.id:
+            logger.error(f"Email {update_data.email} уже используется.")
             raise UserEmailAlreadyExistsException
 
     hashed_password = pwd_context.hash(update_data.password) if update_data.password else None
 
     # Логирование перед обновлением
     logger.info(
-        f"Обновление пользователя с id={current_user.id}: username={update_data.username}, email={update_data.email},"
-        f" hashed_password={hashed_password is not None}")
-
-    # Обновляем данные пользователя
-    await users_dao.update(
-        model_id=current_user.id,
-        username=update_data.username,
-        email=update_data.email,
-        hashed_password=hashed_password,
-        firstname=update_data.firstname,
-        lastname=update_data.lastname,
+        f"Обновление пользователя с id={current_user.id}: "
+        f"username={update_data.username}, email={update_data.email}, "
+        f"hashed_password={'Yes' if hashed_password else 'No'}"
     )
 
-    return UpdateUser
+    try:
+        # Обновляем данные пользователя
+        await users_dao.update(
+            model_id=current_user.id,
+            username=update_data.username,
+            email=update_data.email,
+            hashed_password=hashed_password,
+            firstname=update_data.firstname,
+            lastname=update_data.lastname,
+        )
+    except Exception as e:
+        logger.error(f"Ошибка обновления пользователя: {e}")
+        raise ErrorUpdatingUser
 
+    return UpdateUser
