@@ -1,13 +1,14 @@
+from typing import Optional, List
+
 from fastapi import APIRouter, status, Depends, Body
 from fastapi_versioning import version
 from app.auth.auth import get_password_hash, pwd_context
 from app.dao.dao import UsersDAO, UsersRolesDAO
 from app.dao.dependencies import get_current_admin_user
 from app.exceptions import UserEmailAlreadyExistsException, UserNameAlreadyExistsException, UserCreated, UserChangeRole, \
-    DeleteUser, UserNotFoundException, PermissionDeniedException, UpdateUser
+    DeleteUser, UserNotFoundException, UpdateUser
 from app.logger.logger import logger
 from app.users.models import Users
-from app.users.schemas import UpdateUserRolesRequest
 from app.admin.schemas import SUserAuth, UserIdRequest
 
 router_admin = APIRouter(
@@ -56,20 +57,19 @@ async def update_user(
         password: str = Body(None, description="Новый пароль пользователя"),
         firstname: str = Body(None, description="Новое имя пользователя"),
         lastname: str = Body(None, description="Новая фамилия пользователя"),
-        current_user: Users = Depends(get_current_admin_user)
+        update_roles: Optional[List[str]] = Body(None, description="Список новых ролей для пользователя"),
+        current_user: Users = Depends(get_current_admin_user)  # Теперь используется для проверки прав администратора
 ):
-    """Обновление информации о пользователе"""
+    """Обновление информации о пользователе и его ролях"""
     users_dao = UsersDAO()
+    users_roles_dao = UsersRolesDAO()
 
     # Проверка, существует ли такой пользователь
     user_to_update = await users_dao.find_one_or_none(id=user_id)
     if not user_to_update:
         raise UserNotFoundException
 
-    # Проверяем, что текущий пользователь имеет право обновлять данные
-    if user_to_update.id != current_user.id:
-        raise PermissionDeniedException
-
+    # Проверка на уникальность username и email
     if username:
         existing_user = await users_dao.find_one_or_none(username=username)
         if existing_user and existing_user.id != user_to_update.id:
@@ -97,24 +97,13 @@ async def update_user(
         lastname=lastname,
     )
 
+    # Если переданы новые роли, обновляем их
+    if update_roles is not None:
+        # Очистка текущих ролей и добавление новых ролей
+        await users_roles_dao.clear_roles(user_id)
+        await users_roles_dao.add_roles(user_id, role_names=update_roles)
+
     return UpdateUser
-
-
-@router_admin.post("/update-roles", status_code=status.HTTP_200_OK)
-@version(1)
-async def update_user_roles(
-        user_request: UserIdRequest,
-        update_roles: UpdateUserRolesRequest,
-        current_user: Users = Depends(get_current_admin_user),
-):
-    """Изменение или добавление ролей пользователю. Только для администратора"""
-    users_roles_dao = UsersRolesDAO()
-
-    # Очистка текущих ролей и добавление новых ролей
-    await users_roles_dao.clear_roles(user_request.user_id)  # Очистка ролей
-    await users_roles_dao.add_roles(user_request.user_id, role_names=update_roles.roles)  # Добавление новых ролей
-
-    return UserChangeRole
 
 
 @router_admin.post("/delete", status_code=status.HTTP_200_OK)
