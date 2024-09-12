@@ -33,6 +33,7 @@ app.include_router(router_users)
 app.include_router(router_auth)
 app.include_router(router_admin)
 app.include_router(router_pagination)
+app.include_router(router_filter)
 
 app = VersionedFastAPI(app,
                        version_format='{major}',

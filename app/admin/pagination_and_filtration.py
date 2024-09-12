@@ -1,11 +1,13 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, Query
 from fastapi_pagination import paginate, Page, Params, add_pagination
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
+
+from app.admin.schemas import UserFilter
 from app.dao.dependencies import get_current_admin_user
 from app.database import async_session_maker
 from fastapi_versioning import version
-
+from fastapi_filter import FilterDepends
 from app.users.models import Users
 from app.users.schemas import AllUserResponse, Role
 
@@ -61,3 +63,25 @@ async def get_all_users(
 
     # Применение кастомных параметров пагинации
     return paginate(user_responses, params=params)
+
+
+@router_filter.get("/users", response_model=Page[AllUserResponse])
+@version(1)
+async def get_filtered_users(
+    user_filter: UserFilter = FilterDepends(UserFilter),
+    page: int = Query(default=1, alias="page"),
+    size: int = Query(default=10, alias="size")
+):
+    """Получение пользователей с применением фильтров и пагинации."""
+    async with async_session_maker() as session:
+        query = select(Users).options(selectinload(Users.roles))
+
+        # Применяем фильтр к Query объекту
+        filtered_query = user_filter.filter(query)
+
+        # Выполняем запрос к базе данных
+        result = await session.execute(filtered_query)
+        users_all = result.scalars().all()
+
+        # Применяем пагинацию
+        return paginate(users_all, Params(page=page, size=size))

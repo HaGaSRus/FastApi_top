@@ -48,7 +48,7 @@ class AllUserResponse(BaseModel):
     email: str
     firstname: str
     lastname: str
-    roles: list
+    roles: List[Role]
 
     class Config:
         from_attributes = True

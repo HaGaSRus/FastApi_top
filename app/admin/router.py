@@ -3,12 +3,11 @@ from fastapi_versioning import version
 from app.auth.auth import get_password_hash, pwd_context
 from app.dao.dao import UsersDAO, UsersRolesDAO
 from app.dao.dependencies import get_current_admin_user
-from app.database import async_session_maker
 from app.exceptions import UserEmailAlreadyExistsException, UserNameAlreadyExistsException, UserCreated, UserChangeRole, \
     DeleteUser, UserNotFoundException, PermissionDeniedException, UpdateUser
 from app.logger.logger import logger
 from app.users.models import Users
-from app.users.schemas import Role, UpdateUserRolesRequest, AllUserResponse
+from app.users.schemas import UpdateUserRolesRequest
 from app.admin.schemas import SUserAuth, UserIdRequest
 
 router_admin = APIRouter(
@@ -128,42 +127,3 @@ async def delete_user(user_request: UserIdRequest, current_user: Users = Depends
 
 
 
-# @router_admin.get("/all-users", status_code=status.HTTP_200_OK, response_model=Page[AllUserResponse])
-# @version(1)
-# async def get_all_users(
-#     current_user: Users = Depends(get_current_admin_user),
-#     params: Params = Depends()  # Получаем параметры пагинации из запроса
-# ):
-#     """Получение всех пользователей. Доступно только администраторам."""
-#     async with async_session_maker() as session:
-#         users_all = await session.execute(
-#             select(Users).options(selectinload(Users.roles))
-#         )
-#         users_all = users_all.scalars().all()
-#
-#     user_responses = [
-#         AllUserResponse(
-#             id=user.id,
-#             username=user.username,
-#             email=user.email,
-#             firstname=user.firstname,
-#             lastname=user.lastname,
-#             roles=[Role(name=role.name) for role in user.roles],
-#         ) for user in users_all
-#     ]
-#     # Задаем параметры по умолчанию
-#     DEFAULT_PAGE_SIZE = 10  # Количество элементов на странице по умолчанию
-#     MAX_PAGE_SIZE = 100  # Максимальное количество элементов на странице
-#
-#     # Настройка глобальных параметров пагинации
-#     class CustomParams(Params):
-#         size: int = DEFAULT_PAGE_SIZE  # Устанавливаем значение по умолчанию
-#         max_size: int = MAX_PAGE_SIZE  # Максимальное количество элементов
-#
-#     add_pagination(router_admin, params=CustomParams)  # Добавляем пагинацию с кастомными параметрами
-#
-#     # Применение кастомных параметров пагинации
-#     return paginate(user_responses, params=params)
-#
-# # Регистрация пагинации в FastAPI
-# add_pagination(router_admin)
