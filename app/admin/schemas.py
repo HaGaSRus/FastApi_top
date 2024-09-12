@@ -24,3 +24,7 @@ class UpdateUserRequestWithId(BaseModel):
     user_id: int
     update_data: UpdateUserRequest
 
+
+class UserIdRequest(BaseModel):
+    user_id: int
+
