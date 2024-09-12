@@ -37,6 +37,9 @@ class UpdateUserRequest(BaseModel):
     firstname: Optional[str] = None
     lastname: Optional[str] = None
 
+    class Config:
+        from_attributes = True
+
 
 class UpdateUserRolesRequest(BaseModel):
     roles: List[str]
