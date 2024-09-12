@@ -13,13 +13,21 @@ class CustomJsonFormatter(jsonlogger.JsonFormatter):
         super(CustomJsonFormatter, self).__init__(*args, **kwargs)
 
     def add_fields(self, log_record, record, message_dict):
-        super(CustomJsonFormatter, self).add_fields(log_record, record, message_dict)
+        # Получаем уровень логирования и преобразуем его в верхний регистр, если он не равен None
+        level = log_record.get("level", record.levelname)
+        if level is not None:
+            log_record["level"] = level.upper()
+        else:
+            log_record["level"] = "UNKNOWN"
+
+        # Добавляем timestamp, если его нет
         if not log_record.get("timestamp"):
             yekaterinburg_tz = pytz.timezone('Asia/Yekaterinburg')
             now = datetime.now(yekaterinburg_tz)
             log_record["timestamp"] = now.strftime("%Y-%m-%d %H:%M:%S")
-        log_record["level"] = log_record.get("level", record.levelname).upper()
 
+        # Вызываем метод суперкласса
+        super(CustomJsonFormatter, self).add_fields(log_record, record, message_dict)
 
 # Определяем формат логирования
 log_format = "%(timestamp)s %(level)s %(message)s %(module)s %(funcName)s"
