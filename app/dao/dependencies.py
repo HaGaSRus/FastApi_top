@@ -40,32 +40,43 @@ async def get_current_user(token: str = Depends(get_token)) -> Users:
         raise IncorrectTokenFormatException
 
     expire: Optional[int] = payload.get("exp")
-    if not expire or int(expire) < datetime.now().timestamp():
-        logger.error("Срок действия токена истек")
+    if not expire:
+        logger.error("Срок действия токена не указан.")
+        raise TokenExpiredException
+
+    if int(expire) < datetime.now().timestamp():
+        logger.error("Срок действия токена истек.")
         raise TokenExpiredException
 
     user_id: Optional[str] = payload.get("sub")
     if not user_id:
-        logger.error("Идентификатор пользователя не найден в токене")
+        logger.error("Идентификатор пользователя не найден в токене.")
         raise UserIsNotPresentException
 
     async with async_session_maker() as session:
-        result = await session.execute(
-            select(Users).options(selectinload(Users.roles)).where(Users.id == int(user_id))
-        )
-        user = result.scalar_one_or_none()
+        try:
+            result = await session.execute(
+                select(Users).options(selectinload(Users.roles)).where(Users.id == int(user_id))
+            )
+            user = result.scalar_one_or_none()
 
-        if not user:
-            logger.error(f"Пользователь с идентификатором {user_id} не найден")
-            raise UserIsNotPresentException
+            if not user:
+                logger.error(f"Пользователь с идентификатором {user_id} не найден.")
+                raise UserIsNotPresentException
 
-        logger.info(f"Пользователь получен: {user}")
-        return user
+            logger.info(f"Пользователь получен: {user.username}")
+            return user
+        except Exception as e:
+            logger.error(f"Ошибка при получении пользователя: {e}")
+            raise
 
 
 async def get_current_admin_user(current_user: Users = Depends(get_current_user)) -> Users:
-    # Предполагается, что роли пользователя хранятся в current_user.roles
+    """Проверяет, является ли текущий пользователь администратором."""
     if not current_user or not any(role.name == "admin" for role in current_user.roles):
+        logger.error("Пользователь не является администратором.")
         raise PermissionDeniedException
+
+    logger.info(f"Администратор авторизован: {current_user.username}")
     return current_user
 
