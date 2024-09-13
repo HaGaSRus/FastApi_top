@@ -39,7 +39,6 @@ async def register_user(user_data: SUserAuth, current_user: Users = Depends(get_
     new_user = await users_dao.add(
         username=user_data.username,
         firstname=user_data.firstname,
-        lastname=user_data.lastname,
         email=user_data.email,
         hashed_password=hashed_password,
     )
@@ -58,7 +57,6 @@ async def update_user(
         email: str = Body(None, description="Новый email пользователя"),
         password: str = Body(None, description="Новый пароль пользователя"),
         firstname: str = Body(None, description="Новое имя пользователя"),
-        lastname: str = Body(None, description="Новая фамилия пользователя"),
         update_roles: Optional[List[str]] = Body(None, description="Список новых ролей для пользователя"),
         current_user: Users = Depends(get_current_admin_user)  # Теперь используется для проверки прав администратора
 ):
@@ -97,7 +95,6 @@ async def update_user(
             email=email,
             hashed_password=hashed_password,
             firstname=firstname,
-            lastname=lastname,
         )
     except Exception as e:
         logger.error(f"Ошибка при обновлении пользователя: {e}")

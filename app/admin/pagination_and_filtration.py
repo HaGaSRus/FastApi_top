@@ -56,7 +56,6 @@ async def get_all_users(
                 username=user.username,
                 email=user.email,
                 firstname=user.firstname,
-                lastname=user.lastname,
                 roles=[Role(name=role.name) for role in user.roles],
             ) for user in users_all
         ]

@@ -12,7 +12,6 @@ class UserSchema(BaseModel):
     email: str
     password: str
     firstname: str
-    lastname: str
     roles: list
 
     class Config:
@@ -23,7 +22,6 @@ class UserResponse(BaseModel):
     username: str
     email: str
     firstname: str
-    lastname: str
     roles: list
 
     class Config:
@@ -35,7 +33,6 @@ class UpdateUserRequest(BaseModel):
     email: Optional[EmailStr] = None
     password: Optional[str] = None
     firstname: Optional[str] = None
-    lastname: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -50,7 +47,6 @@ class AllUserResponse(BaseModel):
     username: str
     email: str
     firstname: str
-    lastname: str
     roles: List[Role]
 
     class Config:

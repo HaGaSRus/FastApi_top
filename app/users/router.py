@@ -63,7 +63,6 @@ async def update_user(
             email=update_data.email,
             hashed_password=hashed_password,
             firstname=update_data.firstname,
-            lastname=update_data.lastname,
         )
     except Exception as e:
         logger.error(f"Ошибка обновления пользователя: {e}")
