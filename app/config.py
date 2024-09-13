@@ -3,6 +3,7 @@ from pydantic_settings import BaseSettings
 from pydantic import EmailStr, conint
 from aiosmtplib.api import DEFAULT_TIMEOUT
 
+
 class Settings(BaseSettings):
     MODE: Literal["DEV", "TEST", "PROD"]
     LOG_LEVEL: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
@@ -19,6 +20,7 @@ class Settings(BaseSettings):
 
     SECRET_KEY: str
     ALGORITHM: str
+    ACCESS_TOKEN_EXPIRE_MINUTES: int
 
     # Настройки почты
     MAIL_USERNAME: str
@@ -27,8 +29,8 @@ class Settings(BaseSettings):
     MAIL_SERVER: str
     MAIL_FROM: EmailStr
     MAIL_FROM_NAME: Optional[str] = "Hot_Line"
-    MAIL_STARTTLS: bool = True
-    MAIL_SSL_TLS: bool = False  # Убедитесь, что это правильное имя параметра
+    MAIL_TLS: bool = True  # Используем MAIL_TLS вместо MAIL_STARTTLS
+    MAIL_SSL: bool = False  # Используем MAIL_SSL вместо MAIL_SSL_TLS
     MAIL_DEBUG: conint(gt=-1, lt=2) = 0
     SUPPRESS_SEND: conint(gt=-1, lt=2) = 0
     USE_CREDENTIALS: bool = True
@@ -38,5 +40,6 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         from_attributes = True
+
 
 settings = Settings()

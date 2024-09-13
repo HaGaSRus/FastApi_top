@@ -49,15 +49,14 @@ conf = ConnectionConfig(
     MAIL_SERVER=settings.MAIL_SERVER,
     MAIL_FROM=settings.MAIL_FROM,
     MAIL_FROM_NAME=settings.MAIL_FROM_NAME,
-    MAIL_STARTTLS=settings.MAIL_STARTTLS,
-    MAIL_SSL_TLS=settings.MAIL_SSL_TLS,
+    MAIL_STARTTLS=settings.MAIL_TLS,  # Используем MAIL_TLS
+    MAIL_SSL_TLS=settings.MAIL_SSL,  # Используем MAIL_SSL
     MAIL_DEBUG=settings.MAIL_DEBUG,
     SUPPRESS_SEND=settings.SUPPRESS_SEND,
     USE_CREDENTIALS=settings.USE_CREDENTIALS,
     VALIDATE_CERTS=settings.VALIDATE_CERTS,
     TIMEOUT=settings.TIMEOUT
 )
-
 async def send_reset_password_email(email: str, token: str):
     start_time = time.time()
     logger.info(f"Отправка письма для сброса пароля на адрес: {email}")
