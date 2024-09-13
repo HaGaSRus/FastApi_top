@@ -1,6 +1,6 @@
 from typing import Optional, List
 from sqlalchemy import or_
-from fastapi import APIRouter, status, Depends, Body
+from fastapi import APIRouter, status, Depends, Body, HTTPException
 from fastapi_versioning import version
 from app.auth.auth import get_password_hash, pwd_context
 from app.dao.dao import UsersDAO, UsersRolesDAO
@@ -52,15 +52,15 @@ async def register_user(user_data: SUserAuth, current_user: Users = Depends(get_
 @router_admin.post("/update-admin", status_code=status.HTTP_200_OK)
 @version(1)
 async def update_user(
-        user_id: int = Body(..., description="ID пользователя для обновления"),
-        username: str = Body(None, description="Новое имя пользователя"),
-        email: str = Body(None, description="Новый email пользователя"),
-        password: str = Body(None, description="Новый пароль пользователя"),
-        firstname: str = Body(None, description="Новое имя пользователя"),
-        update_roles: Optional[List[str]] = Body(None, description="Список новых ролей для пользователя"),
-        current_user: Users = Depends(get_current_admin_user)  # Теперь используется для проверки прав администратора
+    user_id: int = Body(..., description="ID пользователя для обновления"),
+    username: str = Body(None, description="Новое имя пользователя"),
+    email: str = Body(None, description="Новый email пользователя"),
+    password: str = Body(None, description="Новый пароль пользователя"),
+    firstname: str = Body(None, description="Новое имя пользователя"),
+    update_roles: Optional[List[str]] = Body(None, description="Список новых ролей для пользователя"),
+    current_user: Users = Depends(get_current_admin_user)  # Теперь используется для проверки прав администратора
 ):
-    """Обновление информации о пользователе и его ролях"""
+    """Обновление информации о пользователе и его ролей"""
     users_dao = UsersDAO()
     users_roles_dao = UsersRolesDAO()
 
@@ -102,11 +102,13 @@ async def update_user(
 
     # Если переданы новые роли, обновляем их
     if update_roles is not None:
+        # Удаление всех null значений из списка ролей
+        update_roles = [role for role in update_roles if role]
         # Очистка текущих ролей и добавление новых ролей
         await users_roles_dao.clear_roles(user_id)
         await users_roles_dao.add_roles(user_id, role_names=update_roles)
 
-    return UpdateUser
+    return await users_dao.get_user_with_roles(user_id)
 
 
 @router_admin.post("/delete", status_code=status.HTTP_200_OK)

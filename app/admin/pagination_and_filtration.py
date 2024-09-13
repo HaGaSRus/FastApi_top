@@ -46,7 +46,12 @@ async def get_all_users(
     """Получение всех пользователей. Доступно только администраторам."""
     try:
         async with async_session_maker() as session:
-            stmt = select(Users).options(selectinload(Users.roles)).limit(params.size).offset((params.page - 1) * params.size)
+            stmt = (
+                select(Users)
+                .options(selectinload(Users.roles))
+                .limit(params.size)
+                .offset((params.page - 1) * params.size)
+            )
             result = await session.execute(stmt)
             users_all = result.scalars().all()
 
@@ -56,8 +61,9 @@ async def get_all_users(
                 username=user.username,
                 email=user.email,
                 firstname=user.firstname,
-                roles=[Role(name=role.name) for role in user.roles],
-            ) for user in users_all
+                roles=[role.name for role in user.roles],  # Изменено: список строк вместо объектов Role
+            )
+            for user in users_all
         ]
 
         # Применение кастомных параметров пагинации
