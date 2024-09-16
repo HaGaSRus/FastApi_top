@@ -103,3 +103,7 @@ class FailedToGetUserRoles(HootLineException):
     status_code = status.HTTP_401_UNAUTHORIZED
     detail = "Не удалось получить роли пользователя"
 
+
+class FailedTGetDataFromDatabase(HootLineException):
+    status_code = status.HTTP_404_NOT_FOUND
+    detail = "Не удалось получить данные из базы"

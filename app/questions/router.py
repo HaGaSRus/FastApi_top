@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from app.database import get_db  # Убедитесь, что эта функция возвращает AsyncSession
+from app.database import get_db
+from app.exceptions import FailedTGetDataFromDatabase
 from app.logger.logger import logger
 from app.questions.models import Category, Question
 from app.questions.schemas import CategoryResponse, QuestionResponse
@@ -23,7 +24,7 @@ async def get_category(db: AsyncSession = Depends(get_db)):
         return categories
     except Exception as e:
         logger.error(f"Error fetching categories: {e}")
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+        raise FailedTGetDataFromDatabase
 
 
 @router_question.get("/answer-list/deep", response_model=list[QuestionResponse])
@@ -36,7 +37,7 @@ async def get_questions(level: int = 1, db: AsyncSession = Depends(get_db)):
         return questions
     except Exception as e:
         logger.error(f"Error fetching questions: {e}")
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+        raise FailedTGetDataFromDatabase
 
 
 @router_question.post("/answer-list/deep/{id}", response_model=QuestionResponse)
@@ -58,4 +59,4 @@ async def answer_question(id: int, answer: str, db: AsyncSession = Depends(get_d
         return question
     except Exception as e:
         logger.error(f"Error answering question: {e}")
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+        raise FailedTGetDataFromDatabase
