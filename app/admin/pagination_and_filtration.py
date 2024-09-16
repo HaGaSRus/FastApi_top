@@ -46,12 +46,7 @@ async def get_all_users(
     """Получение всех пользователей. Доступно только администраторам."""
     try:
         async with async_session_maker() as session:
-            stmt = (
-                select(Users)
-                .options(selectinload(Users.roles))
-                .limit(params.size)
-                .offset((params.page - 1) * params.size)
-            )
+            stmt = select(Users).options(selectinload(Users.roles))
             result = await session.execute(stmt)
             users_all = result.scalars().all()
 
@@ -68,9 +63,8 @@ async def get_all_users(
 
         # Применение кастомных параметров пагинации
         return paginate(user_responses, params=params)
-
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
 @router_filter.get("/users", response_model=Page[AllUserResponse])
