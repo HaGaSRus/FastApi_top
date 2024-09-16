@@ -19,8 +19,9 @@ async_session_maker = sessionmaker(
 # Аннотация типов игнорирует предупреждения
 async_session_maker: sessionmaker[AsyncSession]
 
+
 # Зависимость для получения сессии
-async def get_db() -> AsyncIterator[AsyncSession]:
+async def get_db() -> AsyncSession:
     async with async_session_maker() as session:
         yield session
 
