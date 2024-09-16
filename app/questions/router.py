@@ -12,6 +12,7 @@ router_question = APIRouter(
     tags=["Вопросы"],
 )
 
+
 @router_question.get("/answer", response_model=list[CategoryResponse])
 @version(1)
 async def get_category(db: AsyncSession = Depends(get_db)):
@@ -24,6 +25,7 @@ async def get_category(db: AsyncSession = Depends(get_db)):
         logger.error(f"Error fetching categories: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
+
 @router_question.get("/answer-list/deep", response_model=list[QuestionResponse])
 @version(1)
 async def get_questions(level: int = 1, db: AsyncSession = Depends(get_db)):
@@ -35,6 +37,7 @@ async def get_questions(level: int = 1, db: AsyncSession = Depends(get_db)):
     except Exception as e:
         logger.error(f"Error fetching questions: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
+
 
 @router_question.post("/answer-list/deep/{id}", response_model=QuestionResponse)
 @version(1)
