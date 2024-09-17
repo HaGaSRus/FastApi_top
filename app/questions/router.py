@@ -28,7 +28,7 @@ router_question = APIRouter(
 
 
 # Получение всех категорий с вложенными подкатегориями
-@router_categories.get("/categories", response_model=List[CategoryResponse])
+@router_categories.get("/", response_model=List[CategoryResponse])
 @version(1)
 async def get_categories(db: AsyncSession = Depends(get_db)):
     try:
@@ -75,7 +75,7 @@ async def get_categories(db: AsyncSession = Depends(get_db)):
 
 
 # Создание новой категории (только для админа)
-@router_categories.post("/categories", response_model=CategoryCreateResponse)
+@router_categories.post("/create", response_model=CategoryCreateResponse)
 @version(1)
 async def create_category(
         category: CategoryCreate,
@@ -108,7 +108,7 @@ async def create_category(
 
 
 # Создание подкатегории (только админ)
-@router_categories.post("/categories/{parent_id}/subcategories", response_model=CategoryResponse)
+@router_categories.post("/{parent_id}/subcategories", response_model=CategoryResponse)
 @version(1)
 async def create_subcategory(
         category: CategoryCreate,
@@ -153,7 +153,7 @@ async def create_subcategory(
 
 
 # Создание вопроса верхнего уровня
-@router_question.post("/categories/{category_id}/questions", response_model=QuestionResponse)
+@router_question.post("/{category_id}/questions", response_model=QuestionResponse)
 @version(1)
 async def create_question(
         question: QuestionCreate,
@@ -217,7 +217,7 @@ async def create_question(
 
 
 # Создание под-вопроса
-@router_question.post("/questions/{parent_question_id}/subquestions", response_model=QuestionResponse)
+@router_question.post("/{parent_question_id}/subquestions", response_model=QuestionResponse)
 @version(1)
 async def create_subquestion(
         question: QuestionCreate,
@@ -272,7 +272,7 @@ async def create_subquestion(
         raise HTTPException(status_code=500, detail="Не удалось создать под-вопрос")
 
 
-@router_categories.post("/categories/delete/{category_id}", response_model=CategoryResponse)
+@router_categories.post("/delete/{category_id}", response_model=CategoryResponse)
 @version(1)
 async def delete_category(
         category_id: int = Path(..., ge=1),
@@ -288,6 +288,28 @@ async def delete_category(
             logger.warning(f"Категория с id {category_id} не найдена")
             raise HTTPException(status_code=404, detail="Категория не найдена")
 
+        # Проверка на наличие подкатегорий
+        subcategories = await db.execute(
+            select(Category).where(Category.parent_id == category_id)
+        )
+        if subcategories.scalars().first():
+            logger.warning(f"Категория с id {category_id} содержит подкатегории, удаление невозможно")
+            raise HTTPException(status_code=400, detail="Категория содержит подкатегории, удаление невозможно")
+
+        # Удаление категории
+        await db.delete(category)
+        await db.commit()
+
+        logger.info(f"Категория с id {category_id} успешно удалена")
+        return CategoryResponse.from_orm(category)
+
+    except Exception as e:
+        logger.error(f"Ошибка при удалении категории: {e}")
+        logger.error(traceback.format_exc())
+        await db.rollback()  # Явное откатывание транзакции при ошибке
+        raise HTTPException(status_code=500, detail="Не удалось удалить категорию")
+
+
         # Удаление категории
         await db.delete(category)
         await db.commit()
@@ -301,7 +323,7 @@ async def delete_category(
         raise HTTPException(status_code=500, detail="Не удалось удалить категорию")
 
 
-@router_categories.post("/categories/update/{category_id}", response_model=CategoryResponse)
+@router_categories.post("/update/{category_id}", response_model=CategoryResponse)
 @version(1)
 async def update_category(
         category_id: int,
@@ -339,7 +361,7 @@ async def update_category(
         raise HTTPException(status_code=500, detail="Не удалось обновить категорию")
 
 
-@router_question.get("/questions/{question_id}/answer", response_model=QuestionResponse)
+@router_question.get("/{question_id}/answer", response_model=QuestionResponse)
 @version(1)
 async def get_question_answer(
         question_id: int = Path(..., ge=1),
