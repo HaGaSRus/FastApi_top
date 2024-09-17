@@ -271,3 +271,104 @@ async def create_subquestion(
         await db.rollback()
         raise HTTPException(status_code=500, detail="Не удалось создать под-вопрос")
 
+
+@router_categories.post("/categories/delete/{category_id}", response_model=CategoryResponse)
+@version(1)
+async def delete_category(
+        category_id: int = Path(..., ge=1),
+        db: AsyncSession = Depends(get_db),
+        current_user=Depends(get_current_admin_user)
+):
+    try:
+        logger.debug(f"Удаление категории с id: {category_id}")
+
+        # Поиск категории
+        category = await db.get(Category, category_id)
+        if not category:
+            logger.warning(f"Категория с id {category_id} не найдена")
+            raise HTTPException(status_code=404, detail="Категория не найдена")
+
+        # Удаление категории
+        await db.delete(category)
+        await db.commit()
+
+        logger.info(f"Категория с id {category_id} успешно удалена")
+        return CategoryResponse.from_orm(category)
+
+    except Exception as e:
+        logger.error(f"Ошибка при удалении категории: {e}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail="Не удалось удалить категорию")
+
+
+@router_categories.post("/categories/update/{category_id}", response_model=CategoryResponse)
+@version(1)
+async def update_category(
+        category_id: int,
+        category_data: CategoryCreate,
+        db: AsyncSession = Depends(get_db),
+        current_user=Depends(get_current_admin_user)
+):
+    try:
+        logger.debug(f"Обновление категории с id: {category_id}")
+
+        # Поиск категории
+        category = await db.get(Category, category_id)
+        if not category:
+            logger.warning(f"Категория с id {category_id} не найдена")
+            raise HTTPException(status_code=404, detail="Категория не найдена")
+
+        # Обновление полей категории
+        category.name = category_data.name
+
+        # Коммит изменений
+        db.add(category)
+        await db.commit()
+        await db.refresh(category)
+
+        logger.info(f"Категория с id {category_id} успешно обновлена")
+        return CategoryResponse.from_orm(category)
+
+    except IntegrityError as e:
+        await db.rollback()
+        logger.error(f"Ошибка IntegrityError при обновлении категории: {e}")
+        raise HTTPException(status_code=400, detail="Категория с таким именем уже существует")
+    except Exception as e:
+        logger.error(f"Ошибка при обновлении категории: {e}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail="Не удалось обновить категорию")
+
+
+@router_question.get("/questions/{question_id}/answer", response_model=QuestionResponse)
+@version(1)
+async def get_question_answer(
+        question_id: int = Path(..., ge=1),
+        db: AsyncSession = Depends(get_db),
+        current_user=Depends(get_current_user)
+):
+    try:
+        logger.debug(f"Получение вопроса с id: {question_id}")
+        question = await db.get(Question, question_id)
+
+        if not question:
+            logger.warning(f"Вопрос с id {question_id} не найден")
+            raise HTTPException(status_code=404, detail="Вопрос не найден")
+
+        # Преобразуем вопрос в Pydantic модель для ответа
+        response = QuestionResponse(
+            id=question.id,
+            text=question.text,
+            answer=question.answer,
+            category_id=question.category_id,
+            number=question.number,
+            sub_questions=[]  # Можно дополнить под-вопросами, если это необходимо
+        )
+
+        logger.info(f"Ответ на вопрос с id {question_id} успешно получен")
+        return response
+
+    except Exception as e:
+        logger.error(f"Ошибка при получении ответа на вопрос: {e}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail="Не удалось получить ответ на вопрос")
+
