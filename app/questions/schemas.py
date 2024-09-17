@@ -32,20 +32,22 @@ class SubcategoryResponse(BaseModel):
         orm_mode = True
 
 
-class QuestionBase(BaseModel):
+class QuestionResponseRef(BaseModel):
     id: int
     text: str
-    answer: str = None
+    number: int
+
+class QuestionResponse(BaseModel):
+    id: int
+    text: str
+    answer: Optional[str] = None
     category_id: int
-    parent_question_id: int = None
-
-
-class QuestionResponse(QuestionBase):
+    parent_question_id: Optional[int] = None
+    number: int
     sub_questions: List[QuestionResponseRef] = []
 
     class Config:
-        from_attributes = True
-
+        orm_mode = True
 
 class CategoryCreate(BaseModel):
     name: str
@@ -58,6 +60,11 @@ class CategoryCreateResponse(CategoryBase):
 
 class QuestionCreate(BaseModel):
     text: str
+    parent_question_id: int = None
+    answer: str = None
+
+    class Config:
+        orm_mode = True
 
 
 class SubQuestionCreate(BaseModel):

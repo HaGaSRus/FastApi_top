@@ -27,7 +27,7 @@ router_question = APIRouter(
 @version(1)
 async def get_categories(db: AsyncSession = Depends(get_db)):
     try:
-        logger.debug("Executing query to get root categories with parent_id == None")
+        logger.debug("Выполнение запроса для получения корневых категорий с родительским_id == Нет")
         result = await db.execute(
             select(Category).where(Category.parent_id == None).options(selectinload(Category.subcategories))
         )
@@ -35,7 +35,7 @@ async def get_categories(db: AsyncSession = Depends(get_db)):
 
         category_responses = []
         for category in categories:
-            logger.debug(f"Processing category: {category}")
+            logger.debug(f"Категория обработки: {category}")
 
             # Создаем список подкатегорий с правильным значением edit
             subcategories_data = [{
@@ -59,9 +59,9 @@ async def get_categories(db: AsyncSession = Depends(get_db)):
             category_responses.append(category_data)
 
             # Добавляем информацию о подкатегориях для отладки
-            logger.debug(f"Subcategories: {subcategories_data}")
+            logger.debug(f"Подкатегории: {subcategories_data}")
 
-        logger.debug(f"Fetched categories with edit field: {category_responses}")
+        logger.debug(f"Полученные категории с полем редактирования: {category_responses}")
         return category_responses
     except Exception as e:
         logger.error(f"Ошибка при получении категорий: {e}")
@@ -100,6 +100,7 @@ async def create_category(
         logger.error(f"Ошибка при создании категории: {e}")
         logger.error(traceback.format_exc())
         raise FailedTGetDataFromDatabase
+
 
 # Создание подкатегории (только админ)
 @router_question.post("/categories/{parent_id}/subcategories", response_model=CategoryResponse)
@@ -162,27 +163,48 @@ async def create_question(
             logger.warning(f"Категория с id {category_id} не найдена")
             raise HTTPException(status_code=404, detail="Категория не найдена")
 
+        # Обрабатываем значение parent_question_id
+        if question.parent_question_id == 0:
+            parent_question_id = None
+        else:
+            parent_question_id = question.parent_question_id
+
         new_question = Question(
             text=question.text,
-            category_id=category_id
+            category_id=category_id,
+            parent_question_id=parent_question_id,  # Используем None если parent_question_id == 0
+            number=None,  # Установка значения по умолчанию
+            answer=question.answer  # Установка значения для нового поля
         )
+
+        # Добавление вопроса в базу данных
         db.add(new_question)
         await db.commit()
-        await db.refresh(new_question)
+        await db.refresh(new_question)  # Обновление нового вопроса после коммита
 
         # Устанавливаем значение number на основе ID
         new_question.number = new_question.id
         db.add(new_question)
         await db.commit()
-        await db.refresh(new_question)
 
-        logger.info(f"Создан новый вопрос: {new_question}")
-        return new_question
+        # Преобразуем новый вопрос в словарь для ответа
+        question_data = {
+            'id': new_question.id,
+            'text': new_question.text,
+            'answer': new_question.answer,
+            'category_id': new_question.category_id,
+            'parent_question_id': new_question.parent_question_id,
+            'number': new_question.number,
+            'sub_questions': []  # Здесь можно добавить под-вопросы, если это необходимо
+        }
+
+        logger.info(f"Создан новый вопрос: {question_data}")
+        return QuestionResponse(**question_data)
+
     except IntegrityError as e:
         await db.rollback()
         logger.error(f"IntegrityError при создании вопроса: {e}")
-        raise HTTPException(status_code=400,
-                            detail="Ошибка целостности данных. Возможно, вопрос с таким текстом уже существует.")
+        raise HTTPException(status_code=400, detail="Ошибка целостности данных. Возможно, вопрос с таким текстом уже существует.")
     except Exception as e:
         logger.error(f"Ошибка при создании вопроса: {e}")
         logger.error(traceback.format_exc())
@@ -200,7 +222,7 @@ async def create_subquestion(
         current_user=Depends(get_current_user)
 ):
     try:
-        logger.debug(f"Fetching parent question with id: {parent_question_id}")
+        logger.debug(f"Получение родительского вопроса с идентификатором: {parent_question_id}")
         parent_question = await db.get(Question, parent_question_id)
         if not parent_question:
             logger.warning(f"Родительский вопрос с id {parent_question_id} не найден")
