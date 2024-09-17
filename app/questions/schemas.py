@@ -18,7 +18,7 @@ class CategoryResponse(CategoryBase):
     subcategories: Optional[List[CategoryResponseRef]] = Field(default_factory=list)
 
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 
 class QuestionBase(BaseModel):

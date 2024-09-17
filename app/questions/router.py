@@ -20,6 +20,30 @@ router_question = APIRouter(
 )
 
 
+async def fetch_parent_category(db: AsyncSession, parent_id: int) -> Category:
+    query = select(Category).where(Category.id == parent_id)
+    result = await db.execute(query)
+    parent_category = result.scalar_one_or_none()
+    return parent_category
+
+async def check_existing_category(db: AsyncSession, category_name: str) -> Category:
+    query = select(Category).where(Category.name == category_name)
+    result = await db.execute(query)
+    existing_category = result.scalar_one_or_none()
+    return existing_category
+
+async def create_new_category(db: AsyncSession, category: CategoryCreate, parent_id: int) -> Category:
+    new_category = Category(name=category.name, parent_id=parent_id)
+    db.add(new_category)
+    await db.commit()
+    await db.refresh(new_category)
+    return new_category
+
+
+
+
+
+
 # Получение всех категорий с вложенными подкатегориями
 @router_question.get("/categories", response_model=List[CategoryResponse])
 @version(1)
@@ -64,7 +88,6 @@ async def create_category(
 
 
 # Создание подкатегории (только админ)
-# Создание подкатегории (только админ)
 @router_question.post("/categories/{parent_id}/subcategories", response_model=CategoryResponse)
 @version(1)
 async def create_subcategory(
@@ -75,68 +98,38 @@ async def create_subcategory(
 ):
     try:
         logger.debug(f"Fetching parent category with id: {parent_id}")
-
-        # Fetch parent category
-        query = select(Category).where(Category.id == parent_id)
-        result = await db.execute(query)
-        parent_category = result.scalar_one_or_none()
+        parent_category = await fetch_parent_category(db, parent_id)
         logger.debug(f"Parent category: {parent_category}")
 
         if not parent_category:
             logger.warning(f"Parent category with id {parent_id} not found")
             raise HTTPException(status_code=404, detail="Родительская категория не найдена")
 
-        # Check for existing category
-        query = select(Category).where(Category.name == category.name)
-        result = await db.execute(query)
-        existing_category = result.scalar_one_or_none()
+        logger.debug(f"Checking if category with name {category.name} already exists")
+        existing_category = await check_existing_category(db, category.name)
         logger.debug(f"Existing category: {existing_category}")
 
         if existing_category:
-            logger.warning(f"Категория с именем {category.name} уже существует")
+            logger.warning(f"Category with name {category.name} already exists")
             raise HTTPException(status_code=400, detail="Категория с таким именем уже существует")
 
-        # Create new category
-        new_category = Category(name=category.name, parent_id=parent_id)
-        logger.debug(f"New category to be added: {new_category}")
+        logger.debug(f"Creating new subcategory")
+        new_category = await create_new_category(db, category, parent_id)
+        logger.info(f"Created new subcategory: {new_category}")
 
-        db.add(new_category)
-        await db.commit()
-        await db.refresh(new_category)
-        logger.info(f"Создана новая подкатегория: {new_category}")
-
-        return new_category
+        # Используйте dict для преобразования модели в словарь перед созданием Pydantic объекта
+        category_data = {column.name: getattr(new_category, column.name) for column in Category.__table__.columns}
+        return CategoryResponse(**category_data)
 
     except IntegrityError as e:
         await db.rollback()
-        logger.error(f"IntegrityError при создании подкатегории: {e}")
-        raise HTTPException(status_code=400,
-                            detail="Ошибка целостности данных. Возможно, категория с таким именем уже существует.")
+        logger.error(f"IntegrityError during subcategory creation: {e}")
+        raise HTTPException(status_code=400, detail="Категория с таким именем уже существует")
 
     except Exception as e:
-        logger.error(f"Ошибка при создании подкатегории: {e}")
+        logger.error(f"Error during subcategory creation: {e}")
         logger.error(traceback.format_exc())
-        await db.rollback()
-        raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера")
-
-
-# Получение вопросов по категории
-@router_question.get("/categories/{category_id}/questions", response_model=List[QuestionResponse])
-@version(1)
-async def get_questions_by_category(category_id: int, db: AsyncSession = Depends(get_db)):
-    try:
-        logger.debug(f"Fetching questions for category_id: {category_id}")
-        result = await db.execute(
-            select(Question).where(Question.category_id == category_id, Question.parent_question_id == None).options(
-                selectinload(Question.sub_questions))
-        )
-        questions = result.scalars().all()
-        logger.debug(f"Fetched questions: {questions}")
-        return questions
-    except Exception as e:
-        logger.error(f"Ошибка при получении вопросов: {e}")
-        logger.error(traceback.format_exc())
-        raise FailedTGetDataFromDatabase
+        raise HTTPException(status_code=500, detail="Не удалось получить данные из базы")
 
 
 # Создание вопроса верхнего уровня
