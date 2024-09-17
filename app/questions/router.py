@@ -1,19 +1,18 @@
 import traceback
 from typing import List
-
-from fastapi import APIRouter, Depends, HTTPException, Path, Query
+from fastapi_versioning import version
+from fastapi import APIRouter, Depends, HTTPException, Path
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy.orm import selectinload
 from sqlalchemy.exc import IntegrityError
-from app.dao.dependencies import get_current_admin_user, get_current_user
+from sqlalchemy.orm import selectinload
+from app.dao.dependencies import get_current_user, get_current_admin_user
 from app.database import get_db
 from app.exceptions import FailedTGetDataFromDatabase
 from app.logger.logger import logger
 from app.questions.models import Category, Question
-from app.questions.schemas import CategoryResponse, QuestionResponse, CategoryBase, QuestionBase, SubCategoryCreate, \
-    SubQuestionCreate, QuestionCreate, CategoryCreate, CategoryCreateResponse
-from fastapi_versioning import version
+from app.questions.schemas import CategoryResponse, QuestionResponse, CategoryCreate, QuestionCreate, SubQuestionCreate, \
+    CategoryCreateResponse
 
 router_question = APIRouter(
     prefix="/question",
@@ -21,29 +20,31 @@ router_question = APIRouter(
 )
 
 
-# Получение всех категории с вложенными подкатегориями
+# Получение всех категорий с вложенными подкатегориями
 @router_question.get("/categories", response_model=List[CategoryResponse])
 @version(1)
 async def get_categories(db: AsyncSession = Depends(get_db)):
     try:
+        logger.debug("Executing query to get root categories with parent_id == None")
         result = await db.execute(
-            select(Category)
-            .where(Category.parent_id == None)
-            .options(selectinload(Category.subcategories))
+            select(Category).where(Category.parent_id == None).options(selectinload(Category.subcategories))
         )
         categories = result.scalars().all()
+        logger.debug(f"Fetched categories: {categories}")
         return categories
     except Exception as e:
-        logger.error(f"Ошибка при получении категории: {e}")
+        logger.error(f"Ошибка при получении категорий: {e}")
+        logger.error(traceback.format_exc())
         raise FailedTGetDataFromDatabase
 
 
-# Создание новой категории(Только для админа)
+# Создание новой категории (только для админа)
 @router_question.post("/categories", response_model=CategoryCreateResponse)
+@version(1)
 async def create_category(
-    category: CategoryCreate,
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_admin_user)
+        category: CategoryCreate,
+        db: AsyncSession = Depends(get_db),
+        current_user=Depends(get_current_admin_user)
 ):
     try:
         new_category = Category(name=category.name)
@@ -51,70 +52,90 @@ async def create_category(
         await db.commit()
         await db.refresh(new_category)
         logger.info(f"Создана новая категория: {new_category}")
-        category_response = CategoryCreateResponse.from_orm(new_category)
-        return category_response
-    except IntegrityError:
+        return CategoryCreateResponse.from_orm(new_category)
+    except IntegrityError as e:
         await db.rollback()
+        logger.error(f"IntegrityError при создании категории: {e}")
         raise HTTPException(status_code=400, detail="Категория с таким именем уже существует")
     except Exception as e:
         logger.error(f"Ошибка при создании категории: {e}")
         logger.error(traceback.format_exc())
-        raise HTTPException(status_code=500, detail="Не удалось создать категорию")
+        raise FailedTGetDataFromDatabase
 
 
+# Создание подкатегории (только админ)
 # Создание подкатегории (только админ)
 @router_question.post("/categories/{parent_id}/subcategories", response_model=CategoryResponse)
 @version(1)
 async def create_subcategory(
-    parent_id: int = Path(..., ge=1),
-    name: str = Query(...),
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_admin_user),
+        category: CategoryCreate,
+        parent_id: int = Path(..., ge=1),
+        db: AsyncSession = Depends(get_db),
+        current_user=Depends(get_current_admin_user)
 ):
     try:
-        parent_category = await db.get(Category, parent_id)
+        logger.debug(f"Fetching parent category with id: {parent_id}")
+
+        # Fetch parent category
+        query = select(Category).where(Category.id == parent_id)
+        result = await db.execute(query)
+        parent_category = result.scalar_one_or_none()
+        logger.debug(f"Parent category: {parent_category}")
+
         if not parent_category:
+            logger.warning(f"Parent category with id {parent_id} not found")
             raise HTTPException(status_code=404, detail="Родительская категория не найдена")
 
-        # Проверяем, существует ли уже категория с таким именем
-        existing_category = await db.execute(
-            select(Category).where(Category.name == name)
-        )
-        if existing_category.scalar_one_or_none():
+        # Check for existing category
+        query = select(Category).where(Category.name == category.name)
+        result = await db.execute(query)
+        existing_category = result.scalar_one_or_none()
+        logger.debug(f"Existing category: {existing_category}")
+
+        if existing_category:
+            logger.warning(f"Категория с именем {category.name} уже существует")
             raise HTTPException(status_code=400, detail="Категория с таким именем уже существует")
 
-        new_category = Category(name=name, parent_id=parent_id)
+        # Create new category
+        new_category = Category(name=category.name, parent_id=parent_id)
+        logger.debug(f"New category to be added: {new_category}")
+
         db.add(new_category)
         await db.commit()
         await db.refresh(new_category)
+        logger.info(f"Создана новая подкатегория: {new_category}")
+
         return new_category
 
-    except IntegrityError:
+    except IntegrityError as e:
         await db.rollback()
-        raise HTTPException(status_code=400, detail="Категория с таким именем уже существует")
+        logger.error(f"IntegrityError при создании подкатегории: {e}")
+        raise HTTPException(status_code=400,
+                            detail="Ошибка целостности данных. Возможно, категория с таким именем уже существует.")
+
     except Exception as e:
         logger.error(f"Ошибка при создании подкатегории: {e}")
+        logger.error(traceback.format_exc())
+        await db.rollback()
         raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера")
 
 
-
-# Получение вопрос по категории
+# Получение вопросов по категории
 @router_question.get("/categories/{category_id}/questions", response_model=List[QuestionResponse])
 @version(1)
 async def get_questions_by_category(category_id: int, db: AsyncSession = Depends(get_db)):
     try:
+        logger.debug(f"Fetching questions for category_id: {category_id}")
         result = await db.execute(
-        select(Question)
-        .where(
-            Question.category_id == category_id,
-            Question.parent_question_id == None
-        )
-        .options(selectinload(Question.sub_questions))
+            select(Question).where(Question.category_id == category_id, Question.parent_question_id == None).options(
+                selectinload(Question.sub_questions))
         )
         questions = result.scalars().all()
+        logger.debug(f"Fetched questions: {questions}")
         return questions
     except Exception as e:
         logger.error(f"Ошибка при получении вопросов: {e}")
+        logger.error(traceback.format_exc())
         raise FailedTGetDataFromDatabase
 
 
@@ -122,27 +143,37 @@ async def get_questions_by_category(category_id: int, db: AsyncSession = Depends
 @router_question.post("/categories/{category_id}/questions", response_model=QuestionResponse)
 @version(1)
 async def create_question(
-    category_id: int = Path(..., ge=1),
-    question: QuestionCreate = Depends(),
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user)
+        question: QuestionCreate,
+        category_id: int = Path(..., ge=1),
+        db: AsyncSession = Depends(get_db),
+        current_user=Depends(get_current_user)
 ):
     try:
-        # Проверяем, существует ли категория
+        logger.debug(f"Fetching category with id: {category_id}")
         category = await db.get(Category, category_id)
         if not category:
+            logger.warning(f"Категория с id {category_id} не найдена")
             raise HTTPException(status_code=404, detail="Категория не найдена")
 
         new_question = Question(
             text=question.text,
-            category_id=category_id
+            category_id=category_id,
+            parent_question_id=None
         )
         db.add(new_question)
         await db.commit()
         await db.refresh(new_question)
+        logger.info(f"Создан новый вопрос: {new_question}")
         return new_question
+    except IntegrityError as e:
+        await db.rollback()
+        logger.error(f"IntegrityError при создании вопроса: {e}")
+        raise HTTPException(status_code=400,
+                            detail="Ошибка целостности данных. Возможно, вопрос с таким текстом уже существует.")
     except Exception as e:
         logger.error(f"Ошибка при создании вопроса: {e}")
+        logger.error(traceback.format_exc())
+        await db.rollback()
         raise HTTPException(status_code=500, detail="Не удалось создать вопрос")
 
 
@@ -150,15 +181,16 @@ async def create_question(
 @router_question.post("/questions/{parent_question_id}/subquestions", response_model=QuestionResponse)
 @version(1)
 async def create_subquestion(
-    parent_question_id: int = Path(..., ge=1),
-    question: SubQuestionCreate = Depends(),
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user)
+        question: SubQuestionCreate,
+        parent_question_id: int = Path(..., ge=1),
+        db: AsyncSession = Depends(get_db),
+        current_user=Depends(get_current_user)
 ):
     try:
-        # Проверяем, существует ли родительский вопрос
+        logger.debug(f"Fetching parent question with id: {parent_question_id}")
         parent_question = await db.get(Question, parent_question_id)
         if not parent_question:
+            logger.warning(f"Родительский вопрос с id {parent_question_id} не найден")
             raise HTTPException(status_code=404, detail="Родительский вопрос не найден")
 
         new_question = Question(
@@ -169,28 +201,16 @@ async def create_subquestion(
         db.add(new_question)
         await db.commit()
         await db.refresh(new_question)
+        logger.info(f"Создан новый под-вопрос: {new_question}")
         return new_question
+    except IntegrityError as e:
+        await db.rollback()
+        logger.error(f"IntegrityError при создании под-вопроса: {e}")
+        raise HTTPException(status_code=400,
+                            detail="Ошибка целостности данных. Возможно, под-вопрос с таким текстом уже существует.")
     except Exception as e:
         logger.error(f"Ошибка при создании под-вопроса: {e}")
+        logger.error(traceback.format_exc())
+        await db.rollback()
         raise HTTPException(status_code=500, detail="Не удалось создать под-вопрос")
-
-
-# Ответ на вопрос
-@router_question.post("/questions/{question_id}/answer", response_model=QuestionResponse)
-@version(1)
-async def answer_question(question_id: int, answer: str, db: AsyncSession = Depends(get_db), current_user=Depends(get_current_user)):
-    try:
-        result = await db.execute(
-            select(Question).where(Question.id == question_id)
-        )
-        question = result.scalar_one_or_none()
-        if not question:
-            raise HTTPException(status_code=404, detail="Вопрос не найден")
-        question.answer = answer
-        await db.commit()
-        await db.refresh(question)
-        return question
-    except Exception as e:
-        logger.error(f"Ошибка при ответе на вопроса: {e}")
-        raise FailedTGetDataFromDatabase
 
