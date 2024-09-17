@@ -63,3 +63,13 @@ class QuestionResponseRef(BaseModel):
 
     class Config:
         orm_mode = True
+
+
+class DeleteCategoryRequest(BaseModel):
+    category_id: int
+
+
+class UpdateCategoryRequest(BaseModel):
+    category_id: int
+    category_data: CategoryCreate
+

@@ -12,7 +12,7 @@ from app.exceptions import FailedTGetDataFromDatabase
 from app.logger.logger import logger
 from app.questions.models import Category, Question
 from app.questions.schemas import CategoryResponse, QuestionResponse, CategoryCreate, QuestionCreate, \
-    CategoryCreateResponse
+    CategoryCreateResponse, DeleteCategoryRequest, UpdateCategoryRequest
 from app.questions.utils import fetch_parent_category, check_existing_category, create_new_category, get_category_by_id
 
 router_categories = APIRouter(
@@ -272,13 +272,14 @@ async def create_subquestion(
         raise HTTPException(status_code=500, detail="Не удалось создать под-вопрос")
 
 
-@router_categories.post("/delete/{category_id}", response_model=CategoryResponse)
+@router_categories.post("/delete", response_model=CategoryResponse)
 @version(1)
 async def delete_category(
-        category_id: int = Path(..., ge=1),
+        request: DeleteCategoryRequest,
         db: AsyncSession = Depends(get_db),
         current_user=Depends(get_current_admin_user)
 ):
+    category_id = request.category_id
     try:
         logger.debug(f"Удаление категории с id: {category_id}")
 
@@ -310,27 +311,16 @@ async def delete_category(
         raise HTTPException(status_code=500, detail="Не удалось удалить категорию")
 
 
-        # Удаление категории
-        await db.delete(category)
-        await db.commit()
-
-        logger.info(f"Категория с id {category_id} успешно удалена")
-        return CategoryResponse.from_orm(category)
-
-    except Exception as e:
-        logger.error(f"Ошибка при удалении категории: {e}")
-        logger.error(traceback.format_exc())
-        raise HTTPException(status_code=500, detail="Не удалось удалить категорию")
-
-
-@router_categories.post("/update/{category_id}", response_model=CategoryResponse)
+@router_categories.post("/update", response_model=CategoryResponse)
 @version(1)
 async def update_category(
-        category_id: int,
-        category_data: CategoryCreate,
+        request: UpdateCategoryRequest,
         db: AsyncSession = Depends(get_db),
         current_user=Depends(get_current_admin_user)
 ):
+    category_id = request.category_id
+    category_data = request.category_data
+
     try:
         logger.debug(f"Обновление категории с id: {category_id}")
 
@@ -349,7 +339,14 @@ async def update_category(
         await db.refresh(category)
 
         logger.info(f"Категория с id {category_id} успешно обновлена")
-        return CategoryResponse.from_orm(category)
+        # Создайте объект ответа вручную
+        response = CategoryResponse(
+            id=category.id,
+            name=category.name,
+            parent_id=category.parent_id,
+            number=category.number
+        )
+        return response
 
     except IntegrityError as e:
         await db.rollback()
