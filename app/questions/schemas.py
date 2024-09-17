@@ -16,6 +16,17 @@ class CategoryBase(BaseModel):
 
 class CategoryResponse(CategoryBase):
     subcategories: Optional[List[CategoryResponseRef]] = Field(default_factory=list)
+    edit: bool = Field(default=False)
+    number: Optional[int] = None
+
+    class Config:
+        orm_mode = True
+
+
+class SubcategoryResponse(BaseModel):
+    id: int
+    name: str
+    subcategories: List['SubcategoryResponse'] = []  # Используйте Forward Reference
 
     class Config:
         orm_mode = True
@@ -24,9 +35,9 @@ class CategoryResponse(CategoryBase):
 class QuestionBase(BaseModel):
     id: int
     text: str
-    answer: Optional[str] = None
+    answer: str = None
     category_id: int
-    parent_question_id: Optional[int] = None
+    parent_question_id: int = None
 
 
 class QuestionResponse(QuestionBase):

@@ -4,34 +4,28 @@ from app.database import Base
 
 
 class Category(Base):
-    __tablename__ = 'categories'
+    __tablename__ = "categories"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, unique=True, index=True)
+    parent_id = Column(Integer, ForeignKey('categories.id'), nullable=True)
+    number = Column(Integer, nullable=True)
+    subcategories = relationship("Category",
+                                 backref=backref('parent', remote_side=[id]),
+                                 lazy='subquery')
 
-    id = Column(Integer, primary_key=True)
-    name = Column(String)
-    parent_id = Column(Integer, ForeignKey('categories.id'))
-
-    # Связь с родительской категорией
-    parent = relationship("Category", remote_side=[id], back_populates="subcategories")
-    # Связь с подкатегориями
-    subcategories = relationship("Category", back_populates="parent")
-    # Связь с вопросами
-    questions = relationship("Question", back_populates="category")
+    def __repr__(self):
+        return f"<Category(id={self.id}, name={self.name}, number={self.number})>"
 
 
 class Question(Base):
-    __tablename__ = 'questions'
-
+    __tablename__ = "questions"
     id = Column(Integer, primary_key=True, index=True)
     text = Column(String, index=True)
-    answer = Column(String, nullable=True)
     category_id = Column(Integer, ForeignKey('categories.id'))
-
-    # Связь с категорией
-    category = relationship('Category', back_populates='questions')
-
-    # Поле для связи с родительским вопросом
     parent_question_id = Column(Integer, ForeignKey('questions.id'), nullable=True)
+    number = Column(Integer, nullable=True)
+    category = relationship("Category", backref="questions")
+    parent_question = relationship("Question", remote_side=[id])
 
-    # Под-вопросы (связь с вопросами)
-    sub_questions = relationship('Question', backref=backref('parent_question', remote_side=[id]),
-                                 cascade='all, delete-orphan')
+    def __repr__(self):
+        return f"<Question(id={self.id}, text={self.text}, number={self.number})>"
