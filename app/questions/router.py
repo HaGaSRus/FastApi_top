@@ -1,7 +1,7 @@
 import traceback
-from typing import List
+from typing import List, Optional
 from fastapi_versioning import version
-from fastapi import APIRouter, Depends, HTTPException, Path
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.exc import IntegrityError
@@ -11,10 +11,15 @@ from app.database import get_db
 from app.exceptions import FailedTGetDataFromDatabase
 from app.logger.logger import logger
 from app.questions.models import Category, Question
-from app.questions.schemas import CategoryResponse, QuestionResponse, CategoryCreate, QuestionCreate, SubQuestionCreate, \
+from app.questions.schemas import CategoryResponse, QuestionResponse, CategoryCreate, QuestionCreate, \
     CategoryCreateResponse
-from app.questions.utils import fetch_parent_category, check_existing_category, create_new_category, get_category_by_id, \
-    create_new_question
+from app.questions.utils import fetch_parent_category, check_existing_category, create_new_category, get_category_by_id
+
+router_categories = APIRouter(
+    prefix="/categories",
+    tags=["Категории"],
+)
+
 
 router_question = APIRouter(
     prefix="/question",
@@ -23,7 +28,7 @@ router_question = APIRouter(
 
 
 # Получение всех категорий с вложенными подкатегориями
-@router_question.get("/categories", response_model=List[CategoryResponse])
+@router_categories.get("/categories", response_model=List[CategoryResponse])
 @version(1)
 async def get_categories(db: AsyncSession = Depends(get_db)):
     try:
@@ -70,7 +75,7 @@ async def get_categories(db: AsyncSession = Depends(get_db)):
 
 
 # Создание новой категории (только для админа)
-@router_question.post("/categories", response_model=CategoryCreateResponse)
+@router_categories.post("/categories", response_model=CategoryCreateResponse)
 @version(1)
 async def create_category(
         category: CategoryCreate,
@@ -103,7 +108,7 @@ async def create_category(
 
 
 # Создание подкатегории (только админ)
-@router_question.post("/categories/{parent_id}/subcategories", response_model=CategoryResponse)
+@router_categories.post("/categories/{parent_id}/subcategories", response_model=CategoryResponse)
 @version(1)
 async def create_subcategory(
         category: CategoryCreate,
@@ -153,6 +158,7 @@ async def create_subcategory(
 async def create_question(
         question: QuestionCreate,
         category_id: int = Path(..., ge=1),
+        parent_question_id: Optional[int] = Query(None, description="ID родительского вопроса"),  # Новый параметр
         db: AsyncSession = Depends(get_db),
         current_user=Depends(get_current_user)
 ):
@@ -164,15 +170,13 @@ async def create_question(
             raise HTTPException(status_code=404, detail="Категория не найдена")
 
         # Обрабатываем значение parent_question_id
-        if question.parent_question_id == 0:
+        if parent_question_id == 0:
             parent_question_id = None
-        else:
-            parent_question_id = question.parent_question_id
 
         new_question = Question(
             text=question.text,
             category_id=category_id,
-            parent_question_id=parent_question_id,  # Используем None если parent_question_id == 0
+            parent_question_id=parent_question_id,  # Используем None, если parent_question_id == 0
             number=None,  # Установка значения по умолчанию
             answer=question.answer  # Установка значения для нового поля
         )
@@ -216,7 +220,7 @@ async def create_question(
 @router_question.post("/questions/{parent_question_id}/subquestions", response_model=QuestionResponse)
 @version(1)
 async def create_subquestion(
-        question: SubQuestionCreate,
+        question: QuestionCreate,
         parent_question_id: int = Path(..., ge=1),
         db: AsyncSession = Depends(get_db),
         current_user=Depends(get_current_user)
@@ -236,15 +240,34 @@ async def create_subquestion(
         db.add(new_question)
         await db.commit()
         await db.refresh(new_question)
-        logger.info(f"Создан новый под-вопрос: {new_question}")
-        return new_question
+
+        # Устанавливаем значение number на основе ID
+        new_question.number = new_question.id
+        db.add(new_question)
+        await db.commit()
+        await db.refresh(new_question)
+
+        # Преобразуем новый под-вопрос в Pydantic модель
+        response = QuestionResponse(
+            id=new_question.id,
+            text=new_question.text,
+            answer=new_question.answer,
+            category_id=new_question.category_id,
+            parent_question_id=new_question.parent_question_id,
+            number=new_question.number,
+            sub_questions=[]
+        )
+
+        logger.info(f"Создан новый под-вопрос: {response}")
+        return response
+
     except IntegrityError as e:
         await db.rollback()
         logger.error(f"IntegrityError при создании под-вопроса: {e}")
-        raise HTTPException(status_code=400,
-                            detail="Ошибка целостности данных. Возможно, под-вопрос с таким текстом уже существует.")
+        raise HTTPException(status_code=400, detail="Ошибка целостности данных. Возможно, под-вопрос с таким текстом уже существует.")
     except Exception as e:
         logger.error(f"Ошибка при создании под-вопроса: {e}")
         logger.error(traceback.format_exc())
         await db.rollback()
         raise HTTPException(status_code=500, detail="Не удалось создать под-вопрос")
+
