@@ -19,7 +19,7 @@ class CategoryResponse(CategoryBase):
     number: Optional[int] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 # Модель создания категории
@@ -39,7 +39,7 @@ class QuestionCreate(BaseModel):
     answer: Optional[str] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 # Модель ответа на вопрос
@@ -52,7 +52,7 @@ class QuestionResponse(BaseModel):
     sub_questions: List['QuestionResponseRef'] = []
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 # Упрощённый ответ для под-вопросов
@@ -62,7 +62,7 @@ class QuestionResponseRef(BaseModel):
     number: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class DeleteCategoryRequest(BaseModel):
