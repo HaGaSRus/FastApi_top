@@ -117,7 +117,9 @@ async def create_category(
 
 
 # Создание подкатегории (только админ)
-@router_categories.post("/{parent_id}/subcategories", response_model=CategoryResponse, summary="Создание новой порд-категории")
+@router_categories.post("/{parent_id}/subcategories",
+                        response_model=CategoryResponse,
+                        summary="Создание новой под-категории")
 @version(1)
 async def create_subcategory(
         category: CategoryCreate,
@@ -163,7 +165,9 @@ async def create_subcategory(
 
 
 # Создание вопроса верхнего уровня
-@router_question.post("/{category_id}/questions", response_model=QuestionResponse, summary="Создание вопроса верхнего уровня")
+@router_question.post("/{category_id}/questions",
+                      response_model=QuestionResponse,
+                      summary="Создание вопроса верхнего уровня")
 @version(1)
 async def create_question(
         question: QuestionCreate,
@@ -228,7 +232,9 @@ async def create_question(
 
 
 # Создание под-вопроса
-@router_question.post("/{parent_question_id}/subquestions", response_model=QuestionResponse, summary="Создание под-вопроса")
+@router_question.post("/{parent_question_id}/subquestions",
+                      response_model=QuestionResponse,
+                      summary="Создание под-вопроса")
 @version(1)
 async def create_subquestion(
         question: QuestionCreate,
@@ -323,7 +329,9 @@ async def delete_category(
         raise FailedToDeleteCategory
 
 
-@router_categories.post("/update", response_model=List[CategoryResponse], summary="Обновление категории или подкатегории")
+@router_categories.post("/update",
+                        response_model=List[CategoryResponse],
+                        summary="Обновление категории или подкатегории")
 @version(1)
 async def update_categories(
         request: Request,
@@ -407,7 +415,9 @@ async def update_categories(
         raise FailedToUpdateCategories
 
 
-@router_question.get("/{question_id}/answer", response_model=QuestionResponse, summary="Создание ответа на поставленый вопрос")
+@router_question.get("/{question_id}/answer",
+                     response_model=QuestionResponse,
+                     summary="Создание ответа на поставленный вопрос")
 @version(1)
 async def get_question_answer(
         question_id: int = Path(..., ge=1),
