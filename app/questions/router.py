@@ -12,7 +12,7 @@ from app.exceptions import FailedTGetDataFromDatabase
 from app.logger.logger import logger
 from app.questions.models import Category, Question
 from app.questions.schemas import CategoryResponse, QuestionResponse, CategoryCreate, QuestionCreate, \
-    CategoryCreateResponse, DeleteCategoryRequest, UpdateCategoryRequest
+    CategoryCreateResponse, DeleteCategoryRequest, UpdateCategoryRequest, UpdateCategoriesRequest, UpdateCategoryData
 from app.questions.utils import fetch_parent_category, check_existing_category, create_new_category, get_category_by_id
 
 router_categories = APIRouter(
@@ -253,7 +253,6 @@ async def create_subquestion(
             text=new_question.text,
             answer=new_question.answer,
             category_id=new_question.category_id,
-            parent_question_id=new_question.parent_question_id,
             number=new_question.number,
             sub_questions=[]
         )
@@ -311,51 +310,51 @@ async def delete_category(
         raise HTTPException(status_code=500, detail="Не удалось удалить категорию")
 
 
-@router_categories.post("/update", response_model=CategoryResponse)
+@router_categories.post("/update", response_model=List[CategoryResponse])
 @version(1)
-async def update_category(
-        request: UpdateCategoryRequest,
+async def update_categories(
+        request: List[UpdateCategoryData],  # Принимаем плоский список категорий
         db: AsyncSession = Depends(get_db),
         current_user=Depends(get_current_admin_user)
 ):
-    category_id = request.category_id
-    category_data = request.category_data
-
     try:
-        logger.debug(f"Обновление категории с id: {category_id}")
+        updated_categories = []
 
-        # Поиск категории
-        category = await db.get(Category, category_id)
-        if not category:
-            logger.warning(f"Категория с id {category_id} не найдена")
-            raise HTTPException(status_code=404, detail="Категория не найдена")
+        for category_data in request:
+            # Поиск категории по id
+            category = await db.get(Category, category_data.id)
+            if not category:
+                logger.warning(f"Категория с id {category_data.id} не найдена")
+                raise HTTPException(status_code=404, detail=f"Категория с id {category_data.id} не найдена")
 
-        # Обновление полей категории
-        category.name = category_data.name
+            # Обновление полей категории, кроме id и number
+            if category.name != category_data.name:
+                category.name = category_data.name
 
-        # Коммит изменений
-        db.add(category)
-        await db.commit()
-        await db.refresh(category)
+                # Коммит изменений
+                db.add(category)
+                await db.commit()
+                await db.refresh(category)
 
-        logger.info(f"Категория с id {category_id} успешно обновлена")
-        # Создайте объект ответа вручную
-        response = CategoryResponse(
-            id=category.id,
-            name=category.name,
-            parent_id=category.parent_id,
-            number=category.number
-        )
-        return response
+            # Добавление обновленной категории в список
+            updated_categories.append(CategoryResponse(
+                id=category.id,
+                name=category.name,
+                parent_id=category.parent_id,
+                number=category.number
+            ))
+
+        logger.info(f"Успешно обновлено {len(updated_categories)} категорий")
+        return updated_categories
 
     except IntegrityError as e:
         await db.rollback()
-        logger.error(f"Ошибка IntegrityError при обновлении категории: {e}")
-        raise HTTPException(status_code=400, detail="Категория с таким именем уже существует")
+        logger.error(f"Ошибка IntegrityError при обновлении категорий: {e}")
+        raise HTTPException(status_code=400, detail="Ошибка при обновлении категорий")
     except Exception as e:
-        logger.error(f"Ошибка при обновлении категории: {e}")
+        logger.error(f"Ошибка при обновлении категорий: {e}")
         logger.error(traceback.format_exc())
-        raise HTTPException(status_code=500, detail="Не удалось обновить категорию")
+        raise HTTPException(status_code=500, detail="Не удалось обновить категории")
 
 
 @router_question.get("/{question_id}/answer", response_model=QuestionResponse)

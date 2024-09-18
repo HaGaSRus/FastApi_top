@@ -73,3 +73,12 @@ class UpdateCategoryRequest(BaseModel):
     category_id: int
     category_data: CategoryCreate
 
+
+class UpdateCategoryData(BaseModel):
+    id: int  # id категории, которую нужно обновить
+    number: int  # number категории, который нельзя изменять
+    name: str
+
+
+class UpdateCategoriesRequest(BaseModel):
+    categories: List[UpdateCategoryData]
