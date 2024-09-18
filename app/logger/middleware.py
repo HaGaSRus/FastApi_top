@@ -28,7 +28,8 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         except Exception as e:
             log_request_data["body_error"] = f"Failed to read request body: {str(e)}"
 
-        logger.info(log_request_data)
+        # Логируем запрос с сообщением
+        logger.info("Incoming request", extra=log_request_data)
 
         try:
             response = await call_next(request)
@@ -56,12 +57,13 @@ class LoggingMiddleware(BaseHTTPMiddleware):
 
             response.body_iterator = body_generator()
 
-            logger.info(log_response_data)
+            # Логируем ответ с сообщением
+            logger.info("Response sent", extra=log_response_data)
 
             return response
         except Exception as e:
-            # Логируем ошибку
-            logger.error({
+            # Логируем ошибку с сообщением
+            logger.error("Error occurred", extra={
                 "event": "error",
                 "message": str(e),
                 "method": request.method,
@@ -71,7 +73,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         finally:
             # Логируем время обработки запроса
             process_time = time.time() - start_time
-            logger.info({
+            logger.info("Request handling time", extra={
                 "event": "process_time",
                 "method": request.method,
                 "url": str(request.url),

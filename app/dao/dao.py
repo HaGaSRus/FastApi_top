@@ -15,13 +15,12 @@ class UsersDAO(BaseDAO):
     model = Users
 
     @classmethod
-    async def add(cls, username: str, firstname: str, lastname: str, email: str, hashed_password: str):
+    async def add(cls, username: str, firstname: str, email: str, hashed_password: str):
         async with async_session_maker() as session:
             try:
                 new_user = Users(
                     username=username,
                     firstname=firstname,
-                    lastname=lastname,
                     email=email,
                     hashed_password=hashed_password
                 )
@@ -67,7 +66,6 @@ class UsersDAO(BaseDAO):
                         username=user.username,
                         email=user.email,
                         firstname=user.firstname,
-                        lastname=user.lastname,
                         roles=[role.name for role in user.roles]  # Преобразуем роли в список строк
                     )
                     logger.info(f"Пользователь с ролями получен: {user.username}")
@@ -94,8 +92,7 @@ class UsersDAO(BaseDAO):
 
     @classmethod
     async def update(cls, model_id: int, username: Optional[str] = None, email: Optional[str] = None,
-                     hashed_password: Optional[str] = None, firstname: Optional[str] = None,
-                     lastname: Optional[str] = None):
+                     hashed_password: Optional[str] = None, firstname: Optional[str] = None):
         async with async_session_maker() as session:
             try:
                 stmt = select(Users).where(Users.id == model_id)
@@ -116,8 +113,6 @@ class UsersDAO(BaseDAO):
                     user.hashed_password = hashed_password
                 if firstname is not None:
                     user.firstname = firstname
-                if lastname is not None:
-                    user.lastname = lastname
 
                 await session.commit()
                 logger.info(f"Пользователь с id={model_id} успешно обновлён.")
@@ -219,3 +214,4 @@ class UsersRolesDAO(BaseDAO):
 
 class UserPermissionsDAO(BaseDAO):
     model = Permissions
+

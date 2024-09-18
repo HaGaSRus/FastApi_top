@@ -1,6 +1,6 @@
 from typing import Optional, List
 from sqlalchemy import or_
-from fastapi import APIRouter, status, Depends, Body
+from fastapi import APIRouter, status, Depends, Body, HTTPException
 from fastapi_versioning import version
 from app.auth.auth import get_password_hash, pwd_context
 from app.dao.dao import UsersDAO, UsersRolesDAO
@@ -17,9 +17,10 @@ router_admin = APIRouter(
 )
 
 
-@router_admin.post("/register", status_code=status.HTTP_201_CREATED)
+@router_admin.post("/register", status_code=status.HTTP_201_CREATED, summary="Форма регистрации нового пользователя ")
 @version(1)
 async def register_user(user_data: SUserAuth, current_user: Users = Depends(get_current_admin_user)):
+    """Логика регистрации нового пользователя админом"""
     users_dao = UsersDAO()
     users_roles_dao = UsersRolesDAO()
 
@@ -39,7 +40,6 @@ async def register_user(user_data: SUserAuth, current_user: Users = Depends(get_
     new_user = await users_dao.add(
         username=user_data.username,
         firstname=user_data.firstname,
-        lastname=user_data.lastname,
         email=user_data.email,
         hashed_password=hashed_password,
     )
@@ -50,7 +50,7 @@ async def register_user(user_data: SUserAuth, current_user: Users = Depends(get_
     raise UserCreated
 
 
-@router_admin.post("/update-admin", status_code=status.HTTP_200_OK)
+@router_admin.post("/update-admin", status_code=status.HTTP_200_OK, summary="Обновление данных пользователя админом")
 @version(1)
 async def update_user(
         user_id: int = Body(..., description="ID пользователя для обновления"),
@@ -58,11 +58,10 @@ async def update_user(
         email: str = Body(None, description="Новый email пользователя"),
         password: str = Body(None, description="Новый пароль пользователя"),
         firstname: str = Body(None, description="Новое имя пользователя"),
-        lastname: str = Body(None, description="Новая фамилия пользователя"),
         update_roles: Optional[List[str]] = Body(None, description="Список новых ролей для пользователя"),
         current_user: Users = Depends(get_current_admin_user)  # Теперь используется для проверки прав администратора
 ):
-    """Обновление информации о пользователе и его ролях"""
+    """Обновление информации о пользователе и его ролей"""
     users_dao = UsersDAO()
     users_roles_dao = UsersRolesDAO()
 
@@ -87,7 +86,8 @@ async def update_user(
     # Логирование перед обновлением
     logger.info(
         f"Обновление пользователя с id={user_to_update.id}: username={username}, email={email},"
-        f" hashed_password={hashed_password is not None}")
+        f" hashed_password={hashed_password is not None}"
+    )
 
     # Обновляем данные пользователя
     try:
@@ -97,7 +97,6 @@ async def update_user(
             email=email,
             hashed_password=hashed_password,
             firstname=firstname,
-            lastname=lastname,
         )
     except Exception as e:
         logger.error(f"Ошибка при обновлении пользователя: {e}")
@@ -105,14 +104,21 @@ async def update_user(
 
     # Если переданы новые роли, обновляем их
     if update_roles is not None:
-        # Очистка текущих ролей и добавление новых ролей
-        await users_roles_dao.clear_roles(user_id)
-        await users_roles_dao.add_roles(user_id, role_names=update_roles)
+        # Удаление всех null значений из списка ролей
+        update_roles = [role for role in update_roles if role]
 
-    return UpdateUser
+    # Если список ролей пустой или None, назначаем роль 'user' по умолчанию
+    if not update_roles:
+        update_roles = ['user']
+
+    # Очистка текущих ролей и добавление новых ролей
+    await users_roles_dao.clear_roles(user_id)
+    await users_roles_dao.add_roles(user_id, role_names=update_roles)
+
+    return await users_dao.get_user_with_roles(user_id)
 
 
-@router_admin.post("/delete", status_code=status.HTTP_200_OK)
+@router_admin.post("/delete", status_code=status.HTTP_200_OK, summary="Удаление пользователя по id")
 @version(1)
 async def delete_user(user_request: UserIdRequest, current_user: Users = Depends(get_current_admin_user)):
     """Удаление пользователя. Только для администратора"""

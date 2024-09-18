@@ -1,11 +1,9 @@
-import logging
-import os
-from datetime import datetime
-from logging.handlers import RotatingFileHandler
 from pythonjsonlogger import jsonlogger
+import logging
+from datetime import datetime
 import pytz
 from app.config import settings
-
+import os
 
 class CustomJsonFormatter(jsonlogger.JsonFormatter):
     def __init__(self, *args, **kwargs):
@@ -13,50 +11,34 @@ class CustomJsonFormatter(jsonlogger.JsonFormatter):
         super(CustomJsonFormatter, self).__init__(*args, **kwargs)
 
     def add_fields(self, log_record, record, message_dict):
-        # Получаем уровень логирования и преобразуем его в верхний регистр, если он не равен None
-        level = log_record.get("level", record.levelname)
-        if level is not None:
-            log_record["level"] = level.upper()
-        else:
-            log_record["level"] = "UNKNOWN"
-
-        # Добавляем timestamp, если его нет
+        super(CustomJsonFormatter, self).add_fields(log_record, record, message_dict)
         if not log_record.get("timestamp"):
             yekaterinburg_tz = pytz.timezone('Asia/Yekaterinburg')
             now = datetime.now(yekaterinburg_tz)
-            log_record["timestamp"] = now.strftime("%Y-%m-%d %H:%M:%S")
+            formatted_time = now.strftime("%Y-%m-%d %H:%M:%S")
+            log_record["timestamp"] = formatted_time
+        if log_record.get("level"):
+            log_record["level"] = log_record["level"].upper()
+        else:
+            log_record["level"] = record.levelname
 
-        # Вызываем метод суперкласса
-        super(CustomJsonFormatter, self).add_fields(log_record, record, message_dict)
-
-# Определяем формат логирования
-log_format = "%(timestamp)s %(level)s %(message)s %(module)s %(funcName)s"
-formatter = CustomJsonFormatter(log_format)
+# Настройте форматировщик для ведения журнала с помощью json_ensure_ascii=False
+formatter = CustomJsonFormatter(
+    "%(timestamp)s %(level)s %(message)s %(module)s %(funcName)s"
+)
 
 # Настраиваем обработчики и логгер
 logHandler = logging.StreamHandler()
 logHandler.setFormatter(formatter)
 
-# Определяем путь к файлу лога
-log_directory = os.path.dirname(__file__)
-log_file_path = os.path.join(log_directory, 'app_logs.json')
+# Определяем путь к файлу лога в той же директории, где находится основной скрипт
+log_file_path = os.path.join(os.path.dirname(__file__), 'app_logs.json')
 
-# Проверяем существование директории и создаём, если необходимо
-if not os.path.exists(log_directory):
-    os.makedirs(log_directory)
-
-# Настраиваем обработчик для ротации логов
-fileHandler = RotatingFileHandler(
-    log_file_path, maxBytes=10 ** 6, backupCount=5, encoding='utf-8'
-)
+# Настраиваем обработчик для записи в файл
+fileHandler = logging.FileHandler(log_file_path)
 fileHandler.setFormatter(formatter)
 
 logger = logging.getLogger()
-
-# Предотвращаем многократное добавление обработчиков
-if not logger.handlers:
-    logger.addHandler(logHandler)
-    logger.addHandler(fileHandler)
-
-# Устанавливаем уровень логирования
+logger.addHandler(logHandler)
+logger.addHandler(fileHandler)
 logger.setLevel(settings.LOG_LEVEL)

@@ -19,7 +19,6 @@ class Users(Base):
     email: Mapped[str] = mapped_column(String, nullable=False, unique=True)
     hashed_password: Mapped[str] = mapped_column(String, nullable=False)
     firstname: Mapped[str] = mapped_column(String, nullable=False)
-    lastname: Mapped[str] = mapped_column(String, nullable=False)
 
     # Связь many-to-many с ролями через таблицу связи
     roles: Mapped[List['Roles']] = relationship(
