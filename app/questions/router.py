@@ -2,8 +2,7 @@ import json
 import traceback
 from typing import List, Optional
 from fastapi_versioning import version
-from fastapi import APIRouter, Depends, Path, Query, Request
-from pydantic_core._pydantic_core import ValidationError
+from fastapi import APIRouter, Depends, Path, Query, Request, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.exc import IntegrityError
@@ -14,20 +13,20 @@ from app.exceptions import FailedTGetDataFromDatabase, CategoryWithTheSameNameAl
     ErrorGettingCategories, CategoryNotFound, DataIntegrityErrorPerhapsQuestionWithThisTextAlreadyExists, \
     FailedToCreateQuestion, ParentQuestionNotFound, FailedToCreateSubQuestion, \
     CategoryContainsSubcategoriesDeletionIsNotPossible, FailedToDeleteCategory, JSONDecodingError, InvalidDataFormat, \
-    CategoryNotFoundException, ValidationErrorException, ErrorUpdatingCategories, FailedToUpdateCategories, \
-    QuestionNotFound, CouldNotGetAnswerToQuestion, ParentCategoryNotFound, CategoryWithSameNameAlreadyExists
+    ErrorUpdatingCategories, FailedToUpdateCategories, \
+    QuestionNotFound, CouldNotGetAnswerToQuestion, ParentCategoryNotFound, ErrorUpdatingSubcategories, \
+    FailedToUpdateSubcategories
 from app.logger.logger import logger
 from app.questions.models import Category, Question
 from app.questions.schemas import CategoryResponse, QuestionResponse, CategoryCreate, QuestionCreate, \
-    CategoryCreateResponse, DeleteCategoryRequest, UpdateCategoryData, UpdateCategoriesRequest
+    CategoryCreateResponse, DeleteCategoryRequest, UpdateSubcategoryData
 from app.questions.utils import fetch_parent_category, check_existing_category, create_new_category, get_category_by_id, \
-    get_category_data, process_category_updates
+    process_category_updates, process_subcategory_updates
 
 router_categories = APIRouter(
     prefix="/categories",
     tags=["Категории"],
 )
-
 
 router_question = APIRouter(
     prefix="/question",
@@ -106,7 +105,7 @@ async def create_category(
         await db.refresh(new_category)
 
         logger.info(f"Создана новая категория: {new_category}")
-        return CategoryCreateResponse.from_orm(new_category)
+        return CategoryCreateResponse.model_validate(new_category)
     except IntegrityError as e:
         await db.rollback()
         logger.error(f"IntegrityError при создании категории: {e}")
@@ -334,7 +333,7 @@ async def delete_category(
 
 @router_categories.post("/update",
                         response_model=List[CategoryResponse],
-                        summary="Обновление категории или подкатегории")
+                        summary="Обновление категории")
 @version(1)
 async def update_categories(
         request: Request,
@@ -369,8 +368,6 @@ async def update_categories(
         logger.error(f"Ошибка при обновлении категорий: {e}")
         logger.error(traceback.format_exc())
         raise FailedToUpdateCategories
-
-
 
 
 @router_question.get("/{question_id}/answer",
@@ -409,3 +406,27 @@ async def get_question_answer(
         logger.error(traceback.format_exc())
         raise CouldNotGetAnswerToQuestion
 
+
+@router_categories.post("/update-subcategory", response_model=List[CategoryResponse], summary="Обновление подкатегории")
+@version(1)
+async def update_subcategory(
+    subcategories: List[UpdateSubcategoryData],  # Прямое использование списка
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_admin_user)
+):
+    """Форма обновления подкатегории"""
+    try:
+        # Обрабатываем обновления подкатегорий
+        updated_subcategories = await process_subcategory_updates(db, subcategories)
+
+        logger.info(f"Успешно обновлено {len(updated_subcategories)} подкатегорий")
+        return updated_subcategories
+
+    except IntegrityError as e:
+        await db.rollback()
+        logger.error(f"Ошибка IntegrityError при обновлении подкатегорий: {e}")
+        raise HTTPException(status_code=400, detail="Ошибка при обновлении подкатегорий")
+    except Exception as e:
+        logger.error(f"Ошибка при обновлении подкатегорий: {e}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail="Не удалось обновить подкатегории")

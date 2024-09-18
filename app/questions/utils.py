@@ -1,16 +1,18 @@
 import json
 from typing import List
-
 from pydantic_core._pydantic_core import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from fastapi import Request
+from fastapi import Request, HTTPException, Depends
 from app.exceptions import ValidationErrorException, JSONDecodingError, InvalidDataFormat, \
-    CategoryWithSameNameAlreadyExists, CategoryNotFoundException
+    CategoryWithSameNameAlreadyExists, CategoryNotFoundException, ParentCategoryNotFoundException
 from app.logger.logger import logger
 from app.questions.models import Category, Question
-from app.questions.schemas import CategoryCreate, QuestionCreate, UpdateCategoryData, CategoryResponse
+from app.questions.schemas import QuestionCreate, UpdateCategoryData, CategoryResponse, CategoryCreate, \
+    UpdateSubcategoryData
 from fastapi import HTTPException
+import traceback
+from sqlalchemy.exc import IntegrityError
 
 
 async def fetch_parent_category(db: AsyncSession, parent_id: int) -> Category:
@@ -55,8 +57,6 @@ async def create_new_question(question: QuestionCreate, category_id: int, db: As
     await db.refresh(new_question)
     return new_question
 
-# Тут начинается код связанный с обновлением категорий
-
 
 async def process_category_updates(db: AsyncSession, category_data_list: List[dict]) -> List[CategoryResponse]:
     """Обработка обновления категорий"""
@@ -85,7 +85,6 @@ async def get_category_data(request: Request) -> List[UpdateCategoryData]:
         if not isinstance(category_data_list, list):
             raise InvalidDataFormat
 
-        # Проводим валидацию данных
         validated_data = [UpdateCategoryData(**item) for item in category_data_list]
         logger.debug(f"Преобразованные данные: {validated_data}")
         return validated_data
@@ -95,7 +94,6 @@ async def get_category_data(request: Request) -> List[UpdateCategoryData]:
     except ValidationError as e:
         logger.error(f"Ошибка валидации данных: {e}")
         raise ValidationErrorException(error_detail=str(e))
-
 
 
 def validate_category_data(category_data: dict):
@@ -152,3 +150,27 @@ async def update_category(db: AsyncSession, category: Category, data: UpdateCate
         parent_id=category.parent_id,
         number=category.number
     )
+
+
+async def process_subcategory_updates(db: AsyncSession, subcategory_data_list: List[UpdateSubcategoryData]) -> List[CategoryResponse]:
+    """Обработка обновления подкатегорий"""
+    updated_subcategories = []
+
+    for subcategory_data in subcategory_data_list:
+        # Валидируем и преобразуем данные с использованием Pydantic
+        data = validate_category_data(subcategory_data.dict())
+
+        # Проверяем существование родительской категории
+        parent_category = await fetch_parent_category(db, data.parent_id) if data.parent_id else None
+        if data.parent_id and not parent_category:
+            raise ParentCategoryNotFoundException(parent_id=data.parent_id)
+
+        # Проверяем существование подкатегории и обеспечиваем уникальность имени
+        subcategory = await find_category_by_id(db, data.id)
+        await ensure_unique_category_name(db, data)
+
+        # Обновляем подкатегорию
+        updated_subcategory = await update_category(db, subcategory, data)
+        updated_subcategories.append(updated_subcategory)
+
+    return updated_subcategories

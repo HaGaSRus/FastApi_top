@@ -74,11 +74,19 @@ class UpdateCategoryRequest(BaseModel):
     category_data: CategoryCreate
 
 
+
 class UpdateCategoryData(BaseModel):
-    id: int  # id категории, которую нужно обновить
-    number: int  # number категории, который нельзя изменять
+    id: int
     name: str
+    parent_id: int
+    number: int
 
 
-class UpdateCategoriesRequest(BaseModel):
-    categories: List[UpdateCategoryData]
+class UpdateSubcategoryData(BaseModel):
+    id: int
+    name: str
+    parent_id: Optional[int]  # Поле для связи с родительской категорией
+    number: Optional[int]
+
+# class UpdateSubcategoryRequest(BaseModel):
+#     subcategories: List[UpdateSubcategoryData]
