@@ -15,12 +15,13 @@ from app.exceptions import FailedTGetDataFromDatabase, CategoryWithTheSameNameAl
     FailedToCreateQuestion, ParentQuestionNotFound, FailedToCreateSubQuestion, \
     CategoryContainsSubcategoriesDeletionIsNotPossible, FailedToDeleteCategory, JSONDecodingError, InvalidDataFormat, \
     CategoryNotFoundException, ValidationErrorException, ErrorUpdatingCategories, FailedToUpdateCategories, \
-    QuestionNotFound, CouldNotGetAnswerToQuestion, ParentCategoryNotFound
+    QuestionNotFound, CouldNotGetAnswerToQuestion, ParentCategoryNotFound, CategoryWithSameNameAlreadyExists
 from app.logger.logger import logger
 from app.questions.models import Category, Question
 from app.questions.schemas import CategoryResponse, QuestionResponse, CategoryCreate, QuestionCreate, \
     CategoryCreateResponse, DeleteCategoryRequest, UpdateCategoryData
-from app.questions.utils import fetch_parent_category, check_existing_category, create_new_category, get_category_by_id
+from app.questions.utils import fetch_parent_category, check_existing_category, create_new_category, get_category_by_id, \
+    get_category_data, process_category_updates
 
 router_categories = APIRouter(
     prefix="/categories",
@@ -320,12 +321,14 @@ async def delete_category(
         await db.commit()
 
         logger.info(f"Категория с id {category_id} успешно удалена")
-        return CategoryResponse.from_orm(category)
+
+        # Используем model_validate для валидации объекта через атрибуты модели
+        return CategoryResponse.model_validate(category)
 
     except Exception as e:
         logger.error(f"Ошибка при удалении категории: {e}")
         logger.error(traceback.format_exc())
-        await db.rollback()  # Явное откатывание транзакции при ошибке
+        await db.rollback()  # Откат транзакции при ошибке
         raise FailedToDeleteCategory
 
 
@@ -340,67 +343,9 @@ async def update_categories(
 ):
     """Форма обновления категории или подкатегории"""
     try:
-        # Получение данных в виде строки
-        body = await request.body()
-        body_str = body.decode('utf-8')
-        logger.debug(f"Полученные данные: {body_str}")
+        category_data_list = await get_category_data(request)
 
-        # Преобразование строки в список словарей
-        try:
-            category_data_list = json.loads(body_str)
-            logger.debug(f"Преобразованные данные: {category_data_list}")
-        except json.JSONDecodeError:
-            logger.error(f"Ошибка декодирования JSON: {body_str}")
-            raise JSONDecodingError
-
-        # Проверка формата данных
-        if not isinstance(category_data_list, list):
-            logger.error(f"Неверный формат данных: {category_data_list}")
-            raise InvalidDataFormat
-
-        updated_categories = []
-
-        for category_data in category_data_list:
-            # Валидация данных с использованием Pydantic
-            try:
-                data = UpdateCategoryData(**category_data)
-            except ValidationError as e:
-                logger.error(f"Ошибка валидации данных: {e}")
-                raise ValidationErrorException(error_detail=str(e))
-
-            # Поиск категории по id
-            category = await db.get(Category, data.id)
-            if not category:
-                logger.warning(f"Категория с id {data.id} не найдена")
-                raise CategoryNotFoundException(category_id=data.id)
-
-            # Логирование текущих данных категории
-            logger.debug(f"Текущие данные категории: {category}")
-
-            # Обновление полей категории
-            updated = False
-            if category.name != data.name:
-                category.name = data.name
-                updated = True
-
-            if category.number != data.number:
-                category.number = data.number
-                updated = True
-
-            if updated:
-                # Коммит изменений
-                db.add(category)
-                await db.commit()
-                await db.refresh(category)
-                logger.debug(f"Обновленная категория: {category}")
-
-            # Добавление обновленной категории в список
-            updated_categories.append(CategoryResponse(
-                id=category.id,
-                name=category.name,
-                parent_id=category.parent_id,
-                number=category.number
-            ))
+        updated_categories = await process_category_updates(db, category_data_list)
 
         logger.info(f"Успешно обновлено {len(updated_categories)} категорий")
         return updated_categories
