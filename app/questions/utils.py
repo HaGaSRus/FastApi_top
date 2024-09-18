@@ -48,3 +48,4 @@ async def create_new_question(question: QuestionCreate, category_id: int, db: As
     await db.commit()
     await db.refresh(new_question)
     return new_question
+

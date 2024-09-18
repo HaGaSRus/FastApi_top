@@ -17,9 +17,10 @@ router_admin = APIRouter(
 )
 
 
-@router_admin.post("/register", status_code=status.HTTP_201_CREATED)
+@router_admin.post("/register", status_code=status.HTTP_201_CREATED, summary="Форма регистрации нового пользователя ")
 @version(1)
 async def register_user(user_data: SUserAuth, current_user: Users = Depends(get_current_admin_user)):
+    """Логика регистрации нового пользователя админом"""
     users_dao = UsersDAO()
     users_roles_dao = UsersRolesDAO()
 
@@ -49,7 +50,7 @@ async def register_user(user_data: SUserAuth, current_user: Users = Depends(get_
     raise UserCreated
 
 
-@router_admin.post("/update-admin", status_code=status.HTTP_200_OK)
+@router_admin.post("/update-admin", status_code=status.HTTP_200_OK, summary="Обновление данных пользователя админом")
 @version(1)
 async def update_user(
         user_id: int = Body(..., description="ID пользователя для обновления"),
@@ -117,7 +118,7 @@ async def update_user(
     return await users_dao.get_user_with_roles(user_id)
 
 
-@router_admin.post("/delete", status_code=status.HTTP_200_OK)
+@router_admin.post("/delete", status_code=status.HTTP_200_OK, summary="Удаление пользователя по id")
 @version(1)
 async def delete_user(user_request: UserIdRequest, current_user: Users = Depends(get_current_admin_user)):
     """Удаление пользователя. Только для администратора"""

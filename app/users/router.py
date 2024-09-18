@@ -17,14 +17,15 @@ router_users = APIRouter(
 )
 
 
-@router_users.get("/me", status_code=status.HTTP_200_OK, response_model=UserResponse)
+@router_users.get("/me", status_code=status.HTTP_200_OK, response_model=UserResponse, summary="Отображение пользователя")
 @version(1)
 async def read_users_me(current_user: Users = Depends(get_current_user)):
+    """Пользователь получает отображение всех своих данных"""
     user_with_roles = await UsersDAO().get_user_with_roles(current_user.id)
     return user_with_roles
 
 
-@router_users.post("/update", status_code=status.HTTP_200_OK)
+@router_users.post("/update", status_code=status.HTTP_200_OK, summary="Обновление пользователя")
 @version(1)
 async def update_user(
         update_data: UpdateUserRequest,

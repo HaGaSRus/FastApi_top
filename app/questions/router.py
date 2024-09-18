@@ -35,9 +35,10 @@ router_question = APIRouter(
 
 
 # Получение всех категорий с вложенными подкатегориями
-@router_categories.get("/", response_model=List[CategoryResponse])
+@router_categories.get("/", response_model=List[CategoryResponse], summary="Получить все категории")
 @version(1)
 async def get_categories(db: AsyncSession = Depends(get_db)):
+    """Отобразить все категории имеющиеся в Базе данных"""
     try:
         logger.debug("Выполнение запроса для получения корневых категорий с родительским_id == Нет")
         result = await db.execute(
@@ -82,13 +83,14 @@ async def get_categories(db: AsyncSession = Depends(get_db)):
 
 
 # Создание новой категории (только для админа)
-@router_categories.post("/create", response_model=CategoryCreateResponse)
+@router_categories.post("/create", response_model=CategoryCreateResponse, summary="Создание новой категории")
 @version(1)
 async def create_category(
         category: CategoryCreate,
         db: AsyncSession = Depends(get_db),
         current_user=Depends(get_current_admin_user)
 ):
+    """Форма создания новой категории вопросов"""
     try:
         # Создаем новую категорию
         new_category = Category(name=category.name)
@@ -115,7 +117,7 @@ async def create_category(
 
 
 # Создание подкатегории (только админ)
-@router_categories.post("/{parent_id}/subcategories", response_model=CategoryResponse)
+@router_categories.post("/{parent_id}/subcategories", response_model=CategoryResponse, summary="Создание новой порд-категории")
 @version(1)
 async def create_subcategory(
         category: CategoryCreate,
@@ -123,6 +125,7 @@ async def create_subcategory(
         db: AsyncSession = Depends(get_db),
         current_user=Depends(get_current_admin_user)
 ):
+    """Форма создания новой под-категории вопросов"""
     try:
         logger.debug(f"Получение родительской категории с идентификатором: {parent_id}")
         parent_category = await fetch_parent_category(db, parent_id)
@@ -160,7 +163,7 @@ async def create_subcategory(
 
 
 # Создание вопроса верхнего уровня
-@router_question.post("/{category_id}/questions", response_model=QuestionResponse)
+@router_question.post("/{category_id}/questions", response_model=QuestionResponse, summary="Создание вопроса верхнего уровня")
 @version(1)
 async def create_question(
         question: QuestionCreate,
@@ -169,6 +172,7 @@ async def create_question(
         db: AsyncSession = Depends(get_db),
         current_user=Depends(get_current_user)
 ):
+    """Форма создания вопроса верхнего уровня"""
     try:
         logger.debug(f"Получение категории по идентификатору: {category_id}")
         category = await get_category_by_id(category_id, db)
@@ -224,7 +228,7 @@ async def create_question(
 
 
 # Создание под-вопроса
-@router_question.post("/{parent_question_id}/subquestions", response_model=QuestionResponse)
+@router_question.post("/{parent_question_id}/subquestions", response_model=QuestionResponse, summary="Создание под-вопроса")
 @version(1)
 async def create_subquestion(
         question: QuestionCreate,
@@ -232,6 +236,7 @@ async def create_subquestion(
         db: AsyncSession = Depends(get_db),
         current_user=Depends(get_current_user)
 ):
+    """Форма создания Создание под-вопроса"""
     try:
         logger.debug(f"Получение родительского вопроса с идентификатором: {parent_question_id}")
         parent_question = await db.get(Question, parent_question_id)
@@ -278,13 +283,14 @@ async def create_subquestion(
         raise FailedToCreateSubQuestion
 
 
-@router_categories.post("/delete", response_model=CategoryResponse)
+@router_categories.post("/delete", response_model=CategoryResponse, summary="Удаление категории")
 @version(1)
 async def delete_category(
         request: DeleteCategoryRequest,
         db: AsyncSession = Depends(get_db),
         current_user=Depends(get_current_admin_user)
 ):
+    "Форма удаления по id категории, при условии отсутствия подкатегории"
     category_id = request.category_id
     try:
         logger.debug(f"Удаление категории с id: {category_id}")
@@ -317,13 +323,14 @@ async def delete_category(
         raise FailedToDeleteCategory
 
 
-@router_categories.post("/update", response_model=List[CategoryResponse])
+@router_categories.post("/update", response_model=List[CategoryResponse], summary="Обновление категории или подкатегории")
 @version(1)
 async def update_categories(
         request: Request,
         db: AsyncSession = Depends(get_db),
         current_user=Depends(get_current_admin_user)
 ):
+    """Форма обновления категории или подкатегории"""
     try:
         # Получение данных в виде строки
         body = await request.body()
@@ -400,13 +407,14 @@ async def update_categories(
         raise FailedToUpdateCategories
 
 
-@router_question.get("/{question_id}/answer", response_model=QuestionResponse)
+@router_question.get("/{question_id}/answer", response_model=QuestionResponse, summary="Создание ответа на поставленый вопрос")
 @version(1)
 async def get_question_answer(
         question_id: int = Path(..., ge=1),
         db: AsyncSession = Depends(get_db),
         current_user=Depends(get_current_user)
 ):
+    """Форма создания ответа на вопрос"""
     try:
         logger.debug(f"Получение вопроса с id: {question_id}")
         question = await db.get(Question, question_id)

@@ -1,12 +1,12 @@
 import jwt
-from fastapi import APIRouter, status, Response, HTTPException
+from fastapi import APIRouter, status, Response
 from jwt.exceptions import ExpiredSignatureError, PyJWTError
 from app.auth.auth import get_password_hash, create_access_token, create_reset_token, verify_password
 from app.config import settings
 from app.dao.dao import UsersDAO
 from app.exceptions import UserInCorrectEmailOrUsername, PasswordRecoveryInstructions, IncorrectTokenFormatException, \
     TokenExpiredException, UserIsNotPresentException, PasswordUpdatedSuccessfully, EmailOrUsernameWasNotFound, \
-    InvalidPassword
+    InvalidPassword, FailedToGetUserRoles
 from app.logger.logger import logger
 from app.auth.schemas import SUserSignUp, ForgotPasswordRequest, ResetPasswordRequest
 
@@ -20,9 +20,10 @@ router_auth = APIRouter(
 )
 
 
-@router_auth.post("/login")
+@router_auth.post("/login", summary="Авторизация пользователя")
 @version(1)
 async def login_user(response: Response, user_data: SUserSignUp):
+    """Логика авторизации для входа на горячую линию"""
     users_dao = UsersDAO()
     user = await users_dao.find_one_or_none(email=user_data.email) or await users_dao.find_one_or_none(username=user_data.username)
 
@@ -34,10 +35,7 @@ async def login_user(response: Response, user_data: SUserSignUp):
 
     user_with_roles = await users_dao.get_user_with_roles(user.id)
     if not user_with_roles:
-        raise HTTPException(
-            status_code=401,
-            detail="Не удалось получить роли пользователя"
-        )
+        raise FailedToGetUserRoles
 
     access_token = create_access_token({
         "sub": str(user.id),
@@ -57,9 +55,10 @@ async def login_user(response: Response, user_data: SUserSignUp):
     return {"access_token": access_token}
 
 
-@router_auth.post("/forgot-password", status_code=status.HTTP_200_OK)
+@router_auth.post("/forgot-password", status_code=status.HTTP_200_OK, summary="Форма-восстановления пароля для пользователя ")
 @version(1)
 async def forgot_password(request: ForgotPasswordRequest):
+    """ Восстановление пароля для пользователя, логика отправки формы на почту"""
     users_dao = UsersDAO()
     user = await users_dao.find_one_or_none(email=request.email)
     if not user:
@@ -69,8 +68,10 @@ async def forgot_password(request: ForgotPasswordRequest):
     await send_reset_password_email(request.email, reset_token)
     return PasswordRecoveryInstructions
 
-@router_auth.post("/reset-password", status_code=status.HTTP_200_OK)
+
+@router_auth.post("/reset-password", status_code=status.HTTP_200_OK, summary="Форма ввода нового пароля")
 async def reset_password(reset_password_request: ResetPasswordRequest):
+    """Логика обновления пароля после перехода по ссылке для восстановления"""
     token = reset_password_request.token
     new_password = reset_password_request.new_password
 

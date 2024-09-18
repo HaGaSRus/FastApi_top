@@ -37,13 +37,16 @@ class CustomParams(Params):
 add_pagination(router_pagination)
 
 
-@router_pagination.get("/all-users", status_code=status.HTTP_200_OK, response_model=Page[AllUserResponse])
+@router_pagination.get("/all-users",
+                       status_code=status.HTTP_200_OK,
+                       response_model=Page[AllUserResponse],
+                       summary="Отображение все пользователей с пагинацией")
 @version(1)
 async def get_all_users(
     current_user: Users = Depends(get_current_admin_user),
     params: CustomParams = Depends()  # Используем кастомные параметры пагинации
 ):
-    """Получение всех пользователей. Доступно только администраторам."""
+    """Получение всех пользователей. С пагинацией. Доступно только администраторам."""
     try:
         async with async_session_maker() as session:
             stmt = select(Users).options(selectinload(Users.roles))
@@ -67,7 +70,7 @@ async def get_all_users(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
-@router_filter.get("/users", response_model=Page[AllUserResponse])
+@router_filter.get("/users", response_model=Page[AllUserResponse], summary="Фильтрация пользователей")
 @version(1)
 async def get_filtered_users(
     user_filter: UserFilter = FilterDepends(UserFilter),
