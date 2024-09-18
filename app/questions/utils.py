@@ -58,20 +58,20 @@ async def create_new_question(question: QuestionCreate, category_id: int, db: As
     return new_question
 
 
-async def process_category_updates(db: AsyncSession, category_data_list: List[dict]) -> List[CategoryResponse]:
+async def process_category_updates(db: AsyncSession, category_data_list: List[UpdateCategoryData]) -> List[CategoryResponse]:
     """Обработка обновления категорий"""
     updated_categories = []
 
     for category_data in category_data_list:
-        data = validate_category_data(category_data)
+        # Поиск и обновление категории
+        category = await find_category_by_id(db, category_data.id)
+        await ensure_unique_category_name(db, category_data)
 
-        category = await find_category_by_id(db, data.id)
-        await ensure_unique_category_name(db, data)
-
-        updated_category = await update_category(db, category, data)
+        updated_category = await update_category(db, category, category_data)
         updated_categories.append(updated_category)
 
     return updated_categories
+
 
 
 async def get_category_data(request: Request) -> List[UpdateCategoryData]:
@@ -96,7 +96,7 @@ async def get_category_data(request: Request) -> List[UpdateCategoryData]:
         raise ValidationErrorException(error_detail=str(e))
 
 
-def validate_category_data(category_data: dict):
+def validate_category_data(category_data: dict) -> UpdateCategoryData:
     """Валидация данных с использованием Pydantic"""
     try:
         return UpdateCategoryData(**category_data)

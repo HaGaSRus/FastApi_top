@@ -78,7 +78,6 @@ class UpdateCategoryRequest(BaseModel):
 class UpdateCategoryData(BaseModel):
     id: int
     name: str
-    parent_id: int
     number: int
 
 

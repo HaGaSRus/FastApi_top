@@ -19,7 +19,7 @@ from app.exceptions import FailedTGetDataFromDatabase, CategoryWithTheSameNameAl
 from app.logger.logger import logger
 from app.questions.models import Category, Question
 from app.questions.schemas import CategoryResponse, QuestionResponse, CategoryCreate, QuestionCreate, \
-    CategoryCreateResponse, DeleteCategoryRequest, UpdateSubcategoryData
+    CategoryCreateResponse, DeleteCategoryRequest, UpdateSubcategoryData, UpdateCategoryData
 from app.questions.utils import fetch_parent_category, check_existing_category, create_new_category, get_category_by_id, \
     process_category_updates, process_subcategory_updates
 
@@ -340,7 +340,7 @@ async def update_categories(
         db: AsyncSession = Depends(get_db),
         current_user=Depends(get_current_admin_user)
 ):
-    """Форма обновления категории или подкатегории"""
+    """Форма обновления категории"""
     try:
         body = await request.body()
         body_str = body.decode('utf-8')
@@ -355,7 +355,10 @@ async def update_categories(
             logger.error(f"Ошибка декодирования JSON: {body_str}")
             raise JSONDecodingError
 
-        updated_categories = await process_category_updates(db, category_data_list)
+        # Валидация и преобразование данных
+        validated_data = [UpdateCategoryData(**item) for item in category_data_list]
+
+        updated_categories = await process_category_updates(db, validated_data)
 
         logger.info(f"Успешно обновлено {len(updated_categories)} категорий")
         return updated_categories
@@ -363,11 +366,12 @@ async def update_categories(
     except IntegrityError as e:
         await db.rollback()
         logger.error(f"Ошибка IntegrityError при обновлении категорий: {e}")
-        raise ErrorUpdatingCategories
+        raise HTTPException(status_code=400, detail="Ошибка при обновлении категорий")
     except Exception as e:
         logger.error(f"Ошибка при обновлении категорий: {e}")
         logger.error(traceback.format_exc())
-        raise FailedToUpdateCategories
+        raise HTTPException(status_code=500, detail="Не удалось обновить категории")
+
 
 
 @router_question.get("/{question_id}/answer",
