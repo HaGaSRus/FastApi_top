@@ -1,18 +1,25 @@
+import json
 import traceback
 from typing import List, Optional
 from fastapi_versioning import version
-from fastapi import APIRouter, Depends, HTTPException, Path, Query
+from fastapi import APIRouter, Depends, Path, Query, Request
+from pydantic_core._pydantic_core import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 from app.dao.dependencies import get_current_user, get_current_admin_user
 from app.database import get_db
-from app.exceptions import FailedTGetDataFromDatabase
+from app.exceptions import FailedTGetDataFromDatabase, CategoryWithTheSameNameAlreadyExists, ErrorCreatingCategory, \
+    ErrorGettingCategories, CategoryNotFound, DataIntegrityErrorPerhapsQuestionWithThisTextAlreadyExists, \
+    FailedToCreateQuestion, ParentQuestionNotFound, FailedToCreateSubQuestion, \
+    CategoryContainsSubcategoriesDeletionIsNotPossible, FailedToDeleteCategory, JSONDecodingError, InvalidDataFormat, \
+    CategoryNotFoundException, ValidationErrorException, ErrorUpdatingCategories, FailedToUpdateCategories, \
+    QuestionNotFound, CouldNotGetAnswerToQuestion, ParentCategoryNotFound
 from app.logger.logger import logger
 from app.questions.models import Category, Question
 from app.questions.schemas import CategoryResponse, QuestionResponse, CategoryCreate, QuestionCreate, \
-    CategoryCreateResponse, DeleteCategoryRequest, UpdateCategoryRequest, UpdateCategoriesRequest, UpdateCategoryData
+    CategoryCreateResponse, DeleteCategoryRequest, UpdateCategoryData
 from app.questions.utils import fetch_parent_category, check_existing_category, create_new_category, get_category_by_id
 
 router_categories = APIRouter(
@@ -71,7 +78,7 @@ async def get_categories(db: AsyncSession = Depends(get_db)):
     except Exception as e:
         logger.error(f"Ошибка при получении категорий: {e}")
         logger.error(traceback.format_exc())
-        raise FailedTGetDataFromDatabase
+        raise ErrorGettingCategories
 
 
 # Создание новой категории (только для админа)
@@ -100,11 +107,11 @@ async def create_category(
     except IntegrityError as e:
         await db.rollback()
         logger.error(f"IntegrityError при создании категории: {e}")
-        raise HTTPException(status_code=400, detail="Категория с таким именем уже существует")
+        raise CategoryWithTheSameNameAlreadyExists
     except Exception as e:
         logger.error(f"Ошибка при создании категории: {e}")
         logger.error(traceback.format_exc())
-        raise FailedTGetDataFromDatabase
+        raise ErrorCreatingCategory
 
 
 # Создание подкатегории (только админ)
@@ -123,7 +130,7 @@ async def create_subcategory(
 
         if not parent_category:
             logger.warning(f"Родительская категория с идентификатором {parent_id} не найдена")
-            raise HTTPException(status_code=404, detail="Родительская категория не найдена")
+            raise ParentCategoryNotFound
 
         logger.debug(f"Проверка наличия категории с именем {category.name}.")
         existing_category = await check_existing_category(db, category.name)
@@ -131,7 +138,7 @@ async def create_subcategory(
 
         if existing_category:
             logger.warning(f"Категория с названием {category.name} уже существует.")
-            raise HTTPException(status_code=400, detail="Категория с таким именем уже существует")
+            raise CategoryWithTheSameNameAlreadyExists
 
         logger.debug(f"Создание новой подкатегории")
         new_category = await create_new_category(db, category, parent_id)
@@ -144,12 +151,12 @@ async def create_subcategory(
     except IntegrityError as e:
         await db.rollback()
         logger.error(f"Ошибка IntegrityError при создании подкатегории: {e}")
-        raise HTTPException(status_code=400, detail="Категория с таким именем уже существует")
+        raise CategoryWithTheSameNameAlreadyExists
 
     except Exception as e:
         logger.error(f"Ошибка при создании подкатегории: {e}")
         logger.error(traceback.format_exc())
-        raise HTTPException(status_code=500, detail="Не удалось получить данные из базы")
+        raise FailedTGetDataFromDatabase
 
 
 # Создание вопроса верхнего уровня
@@ -167,7 +174,7 @@ async def create_question(
         category = await get_category_by_id(category_id, db)
         if not category:
             logger.warning(f"Категория с id {category_id} не найдена")
-            raise HTTPException(status_code=404, detail="Категория не найдена")
+            raise CategoryNotFound
 
         # Обрабатываем значение parent_question_id
         if parent_question_id == 0:
@@ -208,12 +215,12 @@ async def create_question(
     except IntegrityError as e:
         await db.rollback()
         logger.error(f"IntegrityError при создании вопроса: {e}")
-        raise HTTPException(status_code=400, detail="Ошибка целостности данных. Возможно, вопрос с таким текстом уже существует.")
+        raise DataIntegrityErrorPerhapsQuestionWithThisTextAlreadyExists
     except Exception as e:
         logger.error(f"Ошибка при создании вопроса: {e}")
         logger.error(traceback.format_exc())
         await db.rollback()
-        raise HTTPException(status_code=500, detail="Не удалось создать вопрос")
+        raise FailedToCreateQuestion
 
 
 # Создание под-вопроса
@@ -230,7 +237,7 @@ async def create_subquestion(
         parent_question = await db.get(Question, parent_question_id)
         if not parent_question:
             logger.warning(f"Родительский вопрос с id {parent_question_id} не найден")
-            raise HTTPException(status_code=404, detail="Родительский вопрос не найден")
+            raise ParentQuestionNotFound
 
         new_question = Question(
             text=question.text,
@@ -263,12 +270,12 @@ async def create_subquestion(
     except IntegrityError as e:
         await db.rollback()
         logger.error(f"IntegrityError при создании под-вопроса: {e}")
-        raise HTTPException(status_code=400, detail="Ошибка целостности данных. Возможно, под-вопрос с таким текстом уже существует.")
+        raise DataIntegrityErrorPerhapsQuestionWithThisTextAlreadyExists
     except Exception as e:
         logger.error(f"Ошибка при создании под-вопроса: {e}")
         logger.error(traceback.format_exc())
         await db.rollback()
-        raise HTTPException(status_code=500, detail="Не удалось создать под-вопрос")
+        raise FailedToCreateSubQuestion
 
 
 @router_categories.post("/delete", response_model=CategoryResponse)
@@ -286,7 +293,7 @@ async def delete_category(
         category = await db.get(Category, category_id)
         if not category:
             logger.warning(f"Категория с id {category_id} не найдена")
-            raise HTTPException(status_code=404, detail="Категория не найдена")
+            raise CategoryNotFound
 
         # Проверка на наличие подкатегорий
         subcategories = await db.execute(
@@ -294,7 +301,7 @@ async def delete_category(
         )
         if subcategories.scalars().first():
             logger.warning(f"Категория с id {category_id} содержит подкатегории, удаление невозможно")
-            raise HTTPException(status_code=400, detail="Категория содержит подкатегории, удаление невозможно")
+            raise CategoryContainsSubcategoriesDeletionIsNotPossible
 
         # Удаление категории
         await db.delete(category)
@@ -307,34 +314,70 @@ async def delete_category(
         logger.error(f"Ошибка при удалении категории: {e}")
         logger.error(traceback.format_exc())
         await db.rollback()  # Явное откатывание транзакции при ошибке
-        raise HTTPException(status_code=500, detail="Не удалось удалить категорию")
+        raise FailedToDeleteCategory
 
 
 @router_categories.post("/update", response_model=List[CategoryResponse])
 @version(1)
 async def update_categories(
-        request: List[UpdateCategoryData],  # Принимаем плоский список категорий
+        request: Request,
         db: AsyncSession = Depends(get_db),
         current_user=Depends(get_current_admin_user)
 ):
     try:
+        # Получение данных в виде строки
+        body = await request.body()
+        body_str = body.decode('utf-8')
+        logger.debug(f"Полученные данные: {body_str}")
+
+        # Преобразование строки в список словарей
+        try:
+            category_data_list = json.loads(body_str)
+            logger.debug(f"Преобразованные данные: {category_data_list}")
+        except json.JSONDecodeError:
+            logger.error(f"Ошибка декодирования JSON: {body_str}")
+            raise JSONDecodingError
+
+        # Проверка формата данных
+        if not isinstance(category_data_list, list):
+            logger.error(f"Неверный формат данных: {category_data_list}")
+            raise InvalidDataFormat
+
         updated_categories = []
 
-        for category_data in request:
+        for category_data in category_data_list:
+            # Валидация данных с использованием Pydantic
+            try:
+                data = UpdateCategoryData(**category_data)
+            except ValidationError as e:
+                logger.error(f"Ошибка валидации данных: {e}")
+                raise ValidationErrorException(error_detail=str(e))
+
             # Поиск категории по id
-            category = await db.get(Category, category_data.id)
+            category = await db.get(Category, data.id)
             if not category:
-                logger.warning(f"Категория с id {category_data.id} не найдена")
-                raise HTTPException(status_code=404, detail=f"Категория с id {category_data.id} не найдена")
+                logger.warning(f"Категория с id {data.id} не найдена")
+                raise CategoryNotFoundException(category_id=data.id)
 
-            # Обновление полей категории, кроме id и number
-            if category.name != category_data.name:
-                category.name = category_data.name
+            # Логирование текущих данных категории
+            logger.debug(f"Текущие данные категории: {category}")
 
+            # Обновление полей категории
+            updated = False
+            if category.name != data.name:
+                category.name = data.name
+                updated = True
+
+            if category.number != data.number:
+                category.number = data.number
+                updated = True
+
+            if updated:
                 # Коммит изменений
                 db.add(category)
                 await db.commit()
                 await db.refresh(category)
+                logger.debug(f"Обновленная категория: {category}")
 
             # Добавление обновленной категории в список
             updated_categories.append(CategoryResponse(
@@ -350,11 +393,11 @@ async def update_categories(
     except IntegrityError as e:
         await db.rollback()
         logger.error(f"Ошибка IntegrityError при обновлении категорий: {e}")
-        raise HTTPException(status_code=400, detail="Ошибка при обновлении категорий")
+        raise ErrorUpdatingCategories
     except Exception as e:
         logger.error(f"Ошибка при обновлении категорий: {e}")
         logger.error(traceback.format_exc())
-        raise HTTPException(status_code=500, detail="Не удалось обновить категории")
+        raise FailedToUpdateCategories
 
 
 @router_question.get("/{question_id}/answer", response_model=QuestionResponse)
@@ -370,7 +413,7 @@ async def get_question_answer(
 
         if not question:
             logger.warning(f"Вопрос с id {question_id} не найден")
-            raise HTTPException(status_code=404, detail="Вопрос не найден")
+            raise QuestionNotFound
 
         # Преобразуем вопрос в Pydantic модель для ответа
         response = QuestionResponse(
@@ -388,5 +431,5 @@ async def get_question_answer(
     except Exception as e:
         logger.error(f"Ошибка при получении ответа на вопрос: {e}")
         logger.error(traceback.format_exc())
-        raise HTTPException(status_code=500, detail="Не удалось получить ответ на вопрос")
+        raise CouldNotGetAnswerToQuestion
 

@@ -3,10 +3,10 @@ from fastapi import HTTPException, status
 
 class HootLineException(HTTPException):
     status_code = 500
-    detail = ""
+    detail = "Вышла ошибочка, мы уже думаем над её решением!"
 
-    def __init__(self):
-        super().__init__(status_code=self.status_code, detail=self.detail)
+    def __init__(self, status_code: int, detail: str, **kwargs):
+        super().__init__(status_code=status_code, detail=detail, **kwargs)
 
 
 class UserNameAlreadyExistsException(HootLineException):
@@ -107,3 +107,102 @@ class FailedToGetUserRoles(HootLineException):
 class FailedTGetDataFromDatabase(HootLineException):
     status_code = status.HTTP_404_NOT_FOUND
     detail = "Не удалось получить данные из базы"
+
+
+class CategoryWithTheSameNameAlreadyExists(HootLineException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    detail = "Категория с таким именем уже существует"
+
+
+class ErrorCreatingCategory(HootLineException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    detail = "Ошибка при создании категории"
+
+
+class ErrorGettingCategories(HootLineException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    detail = "Ошибка при получении категорий"
+
+
+class CategoryNotFound(HootLineException):
+    status_code = status.HTTP_404_NOT_FOUND
+    detail = "Категория не найдена"
+
+
+class DataIntegrityErrorPerhapsQuestionWithThisTextAlreadyExists(HootLineException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    detail = "Ошибка целостности данных. Возможно, вопрос с таким текстом уже существует"
+
+
+class FailedToCreateQuestion(HootLineException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    detail = "Не удалось создать вопрос"
+
+
+class ParentQuestionNotFound(HootLineException):
+    status_code = status.HTTP_404_NOT_FOUND
+    detail = "Родительский вопрос не найден"
+
+
+class FailedToCreateSubQuestion(HootLineException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    detail = "Не удалось создать под-вопрос"
+
+
+class CategoryContainsSubcategoriesDeletionIsNotPossible(HootLineException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    detail = "Категория содержит подкатегории, удаление невозможно"
+
+
+class FailedToDeleteCategory(HootLineException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    detail = "Не удалось удалить категорию"
+
+
+class JSONDecodingError(HootLineException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    detail = "Ошибка декодирования JSON"
+
+
+class InvalidDataFormat(HootLineException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    detail = "Неверный формат данных"
+
+
+class CategoryNotFoundException(HootLineException):
+    def __init__(self, category_id: int):
+        detail = f"Категория с id {category_id} не найдена"
+        super().__init__(status_code=status.HTTP_404_NOT_FOUND, detail=detail)
+
+
+class ValidationErrorException(HootLineException):
+    def __init__(self, error_detail: str):
+        super().__init__(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=error_detail)
+
+
+class ErrorUpdatingCategories(HootLineException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    detail = "Ошибка при обновлении категорий"
+
+
+class FailedToUpdateCategories(HootLineException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    detail = "Не удалось обновить категории"
+
+
+class QuestionNotFound(HootLineException):
+    status_code = status.HTTP_404_NOT_FOUND
+    detail = "Вопрос не найден"
+
+
+class CouldNotGetAnswerToQuestion(HootLineException):
+    status_code = status.HTTP_404_NOT_FOUND
+    detail = "Не удалось получить ответ на вопрос"
+
+
+class ParentCategoryNotFound(HootLineException):
+    status_code = status.HTTP_404_NOT_FOUND
+    detail = "Родительская категория не найдена"
+
+
+
