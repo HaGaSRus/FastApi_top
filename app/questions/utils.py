@@ -55,6 +55,8 @@ async def create_new_question(question: QuestionCreate, category_id: int, db: As
     await db.refresh(new_question)
     return new_question
 
+# Тут начинается код связанный с обновлением категорий
+
 
 async def process_category_updates(db: AsyncSession, category_data_list: List[dict]) -> List[CategoryResponse]:
     """Обработка обновления категорий"""
@@ -72,7 +74,7 @@ async def process_category_updates(db: AsyncSession, category_data_list: List[di
     return updated_categories
 
 
-async def get_category_data(request: Request):
+async def get_category_data(request: Request) -> List[UpdateCategoryData]:
     """Получение и декодирование данных из запроса"""
     body = await request.body()
     body_str = body.decode('utf-8')
@@ -82,11 +84,18 @@ async def get_category_data(request: Request):
         category_data_list = json.loads(body_str)
         if not isinstance(category_data_list, list):
             raise InvalidDataFormat
-        logger.debug(f"Преобразованные данные: {category_data_list}")
-        return category_data_list
+
+        # Проводим валидацию данных
+        validated_data = [UpdateCategoryData(**item) for item in category_data_list]
+        logger.debug(f"Преобразованные данные: {validated_data}")
+        return validated_data
     except json.JSONDecodeError:
         logger.error(f"Ошибка декодирования JSON: {body_str}")
         raise JSONDecodingError
+    except ValidationError as e:
+        logger.error(f"Ошибка валидации данных: {e}")
+        raise ValidationErrorException(error_detail=str(e))
+
 
 
 def validate_category_data(category_data: dict):

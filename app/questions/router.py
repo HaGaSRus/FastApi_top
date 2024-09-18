@@ -19,7 +19,7 @@ from app.exceptions import FailedTGetDataFromDatabase, CategoryWithTheSameNameAl
 from app.logger.logger import logger
 from app.questions.models import Category, Question
 from app.questions.schemas import CategoryResponse, QuestionResponse, CategoryCreate, QuestionCreate, \
-    CategoryCreateResponse, DeleteCategoryRequest, UpdateCategoryData
+    CategoryCreateResponse, DeleteCategoryRequest, UpdateCategoryData, UpdateCategoriesRequest
 from app.questions.utils import fetch_parent_category, check_existing_category, create_new_category, get_category_by_id, \
     get_category_data, process_category_updates
 
@@ -343,7 +343,18 @@ async def update_categories(
 ):
     """Форма обновления категории или подкатегории"""
     try:
-        category_data_list = await get_category_data(request)
+        body = await request.body()
+        body_str = body.decode('utf-8')
+        logger.debug(f"Полученные данные: {body_str}")
+
+        try:
+            category_data_list = json.loads(body_str)
+            if not isinstance(category_data_list, list):
+                raise InvalidDataFormat
+            logger.debug(f"Преобразованные данные: {category_data_list}")
+        except json.JSONDecodeError:
+            logger.error(f"Ошибка декодирования JSON: {body_str}")
+            raise JSONDecodingError
 
         updated_categories = await process_category_updates(db, category_data_list)
 
@@ -358,6 +369,8 @@ async def update_categories(
         logger.error(f"Ошибка при обновлении категорий: {e}")
         logger.error(traceback.format_exc())
         raise FailedToUpdateCategories
+
+
 
 
 @router_question.get("/{question_id}/answer",
