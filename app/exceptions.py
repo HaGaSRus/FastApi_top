@@ -206,10 +206,10 @@ class ParentCategoryNotFound(HootLineException):
     detail = "Родительская категория не найдена"
 
 
-class CategoryWithSameNameAlreadyExists(HootLineException):
-    def __init__(self, name):
-        detail = f"Категория с именем '{name}' уже существует"
-        super().__init__(status_code=status.HTTP_404_NOT_FOUND, detail=detail)
+class CategoryWithSameNameAlreadyExists(HTTPException):
+    def __init__(self, category_name: str):
+        detail = f"Категория с именем '{category_name}' уже существует."
+        super().__init__(status_code=400, detail=detail)
 
 
 class ParentCategoryNotFoundException(HootLineException):
@@ -227,8 +227,6 @@ class ErrorUpdatingSubcategories(HootLineException):
 class FailedToUpdateSubcategories(HootLineException):
     status_code = status.HTTP_400_BAD_REQUEST
     detail = "Не удалось обновить подкатегории"
-
-
 
 
 

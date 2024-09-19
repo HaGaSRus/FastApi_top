@@ -162,26 +162,17 @@ async def update_category(db: AsyncSession, category: Category, data: UpdateCate
     return category_response
 
 
-async def process_subcategory_updates(db: AsyncSession, subcategory_data_list: List[UpdateSubcategoryData])\
-        -> List[CategoryResponse]:
+async def process_subcategory_updates(db: AsyncSession, subcategory_data_list: List[UpdateCategoryData]) -> List[CategoryResponse]:
     """Обработка обновления подкатегорий"""
     updated_subcategories = []
-
     for subcategory_data in subcategory_data_list:
-        # Валидируем и преобразуем данные с использованием Pydantic
-        data = validate_category_data(subcategory_data.dict())
-
-        # Проверяем существование родительской категории
-        parent_category = await fetch_parent_category(db, data.parent_id) if data.parent_id else None
-        if data.parent_id and not parent_category:
-            raise ParentCategoryNotFoundException(parent_id=data.parent_id)
-
-        # Проверяем существование подкатегории и обеспечиваем уникальность имени
-        subcategory = await find_category_by_id(db, data.id)
-        await ensure_unique_category_name(db, data)
-
-        # Обновляем подкатегорию
-        updated_subcategory = await update_category(db, subcategory, data)
-        updated_subcategories.append(updated_subcategory)
-
+        try:
+            logger.debug(f"Обработка подкатегории: {subcategory_data}")
+            category = await find_category_by_id(db, subcategory_data.id)
+            await ensure_unique_category_name(db, subcategory_data)
+            updated_category = await update_category(db, category, subcategory_data)
+            updated_subcategories.append(updated_category)
+        except Exception as e:
+            logger.error(f"Ошибка при обновлении подкатегории с id {subcategory_data.id}: {e}")
+            raise
     return updated_subcategories

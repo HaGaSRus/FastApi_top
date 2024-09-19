@@ -1,7 +1,7 @@
 import traceback
 from typing import List, Optional
 from fastapi_versioning import version
-from fastapi import APIRouter, Depends, Path, Query
+from fastapi import APIRouter, Depends, Path, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.exc import IntegrityError
@@ -14,11 +14,11 @@ from app.exceptions import FailedTGetDataFromDatabase, CategoryWithTheSameNameAl
     FailedToCreateQuestion, ParentQuestionNotFound, FailedToCreateSubQuestion, \
     CategoryContainsSubcategoriesDeletionIsNotPossible, FailedToDeleteCategory, \
     QuestionNotFound, CouldNotGetAnswerToQuestion, ParentCategoryNotFound, ErrorUpdatingSubcategories, \
-    FailedToUpdateSubcategories, ErrorUpdatingCategories, FailedToUpdateCategories
+    FailedToUpdateSubcategories, ErrorUpdatingCategories, FailedToUpdateCategories, CategoryWithSameNameAlreadyExists
 from app.logger.logger import logger
 from app.questions.models import Category, Question
 from app.questions.schemas import CategoryResponse, QuestionResponse, CategoryCreate, QuestionCreate, \
-    CategoryCreateResponse, DeleteCategoryRequest, UpdateSubcategoryData, UpdateCategoriesRequest
+    CategoryCreateResponse, DeleteCategoryRequest, UpdateSubcategoryData, UpdateCategoriesRequest, UpdateCategoryData
 from app.questions.utils import fetch_parent_category, check_existing_category, create_new_category, get_category_by_id, \
     process_category_updates, process_subcategory_updates
 
@@ -47,7 +47,7 @@ async def get_categories(db: AsyncSession = Depends(get_db)):
 
         category_responses = []
         for category in categories:
-            logger.debug(f"Категория обработки: {category}")
+            logger.debug(f"Обрабатываем категорию: {category}")
 
             # Создаем список подкатегорий с правильным значением edit
             subcategories_data = [
@@ -57,7 +57,7 @@ async def get_categories(db: AsyncSession = Depends(get_db)):
                     parent_id=subcat.parent_id,
                     subcategories=[],  # Можно дополнить, если нужно отображать вложенные подкатегории
                     edit=True,  # Здесь указываем значение edit для подкатегорий
-                    number=subcat.id  # Устанавливаем значение number для подкатегорий
+                    number=subcat.number  # Устанавливаем значение number для подкатегорий
                 )
                 for subcat in category.subcategories
             ]
@@ -347,6 +347,14 @@ async def update_categories(
         validated_data = category_data_list.root
         logger.debug(f"Преобразованные данные: {validated_data}")
 
+        # Проверка уникальности имени категории
+        # for category_data in validated_data:
+        #     existing_category = await db.execute(
+        #         select(Category).where(Category.name == category_data.name)
+        #     )
+        #     if existing_category.scalars().first():
+        #         raise CategoryWithSameNameAlreadyExists(category_data.name)
+
         updated_categories = await process_category_updates(db, validated_data)
         logger.info(f"Успешно обновлено {len(updated_categories)} категорий")
 
@@ -355,6 +363,9 @@ async def update_categories(
 
         return updated_categories
 
+    except CategoryWithSameNameAlreadyExists as e:
+        logger.error(f"Ошибка при обновлении категорий: {e.detail}")
+        raise e
     except IntegrityError as e:
         await db.rollback()
         logger.error(f"Ошибка IntegrityError при обновлении категорий: {e}")
@@ -405,23 +416,24 @@ async def get_question_answer(
 @router_categories.post("/update-subcategory", response_model=List[CategoryResponse], summary="Обновление подкатегории")
 @version(1)
 async def update_subcategory(
-        subcategories: List[UpdateSubcategoryData],  # Прямое использование списка
+        subcategories: List[UpdateCategoryData],
         db: AsyncSession = Depends(get_db),
         current_user=Depends(get_current_admin_user)
 ):
     """Форма обновления подкатегории"""
     try:
-        # Обрабатываем обновления подкатегорий
+        logger.debug(f"Полученные данные для обновления: {subcategories}")
         updated_subcategories = await process_subcategory_updates(db, subcategories)
-
         logger.info(f"Успешно обновлено {len(updated_subcategories)} подкатегорий")
         return updated_subcategories
 
-    except IntegrityError as e:
-        await db.rollback()
-        logger.error(f"Ошибка IntegrityError при обновлении подкатегорий: {e}")
-        raise ErrorUpdatingSubcategories
+    except HTTPException as e:
+        logger.error(f"Ошибка при обновлении подкатегорий: {e.detail}")
+        raise e
+
     except Exception as e:
         logger.error(f"Ошибка при обновлении подкатегорий: {e}")
-        logger.error(traceback.format_exc())
-        raise FailedToUpdateSubcategories
+        raise HTTPException(status_code=500, detail="Неизвестная ошибка.")
+
+
+
