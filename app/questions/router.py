@@ -348,22 +348,22 @@ async def update_categories(
         logger.debug(f"Преобразованные данные: {validated_data}")
 
         # Получаем текущие данные из базы данных и проверяем уникальность
-        for category_data in validated_data:
-            existing_category = await db.execute(
-                select(Category).where(Category.id == category_data.id)
-            )
-            current_category = existing_category.scalars().first()
-
-            if current_category:
-                # Проверка на уникальность, если данные изменены
-                if (current_category.name != category_data.name or
-                    current_category.number != category_data.number):
-                    # Проверка уникальности имени категории
-                    existing_category_with_same_name = await db.execute(
-                        select(Category).where(Category.name == category_data.name)
-                    )
-                    if existing_category_with_same_name.scalars().first():
-                        raise CategoryWithSameNameAlreadyExists(category_data.name)
+        # for category_data in validated_data:
+        #     existing_category = await db.execute(
+        #         select(Category).where(Category.id == category_data.id)
+        #     )
+        #     current_category = existing_category.scalars().first()
+        #
+        #     if current_category:
+        #         # Проверка на уникальность, если данные изменены
+        #         if (current_category.name != category_data.name or
+        #             current_category.number != category_data.number):
+        #             # Проверка уникальности имени категории
+        #             existing_category_with_same_name = await db.execute(
+        #                 select(Category).where(Category.name == category_data.name)
+        #             )
+        #             if existing_category_with_same_name.scalars().first():
+        #                 raise CategoryWithSameNameAlreadyExists(category_data.name)
 
         updated_categories = await process_category_updates(db, validated_data)
         logger.info(f"Успешно обновлено {len(updated_categories)} категорий")
