@@ -11,7 +11,8 @@ from app.admin.pagination_and_filtration import router_pagination, router_filter
 from app.users.router import router_users
 from app.auth.router import router_auth
 from app.admin.router import router_admin
-from app.questions.router import router_question, router_categories
+from app.questions.router_question import router_question
+from app.questions.router_categories import router_categories
 from app.utils import init_permissions, init_roles
 from app.logger.logger import logger
 

@@ -5,8 +5,8 @@ class HootLineException(HTTPException):
     status_code = 500
     detail = "Вышла ошибочка, мы уже думаем над её решением!"
 
-    def __init__(self, status_code: int, detail: str, **kwargs):
-        super().__init__(status_code=status_code, detail=detail, **kwargs)
+    def __init__(self, status_code: int, detail: str):
+        super().__init__(status_code=status_code, detail=detail)
 
 
 class UserNameAlreadyExistsException(HootLineException):
@@ -104,15 +104,15 @@ class FailedToGetUserRoles(HootLineException):
         super().__init__(status_code=400, detail="Не удалось получить роли пользователя")
 
 
-
 class FailedTGetDataFromDatabase(HootLineException):
     status_code = status.HTTP_404_NOT_FOUND
     detail = "Не удалось получить данные из базы"
 
 
-class CategoryWithTheSameNameAlreadyExists(HootLineException):
-    status_code = status.HTTP_400_BAD_REQUEST
-    detail = "Категория с таким именем уже существует"
+class CategoryWithTheSameNameAlreadyExists(Exception):
+    def __init__(self, detail: str):
+        self.detail = detail
+        super().__init__(detail)
 
 
 class ErrorCreatingCategory(HootLineException):
