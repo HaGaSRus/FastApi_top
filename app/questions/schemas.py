@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, RootModel
 from typing import Optional, List
 
 
@@ -76,7 +76,19 @@ class UpdateCategoryRequest(BaseModel):
 
 class UpdateCategoryData(BaseModel):
     id: int
+    number: int  # Предполагаю, что это поле для номера категории
     name: str
+
+
+# Модель для запроса на обновление категорий
+class UpdateCategoriesRequest(RootModel[list[UpdateCategoryData]]):
+    pass
+
+
+class UpdateCategoryData(BaseModel):
+    id: int
+    name: str
+    parent_id: int = None
     number: int
 
 

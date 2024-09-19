@@ -1,5 +1,6 @@
 import json
 import traceback
+from pprint import pprint
 from typing import List, Optional
 from fastapi_versioning import version
 from fastapi import APIRouter, Depends, Path, Query, Request
@@ -18,7 +19,7 @@ from app.exceptions import FailedTGetDataFromDatabase, CategoryWithTheSameNameAl
 from app.logger.logger import logger
 from app.questions.models import Category, Question
 from app.questions.schemas import CategoryResponse, QuestionResponse, CategoryCreate, QuestionCreate, \
-    CategoryCreateResponse, DeleteCategoryRequest, UpdateSubcategoryData, UpdateCategoryData
+    CategoryCreateResponse, DeleteCategoryRequest, UpdateSubcategoryData, UpdateCategoryData, UpdateCategoriesRequest
 from app.questions.utils import fetch_parent_category, check_existing_category, create_new_category, get_category_by_id, \
     process_category_updates, process_subcategory_updates
 
@@ -333,36 +334,25 @@ async def delete_category(
         raise FailedToDeleteCategory
 
 
-@router_categories.post("/update",
-                        response_model=List[CategoryResponse],
-                        summary="Обновление категории")
+@router_categories.post("/update", response_model=List[CategoryResponse], summary="Обновление категории")
 @version(1)
 async def update_categories(
-        request: Request,
+        category_data_list: UpdateCategoriesRequest,
         db: AsyncSession = Depends(get_db),
         current_user=Depends(get_current_admin_user)
 ):
-    """Форма обновления категории"""
     try:
-        body = await request.body()
-        body_str = body.decode('utf-8')
-        logger.debug(f"Полученные данные: {body_str}")
+        logger.debug(f"Полученные данные для обновления: {category_data_list}")
 
-        try:
-            category_data_list = json.loads(body_str)
-            if not isinstance(category_data_list, list):
-                raise InvalidDataFormat
-            logger.debug(f"Преобразованные данные: {category_data_list}")
-        except json.JSONDecodeError:
-            logger.error(f"Ошибка декодирования JSON: {body_str}")
-            raise JSONDecodingError
-
-        # Валидация и преобразование данных
-        validated_data = [UpdateCategoryData(**item) for item in category_data_list]
+        validated_data = category_data_list.root
+        logger.debug(f"Преобразованные данные: {validated_data}")
 
         updated_categories = await process_category_updates(db, validated_data)
-
         logger.info(f"Успешно обновлено {len(updated_categories)} категорий")
+
+        # Логирование полного списка данных перед отправкой на фронт
+        logger.debug(f"Данные, отправляемые на фронт: {updated_categories}")
+
         return updated_categories
 
     except IntegrityError as e:
@@ -373,6 +363,7 @@ async def update_categories(
         logger.error(f"Ошибка при обновлении категорий: {e}")
         logger.error(traceback.format_exc())
         raise FailedToUpdateCategories
+
 
 
 @router_question.get("/{question_id}/answer",

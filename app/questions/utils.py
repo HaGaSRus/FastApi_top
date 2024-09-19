@@ -58,26 +58,33 @@ async def create_new_question(question: QuestionCreate, category_id: int, db: As
     return new_question
 
 
-async def process_category_updates(db: AsyncSession, category_data_list: List[UpdateCategoryData]) -> List[CategoryResponse]:
+async def process_category_updates(db: AsyncSession, category_data_list: List[UpdateCategoryData]) -> List[
+    CategoryResponse]:
     """Обработка обновления категорий"""
     updated_categories = []
 
     for category_data in category_data_list:
+        logger.debug(
+            f"Обработка данных для категории с id {category_data.id}: {category_data}")  # Логирование данных перед обновлением
+
         # Поиск и обновление категории
         category = await find_category_by_id(db, category_data.id)
         await ensure_unique_category_name(db, category_data)
 
         updated_category = await update_category(db, category, category_data)
+        logger.debug(f"Обновленная категория: {updated_category}")  # Логирование обновленной категории
+
         updated_categories.append(updated_category)
 
     return updated_categories
-
 
 
 async def get_category_data(request: Request) -> List[UpdateCategoryData]:
     """Получение и декодирование данных из запроса"""
     body = await request.body()
     body_str = body.decode('utf-8')
+    headers = dict(request.headers)  # Логирование заголовков запроса
+    logger.debug(f"Полученные заголовки: {headers}")
     logger.debug(f"Полученные данные: {body_str}")
 
     try:
@@ -94,6 +101,8 @@ async def get_category_data(request: Request) -> List[UpdateCategoryData]:
     except ValidationError as e:
         logger.error(f"Ошибка валидации данных: {e}")
         raise ValidationErrorException(error_detail=str(e))
+
+
 
 
 def validate_category_data(category_data: dict) -> UpdateCategoryData:
@@ -142,14 +151,19 @@ async def update_category(db: AsyncSession, category: Category, data: UpdateCate
         db.add(category)
         await db.commit()
         await db.refresh(category)
-        logger.debug(f"Обновленная категория: {category}")
+        logger.debug(f"Обновленная категория в базе данных: {category}")  # Логирование обновленных данных из БД
 
-    return CategoryResponse(
+    category_response = CategoryResponse(
         id=category.id,
         name=category.name,
         parent_id=category.parent_id,
         number=category.number
     )
+
+    logger.debug(f"Данные, отправляемые на фронт: {category_response}")  # Логирование данных, которые отправляются на фронт
+
+    return category_response
+
 
 
 async def process_subcategory_updates(db: AsyncSession, subcategory_data_list: List[UpdateSubcategoryData]) -> List[CategoryResponse]:
@@ -174,3 +188,5 @@ async def process_subcategory_updates(db: AsyncSession, subcategory_data_list: L
         updated_subcategories.append(updated_subcategory)
 
     return updated_subcategories
+
+
