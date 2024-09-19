@@ -1,12 +1,11 @@
 import time
-import pytz
-from datetime import datetime
 from fastapi_mail import ConnectionConfig, MessageSchema, FastMail
 from sqlalchemy import select, insert
 from app.config import settings
 from app.database import async_session_maker
 from app.logger.logger import logger
 from app.users.models import Roles, Permissions
+
 
 async def init_roles():
     async with async_session_maker() as session:
@@ -22,6 +21,7 @@ async def init_roles():
 
         await session.commit()
 
+
 async def init_permissions():
     async with async_session_maker() as session:
         async with session.begin():
@@ -35,12 +35,14 @@ async def init_permissions():
             existing_permissions = await session.execute(select(Permissions.name, Permissions.role_id))
             existing_permissions = {(perm[0], perm[1]) for perm in existing_permissions.fetchall()}
 
-            new_permissions = [perm for perm in permissions if (perm["name"], perm["role_id"]) not in existing_permissions]
+            new_permissions = [perm for perm in permissions if
+                               (perm["name"], perm["role_id"]) not in existing_permissions]
 
             if new_permissions:
                 stmt = insert(Permissions).values(new_permissions)
                 await session.execute(stmt)
                 await session.commit()
+
 
 conf = ConnectionConfig(
     MAIL_USERNAME=settings.MAIL_USERNAME,
@@ -57,6 +59,8 @@ conf = ConnectionConfig(
     VALIDATE_CERTS=settings.VALIDATE_CERTS,
     TIMEOUT=settings.TIMEOUT
 )
+
+
 async def send_reset_password_email(email: str, token: str):
     start_time = time.time()
     logger.info(f"Отправка письма для сброса пароля на адрес: {email}")
@@ -75,4 +79,3 @@ async def send_reset_password_email(email: str, token: str):
     await fm.send_message(message)
     logger.info(f"Письмо для сброса пароля отправлено на адрес: {email}")
     logger.info(f"Время выполнения: {time.time() - start_time} секунд")
-

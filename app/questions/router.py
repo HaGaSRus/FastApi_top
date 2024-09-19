@@ -1,25 +1,24 @@
-import json
 import traceback
-from pprint import pprint
 from typing import List, Optional
 from fastapi_versioning import version
-from fastapi import APIRouter, Depends, Path, Query, Request
+from fastapi import APIRouter, Depends, Path, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
+from sqlalchemy import inspect
 from app.dao.dependencies import get_current_user, get_current_admin_user
 from app.database import get_db
 from app.exceptions import FailedTGetDataFromDatabase, CategoryWithTheSameNameAlreadyExists, ErrorCreatingCategory, \
     ErrorGettingCategories, CategoryNotFound, DataIntegrityErrorPerhapsQuestionWithThisTextAlreadyExists, \
     FailedToCreateQuestion, ParentQuestionNotFound, FailedToCreateSubQuestion, \
-    CategoryContainsSubcategoriesDeletionIsNotPossible, FailedToDeleteCategory, JSONDecodingError, InvalidDataFormat, \
+    CategoryContainsSubcategoriesDeletionIsNotPossible, FailedToDeleteCategory, \
     QuestionNotFound, CouldNotGetAnswerToQuestion, ParentCategoryNotFound, ErrorUpdatingSubcategories, \
     FailedToUpdateSubcategories, ErrorUpdatingCategories, FailedToUpdateCategories
 from app.logger.logger import logger
 from app.questions.models import Category, Question
 from app.questions.schemas import CategoryResponse, QuestionResponse, CategoryCreate, QuestionCreate, \
-    CategoryCreateResponse, DeleteCategoryRequest, UpdateSubcategoryData, UpdateCategoryData, UpdateCategoriesRequest
+    CategoryCreateResponse, DeleteCategoryRequest, UpdateSubcategoryData, UpdateCategoriesRequest
 from app.questions.utils import fetch_parent_category, check_existing_category, create_new_category, get_category_by_id, \
     process_category_updates, process_subcategory_updates
 
@@ -152,8 +151,9 @@ async def create_subcategory(
         new_category = await create_new_category(db, category, parent_id)
         logger.info(f"Создана новая подкатегория: {new_category}")
 
-        # Используйте dict для преобразования модели в словарь перед созданием Pydantic объекта
-        category_data = {column.name: getattr(new_category, column.name) for column in Category.__table__.columns}
+        # Получение данных из новой категории и создание Pydantic ответа
+        mapper = inspect(Category)
+        category_data = {column.name: getattr(new_category, column.name) for column in mapper.columns}
         return CategoryResponse(**category_data)
 
     except IntegrityError as e:
@@ -363,7 +363,6 @@ async def update_categories(
         logger.error(f"Ошибка при обновлении категорий: {e}")
         logger.error(traceback.format_exc())
         raise FailedToUpdateCategories
-
 
 
 @router_question.get("/{question_id}/answer",

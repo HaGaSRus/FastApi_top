@@ -3,7 +3,10 @@ from pydantic import BaseModel, EmailStr, model_validator, Field
 
 
 class SUserSignUp(BaseModel):
-    username: Optional[str] = Field(None, min_length=1, max_length=50, description="Имя пользователя должно быть от 1 до 50 символов")
+    username: Optional[str] = Field(None,
+                                    min_length=1,
+                                    max_length=50,
+                                    description="Имя пользователя должно быть от 1 до 50 символов")
     email: Optional[EmailStr] = None
     password: str = Field(..., min_length=6, description="Пароль должен содержать не менее 6 символов")
 

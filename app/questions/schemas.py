@@ -88,7 +88,7 @@ class UpdateCategoriesRequest(RootModel[list[UpdateCategoryData]]):
 class UpdateCategoryData(BaseModel):
     id: int
     name: str
-    parent_id: int = None
+    parent_id: Optional[int] = None  # Optional[int] позволяет значениям быть None
     number: int
 
 

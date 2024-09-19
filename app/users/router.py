@@ -1,5 +1,4 @@
 from fastapi import APIRouter, status, Depends
-
 from app.auth.auth import pwd_context
 from app.dao.dao import UsersDAO
 from app.dao.dependencies import get_current_user

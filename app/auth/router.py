@@ -26,7 +26,8 @@ async def login_user(response: Response, user_data: SUserSignUp):
     """Логика авторизации для входа на горячую линию"""
     users_dao = UsersDAO()
     try:
-        user = await users_dao.find_one_or_none(email=user_data.email) or await users_dao.find_one_or_none(username=user_data.username)
+        user = (await users_dao.find_one_or_none(email=user_data.email)
+                or await users_dao.find_one_or_none(username=user_data.username))
 
         if not user:
             logger.error("Пользователь не найден")
@@ -67,8 +68,9 @@ async def login_user(response: Response, user_data: SUserSignUp):
         return {"detail": "Внутренняя ошибка сервера"}
 
 
-
-@router_auth.post("/forgot-password", status_code=status.HTTP_200_OK, summary="Форма-восстановления пароля для пользователя ")
+@router_auth.post("/forgot-password",
+                  status_code=status.HTTP_200_OK,
+                  summary="Форма-восстановления пароля для пользователя")
 @version(1)
 async def forgot_password(request: ForgotPasswordRequest):
     """ Восстановление пароля для пользователя, логика отправки формы на почту"""

@@ -3,7 +3,7 @@ from typing import List
 from pydantic_core._pydantic_core import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from fastapi import Request, HTTPException, Depends
+from fastapi import Request
 from app.exceptions import ValidationErrorException, JSONDecodingError, InvalidDataFormat, \
     CategoryWithSameNameAlreadyExists, CategoryNotFoundException, ParentCategoryNotFoundException
 from app.logger.logger import logger
@@ -56,8 +56,8 @@ async def create_new_question(question: QuestionCreate, category_id: int, db: As
     return new_question
 
 
-async def process_category_updates(db: AsyncSession, category_data_list: List[UpdateCategoryData]) -> List[
-    CategoryResponse]:
+async def process_category_updates(db: AsyncSession, category_data_list: List[UpdateCategoryData])\
+        -> List[CategoryResponse]:
     """Обработка обновления категорий"""
     updated_categories = []
 
@@ -162,8 +162,8 @@ async def update_category(db: AsyncSession, category: Category, data: UpdateCate
     return category_response
 
 
-async def process_subcategory_updates(db: AsyncSession, subcategory_data_list: List[UpdateSubcategoryData]) -> List[
-    CategoryResponse]:
+async def process_subcategory_updates(db: AsyncSession, subcategory_data_list: List[UpdateSubcategoryData])\
+        -> List[CategoryResponse]:
     """Обработка обновления подкатегорий"""
     updated_subcategories = []
 

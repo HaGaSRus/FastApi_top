@@ -5,6 +5,7 @@ import pytz
 from app.config import settings
 import os
 
+
 class CustomJsonFormatter(jsonlogger.JsonFormatter):
     def __init__(self, *args, **kwargs):
         kwargs['json_ensure_ascii'] = False

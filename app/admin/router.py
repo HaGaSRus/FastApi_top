@@ -1,12 +1,11 @@
 from typing import Optional, List
-from sqlalchemy import or_
-from fastapi import APIRouter, status, Depends, Body, HTTPException
+from fastapi import APIRouter, status, Depends, Body
 from fastapi_versioning import version
 from app.auth.auth import get_password_hash, pwd_context
 from app.dao.dao import UsersDAO, UsersRolesDAO
 from app.dao.dependencies import get_current_admin_user
-from app.exceptions import UserEmailAlreadyExistsException, UserNameAlreadyExistsException, UserCreated, UserChangeRole, \
-    DeleteUser, UserNotFoundException, UpdateUser, ErrorUpdatingUser
+from app.exceptions import UserEmailAlreadyExistsException, UserNameAlreadyExistsException, UserCreated, \
+    DeleteUser, UserNotFoundException, ErrorUpdatingUser
 from app.logger.logger import logger
 from app.users.models import Users
 from app.admin.schemas import SUserAuth, UserIdRequest
