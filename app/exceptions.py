@@ -90,18 +90,19 @@ class ErrorUpdatingUser(HootLineException):
 
 
 class EmailOrUsernameWasNotFound(HootLineException):
-    status_code = status.HTTP_404_NOT_FOUND
-    detail = "Пользователь с указанным email или username не найден"
+    def __init__(self):
+        super().__init__(status_code=404, detail="Пользователь не найден")
 
 
 class InvalidPassword(HootLineException):
-    status_code = status.HTTP_401_UNAUTHORIZED
-    detail = "Неверный пароль"
+    def __init__(self):
+        super().__init__(status_code=401, detail="Неверный пароль")
 
 
 class FailedToGetUserRoles(HootLineException):
-    status_code = status.HTTP_401_UNAUTHORIZED
-    detail = "Не удалось получить роли пользователя"
+    def __init__(self):
+        super().__init__(status_code=400, detail="Не удалось получить роли пользователя")
+
 
 
 class FailedTGetDataFromDatabase(HootLineException):
@@ -226,5 +227,8 @@ class ErrorUpdatingSubcategories(HootLineException):
 class FailedToUpdateSubcategories(HootLineException):
     status_code = status.HTTP_400_BAD_REQUEST
     detail = "Не удалось обновить подкатегории"
+
+
+
 
 

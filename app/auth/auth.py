@@ -30,7 +30,7 @@ def create_access_token(data: dict, expires_delta: timedelta = timedelta(minutes
     # Создает JWT токен с заданным временем жизни
     to_encode = data.copy()  # Убедитесь, что data — это словарь
     expire = get_current_time_yekaterinburg() + expires_delta
-    to_encode.update({"exp": expire.timestamp()})  # Конвертируем время в Unix timestamp
+    to_encode.update({"exp": expire})  # Передаем datetime объект напрямую
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
 
@@ -51,6 +51,6 @@ async def authenticate_user(email: Optional[EmailStr], username: Optional[str], 
 def create_reset_token(email: str) -> str:
     # Создает JWT токен для сброса пароля с заданным временем жизни
     expire = get_current_time_yekaterinburg() + timedelta(minutes=15)
-    to_encode = {"exp": expire.timestamp(), "sub": email}  # Конвертируем время в Unix timestamp
+    to_encode = {"exp": expire, "sub": email}  # Конвертируем время в Unix timestamp
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt

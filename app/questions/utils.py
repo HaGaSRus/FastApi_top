@@ -11,8 +11,6 @@ from app.questions.models import Category, Question
 from app.questions.schemas import QuestionCreate, UpdateCategoryData, CategoryResponse, CategoryCreate, \
     UpdateSubcategoryData
 from fastapi import HTTPException
-import traceback
-from sqlalchemy.exc import IntegrityError
 
 
 async def fetch_parent_category(db: AsyncSession, parent_id: int) -> Category:
@@ -65,7 +63,7 @@ async def process_category_updates(db: AsyncSession, category_data_list: List[Up
 
     for category_data in category_data_list:
         logger.debug(
-            f"Обработка данных для категории с id {category_data.id}: {category_data}")  # Логирование данных перед обновлением
+            f"Обработка данных для категории с id {category_data.id}: {category_data}")
 
         # Поиск и обновление категории
         category = await find_category_by_id(db, category_data.id)
@@ -101,8 +99,6 @@ async def get_category_data(request: Request) -> List[UpdateCategoryData]:
     except ValidationError as e:
         logger.error(f"Ошибка валидации данных: {e}")
         raise ValidationErrorException(error_detail=str(e))
-
-
 
 
 def validate_category_data(category_data: dict) -> UpdateCategoryData:
@@ -160,13 +156,14 @@ async def update_category(db: AsyncSession, category: Category, data: UpdateCate
         number=category.number
     )
 
-    logger.debug(f"Данные, отправляемые на фронт: {category_response}")  # Логирование данных, которые отправляются на фронт
+    logger.debug(
+        f"Данные, отправляемые на фронт: {category_response}")  # Логирование данных, которые отправляются на фронт
 
     return category_response
 
 
-
-async def process_subcategory_updates(db: AsyncSession, subcategory_data_list: List[UpdateSubcategoryData]) -> List[CategoryResponse]:
+async def process_subcategory_updates(db: AsyncSession, subcategory_data_list: List[UpdateSubcategoryData]) -> List[
+    CategoryResponse]:
     """Обработка обновления подкатегорий"""
     updated_subcategories = []
 
@@ -188,5 +185,3 @@ async def process_subcategory_updates(db: AsyncSession, subcategory_data_list: L
         updated_subcategories.append(updated_subcategory)
 
     return updated_subcategories
-
-
