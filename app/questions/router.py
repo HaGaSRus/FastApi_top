@@ -35,7 +35,7 @@ router_question = APIRouter(
 
 
 # Получение всех категорий с вложенными подкатегориями
-@router_categories.get("/", response_model=List[CategoryResponse], summary="Получить все категории")
+@router_categories.get("", response_model=List[CategoryResponse], summary="Получить все категории")
 @version(1)
 async def get_categories(db: AsyncSession = Depends(get_db)):
     """Отобразить все категории имеющиеся в Базе данных"""
