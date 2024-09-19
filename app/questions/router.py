@@ -2,7 +2,7 @@ import json
 import traceback
 from typing import List, Optional
 from fastapi_versioning import version
-from fastapi import APIRouter, Depends, Path, Query, Request, HTTPException
+from fastapi import APIRouter, Depends, Path, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.exc import IntegrityError
@@ -13,9 +13,8 @@ from app.exceptions import FailedTGetDataFromDatabase, CategoryWithTheSameNameAl
     ErrorGettingCategories, CategoryNotFound, DataIntegrityErrorPerhapsQuestionWithThisTextAlreadyExists, \
     FailedToCreateQuestion, ParentQuestionNotFound, FailedToCreateSubQuestion, \
     CategoryContainsSubcategoriesDeletionIsNotPossible, FailedToDeleteCategory, JSONDecodingError, InvalidDataFormat, \
-    ErrorUpdatingCategories, FailedToUpdateCategories, \
     QuestionNotFound, CouldNotGetAnswerToQuestion, ParentCategoryNotFound, ErrorUpdatingSubcategories, \
-    FailedToUpdateSubcategories
+    FailedToUpdateSubcategories, ErrorUpdatingCategories, FailedToUpdateCategories
 from app.logger.logger import logger
 from app.questions.models import Category, Question
 from app.questions.schemas import CategoryResponse, QuestionResponse, CategoryCreate, QuestionCreate, \
@@ -40,9 +39,9 @@ router_question = APIRouter(
 async def get_categories(db: AsyncSession = Depends(get_db)):
     """Отобразить все категории имеющиеся в Базе данных"""
     try:
-        logger.debug("Выполнение запроса для получения корневых категорий с родительским_id == Нет")
+        logger.debug("Выполнение запроса для получения корневых категорий с parent_id == None")
         result = await db.execute(
-            select(Category).where(Category.parent_id == None).options(selectinload(Category.subcategories))
+            select(Category).where(Category.parent_id.is_(None)).options(selectinload(Category.subcategories))
         )
         categories = result.scalars().all()
 
@@ -51,14 +50,17 @@ async def get_categories(db: AsyncSession = Depends(get_db)):
             logger.debug(f"Категория обработки: {category}")
 
             # Создаем список подкатегорий с правильным значением edit
-            subcategories_data = [{
-                'id': subcat.id,
-                'name': subcat.name,
-                'parent_id': subcat.parent_id,
-                'subcategories': [],  # Можно дополнить, если нужно отображать вложенные подкатегории
-                'edit': True,  # Здесь указываем значение edit для подкатегорий
-                'number': subcat.id  # Устанавливаем значение number для подкатегорий
-            } for subcat in category.subcategories]
+            subcategories_data = [
+                CategoryResponse(
+                    id=subcat.id,
+                    name=subcat.name,
+                    parent_id=subcat.parent_id,
+                    subcategories=[],  # Можно дополнить, если нужно отображать вложенные подкатегории
+                    edit=True,  # Здесь указываем значение edit для подкатегорий
+                    number=subcat.id  # Устанавливаем значение number для подкатегорий
+                )
+                for subcat in category.subcategories
+            ]
 
             # Создаем CategoryResponse для основной категории
             category_data = CategoryResponse(
@@ -145,7 +147,7 @@ async def create_subcategory(
             logger.warning(f"Категория с названием {category.name} уже существует.")
             raise CategoryWithTheSameNameAlreadyExists
 
-        logger.debug(f"Создание новой подкатегории")
+        logger.debug("Создание новой подкатегории")
         new_category = await create_new_category(db, category, parent_id)
         logger.info(f"Создана новая подкатегория: {new_category}")
 
@@ -296,7 +298,7 @@ async def delete_category(
         db: AsyncSession = Depends(get_db),
         current_user=Depends(get_current_admin_user)
 ):
-    "Форма удаления по id категории, при условии отсутствия подкатегории"
+    """Форма удаления по id категории, при условии отсутствия подкатегории"""
     category_id = request.category_id
     try:
         logger.debug(f"Удаление категории с id: {category_id}")
@@ -366,12 +368,11 @@ async def update_categories(
     except IntegrityError as e:
         await db.rollback()
         logger.error(f"Ошибка IntegrityError при обновлении категорий: {e}")
-        raise HTTPException(status_code=400, detail="Ошибка при обновлении категорий")
+        raise ErrorUpdatingCategories
     except Exception as e:
         logger.error(f"Ошибка при обновлении категорий: {e}")
         logger.error(traceback.format_exc())
-        raise HTTPException(status_code=500, detail="Не удалось обновить категории")
-
+        raise FailedToUpdateCategories
 
 
 @router_question.get("/{question_id}/answer",
@@ -414,9 +415,9 @@ async def get_question_answer(
 @router_categories.post("/update-subcategory", response_model=List[CategoryResponse], summary="Обновление подкатегории")
 @version(1)
 async def update_subcategory(
-    subcategories: List[UpdateSubcategoryData],  # Прямое использование списка
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_admin_user)
+        subcategories: List[UpdateSubcategoryData],  # Прямое использование списка
+        db: AsyncSession = Depends(get_db),
+        current_user=Depends(get_current_admin_user)
 ):
     """Форма обновления подкатегории"""
     try:
@@ -429,8 +430,8 @@ async def update_subcategory(
     except IntegrityError as e:
         await db.rollback()
         logger.error(f"Ошибка IntegrityError при обновлении подкатегорий: {e}")
-        raise HTTPException(status_code=400, detail="Ошибка при обновлении подкатегорий")
+        raise ErrorUpdatingSubcategories
     except Exception as e:
         logger.error(f"Ошибка при обновлении подкатегорий: {e}")
         logger.error(traceback.format_exc())
-        raise HTTPException(status_code=500, detail="Не удалось обновить подкатегории")
+        raise FailedToUpdateSubcategories

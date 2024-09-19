@@ -74,7 +74,6 @@ class UpdateCategoryRequest(BaseModel):
     category_data: CategoryCreate
 
 
-
 class UpdateCategoryData(BaseModel):
     id: int
     name: str
@@ -87,5 +86,3 @@ class UpdateSubcategoryData(BaseModel):
     parent_id: Optional[int]  # Поле для связи с родительской категорией
     number: Optional[int]
 
-# class UpdateSubcategoryRequest(BaseModel):
-#     subcategories: List[UpdateSubcategoryData]

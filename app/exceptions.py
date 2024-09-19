@@ -225,6 +225,6 @@ class ErrorUpdatingSubcategories(HootLineException):
 
 class FailedToUpdateSubcategories(HootLineException):
     status_code = status.HTTP_400_BAD_REQUEST
-    detail = "Ошибка при обновлении подкатегорий"
+    detail = "Не удалось обновить подкатегории"
 
 
