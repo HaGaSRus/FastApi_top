@@ -67,7 +67,7 @@ async def process_category_updates(db: AsyncSession, category_data_list: List[Up
 
         # Поиск и обновление категории
         category = await find_category_by_id(db, category_data.id)
-        await ensure_unique_category_name(db, category_data)
+        # await ensure_unique_category_name(db, category_data)
 
         updated_category = await update_category(db, category, category_data)
         logger.debug(f"Обновленная категория: {updated_category}")  # Логирование обновленной категории
@@ -119,17 +119,17 @@ async def find_category_by_id(db: AsyncSession, category_id: int) -> Category:
     return category
 
 
-async def ensure_unique_category_name(db: AsyncSession, data: UpdateCategoryData):
-    """Проверка уникальности имени категории"""
-    existing_category = await db.execute(
-        select(Category).filter(
-            Category.name == data.name,
-            Category.id != data.id
-        )
-    )
-    if existing_category.scalars().first():
-        logger.error(f"Категория с именем '{data.name}' уже существует")
-        raise CategoryWithSameNameAlreadyExists(data.name)
+# async def ensure_unique_category_name(db: AsyncSession, data: UpdateCategoryData):
+#     """Проверка уникальности имени категории"""
+#     existing_category = await db.execute(
+#         select(Category).filter(
+#             Category.name == data.name,
+#             Category.id != data.id
+#         )
+#     )
+#     if existing_category.scalars().first():
+#         logger.error(f"Категория с именем '{data.name}' уже существует")
+#         raise CategoryWithSameNameAlreadyExists(data.name)
 
 
 async def update_category(db: AsyncSession, category: Category, data: UpdateCategoryData) -> CategoryResponse:
@@ -169,7 +169,7 @@ async def process_subcategory_updates(db: AsyncSession, subcategory_data_list: L
         try:
             logger.debug(f"Обработка подкатегории: {subcategory_data}")
             category = await find_category_by_id(db, subcategory_data.id)
-            await ensure_unique_category_name(db, subcategory_data)
+            # await ensure_unique_category_name(db, subcategory_data)
             updated_category = await update_category(db, category, subcategory_data)
             updated_subcategories.append(updated_category)
         except Exception as e:
