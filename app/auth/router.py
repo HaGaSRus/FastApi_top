@@ -6,7 +6,7 @@ from app.config import settings
 from app.dao.dao import UsersDAO
 from app.exceptions import UserInCorrectEmailOrUsername, PasswordRecoveryInstructions, IncorrectTokenFormatException, \
     TokenExpiredException, UserIsNotPresentException, PasswordUpdatedSuccessfully, EmailOrUsernameWasNotFound, \
-    InvalidPassword, FailedToGetUserRoles, HootLineException
+    InvalidPassword, FailedToGetUserRoles, HootLineException, ErrorGettingUser
 from app.logger.logger import logger
 from app.auth.schemas import SUserSignUp, ForgotPasswordRequest, ResetPasswordRequest
 
@@ -54,18 +54,13 @@ async def login_user(response: Response, user_data: SUserSignUp):
             httponly=False,
             samesite='lax',
             secure=False,
-            max_age=3600,
-            expires=3601,
+            max_age=32_400,
+            expires=32_401,
         )
         return {"access_token": access_token}
-    except HootLineException as e:
-        logger.error(f"Ошибка при авторизации: {e.detail}")
-        response.status_code = e.status_code
-        return {"detail": e.detail}
     except Exception as e:
         logger.error(f"Ошибка при авторизации: {e}")
-        response.status_code = 500
-        return {"detail": "Внутренняя ошибка сервера"}
+        return ErrorGettingUser
 
 
 @router_auth.post("/forgot-password",

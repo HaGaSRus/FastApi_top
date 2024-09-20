@@ -26,6 +26,7 @@ class Question(Base):
     parent_question_id = Column(Integer, ForeignKey('questions.id'), nullable=True)
     number = Column(Integer, nullable=True)
     answer = Column(String, nullable=True)  # Новое поле
+    # count = Column(Integer, nullable=True)
 
     category = relationship("Category", back_populates="questions")
     parent_question = relationship("Question", remote_side=[id], backref="sub_questions")

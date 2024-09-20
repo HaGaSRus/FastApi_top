@@ -18,7 +18,7 @@ from app.questions.schemas import CategoryResponse, CategoryCreateResponse, Cate
     UpdateCategoryData, DeleteCategoryRequest
 from fastapi_versioning import version
 
-from app.questions.utils import fetch_parent_category, check_existing_category, create_new_category, \
+from app.questions.utils import fetch_parent_category, create_new_category, \
     process_category_updates, process_subcategory_updates
 
 router_categories = APIRouter(
@@ -30,7 +30,7 @@ router_categories = APIRouter(
 # Получение всех категорий с вложенными подкатегориями
 @router_categories.get("", response_model=List[CategoryResponse], summary="Получить все категории")
 @version(1)
-async def get_categories(db: AsyncSession = Depends(get_db)):
+async def get_categories(db: AsyncSession = Depends(get_db), current_user=Depends(get_current_admin_user)):
     """Отобразить все категории имеющиеся в Базе данных"""
     try:
         logger.debug("Выполнение запроса для получения корневых категорий с parent_id == None")
