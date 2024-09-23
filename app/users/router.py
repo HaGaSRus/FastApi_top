@@ -12,7 +12,7 @@ from fastapi_versioning import version
 
 router_users = APIRouter(
     prefix="/users",
-    tags=["Пользователи"]
+    tags=["Пользователи"],
 )
 
 

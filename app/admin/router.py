@@ -13,12 +13,13 @@ from app.admin.schemas import SUserAuth, UserIdRequest
 router_admin = APIRouter(
     prefix="/auth",
     tags=["Админка"],
+    dependencies=[Depends(get_current_admin_user)]
 )
 
 
 @router_admin.post("/register", status_code=status.HTTP_201_CREATED, summary="Форма регистрации нового пользователя ")
 @version(1)
-async def register_user(user_data: SUserAuth, current_user: Users = Depends(get_current_admin_user)):
+async def register_user(user_data: SUserAuth):
     """Логика регистрации нового пользователя админом"""
     users_dao = UsersDAO()
     users_roles_dao = UsersRolesDAO()
@@ -58,7 +59,6 @@ async def update_user(
         password: str = Body(None, description="Новый пароль пользователя"),
         firstname: str = Body(None, description="Новое имя пользователя"),
         update_roles: Optional[List[str]] = Body(None, description="Список новых ролей для пользователя"),
-        current_user: Users = Depends(get_current_admin_user)  # Теперь используется для проверки прав администратора
 ):
     """Обновление информации о пользователе и его ролей"""
     users_dao = UsersDAO()
@@ -119,7 +119,7 @@ async def update_user(
 
 @router_admin.post("/delete", status_code=status.HTTP_200_OK, summary="Удаление пользователя по id")
 @version(1)
-async def delete_user(user_request: UserIdRequest, current_user: Users = Depends(get_current_admin_user)):
+async def delete_user(user_request: UserIdRequest):
     """Удаление пользователя. Только для администратора"""
     users_dao = UsersDAO()
     await users_dao.delete(user_request.user_id)

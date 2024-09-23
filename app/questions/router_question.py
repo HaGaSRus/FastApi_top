@@ -15,7 +15,6 @@ from app.questions.schemas import QuestionResponse, QuestionCreate
 from app.questions.utils import get_category_by_id
 
 
-
 router_question = APIRouter(
     prefix="/question",
     tags=["Вопросы"],

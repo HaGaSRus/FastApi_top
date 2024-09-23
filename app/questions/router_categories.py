@@ -24,13 +24,14 @@ from app.questions.utils import fetch_parent_category, create_new_category, \
 router_categories = APIRouter(
     prefix="/categories",
     tags=["Категории"],
+    dependencies=[Depends(get_current_admin_user)]
 )
 
 
 # Получение всех категорий с вложенными подкатегориями
 @router_categories.get("", response_model=List[CategoryResponse], summary="Получить все категории")
 @version(1)
-async def get_categories(db: AsyncSession = Depends(get_db), current_user=Depends(get_current_admin_user)):
+async def get_categories(db: AsyncSession = Depends(get_db)):
     """Отобразить все категории имеющиеся в Базе данных"""
     try:
         logger.debug("Выполнение запроса для получения корневых категорий с parent_id == None")
@@ -84,7 +85,6 @@ async def get_categories(db: AsyncSession = Depends(get_db), current_user=Depend
 async def create_category(
         category: CategoryCreate,
         db: AsyncSession = Depends(get_db),
-        current_user=Depends(get_current_admin_user)
 ):
     """Форма создания новой категории вопросов"""
     try:
@@ -121,7 +121,6 @@ async def create_subcategory(
         category: CategoryCreate,
         parent_id: int = Path(..., ge=1),
         db: AsyncSession = Depends(get_db),
-        current_user=Depends(get_current_admin_user)
 ):
     """Форма создания новой под-категории вопросов"""
     try:
@@ -166,7 +165,6 @@ async def create_subcategory(
 async def update_categories(
         category_data_list: UpdateCategoriesRequest,
         db: AsyncSession = Depends(get_db),
-        current_user=Depends(get_current_admin_user)
 ):
     try:
         logger.debug(f"Полученные данные для обновления: {category_data_list}")
@@ -218,7 +216,6 @@ async def update_categories(
 async def update_subcategory(
         subcategories: List[UpdateCategoryData],
         db: AsyncSession = Depends(get_db),
-        current_user=Depends(get_current_admin_user)
 ):
     """Форма обновления подкатегории"""
     try:
@@ -241,7 +238,6 @@ async def update_subcategory(
 async def delete_category(
         request: DeleteCategoryRequest,
         db: AsyncSession = Depends(get_db),
-        current_user=Depends(get_current_admin_user)
 ):
     """Форма удаления по id категории, при условии отсутствия подкатегории"""
     category_id = request.category_id

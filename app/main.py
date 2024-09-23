@@ -6,7 +6,6 @@ import uvicorn
 import time
 from typing import AsyncIterator
 
-from app.exceptions import HootLineException, UserIsNotPresentException
 from app.logger.middleware import LoggingMiddleware
 from app.admin.pagination_and_filtration import router_pagination, router_filter
 from app.users.router import router_users
@@ -16,8 +15,7 @@ from app.questions.router_question import router_question
 from app.questions.router_categories import router_categories
 from app.utils import init_permissions, init_roles
 from app.logger.logger import logger
-from fastapi.responses import JSONResponse
-from fastapi_versioning import version
+
 
 # Определяем функцию жизненного цикла с использованием asynccontextmanager
 @asynccontextmanager
@@ -39,7 +37,6 @@ app.include_router(router_categories)
 app = VersionedFastAPI(app,
                        version_format='{major}',
                        prefix_format='/v{major}')
-
 
 
 # Конфигурация CORS
