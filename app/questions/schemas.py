@@ -37,6 +37,7 @@ class CategoryCreateResponse(CategoryBase):
 class QuestionCreate(BaseModel):
     text: str
     answer: Optional[str] = None
+    subcategory_id: Optional[int] = None
 
     class Config:
         from_attributes = True
@@ -49,7 +50,8 @@ class QuestionResponse(BaseModel):
     answer: Optional[str] = None
     category_id: int
     number: int
-    sub_questions: List['QuestionResponseRef'] = []
+    count: Optional[int] = None
+    sub_questions: Optional[List['QuestionResponseRef']] = None  # Сделайте поле необязательным
 
     class Config:
         from_attributes = True

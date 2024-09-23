@@ -10,7 +10,8 @@ from app.exceptions import CategoryNotFound, DataIntegrityErrorPerhapsQuestionWi
     FailedToCreateQuestion, ParentQuestionNotFound, FailedToCreateSubQuestion, \
     QuestionNotFound, CouldNotGetAnswerToQuestion
 from app.logger.logger import logger
-from app.questions.models import Question
+from app.questions.dao_queestion import QuestionService
+from app.questions.models import Question, Category
 from app.questions.schemas import QuestionResponse, QuestionCreate
 from app.questions.utils import get_category_by_id
 
@@ -29,62 +30,44 @@ router_question = APIRouter(
 async def create_question(
         question: QuestionCreate,
         category_id: int = Path(..., ge=1),
+        subcategory_id: Optional[int] = Query(None, description="ID подкатегории"),
         parent_question_id: Optional[int] = Query(None, description="ID родительского вопроса"),  # Новый параметр
         db: AsyncSession = Depends(get_db),
         current_user=Depends(get_current_user)
 ):
     """Форма создания вопроса верхнего уровня"""
     try:
-        logger.debug(f"Получение категории по идентификатору: {category_id}")
+        # Обработка категории
         category = await get_category_by_id(category_id, db)
         if not category:
-            logger.warning(f"Категория с id {category_id} не найдена")
             raise CategoryNotFound
 
-        # Обрабатываем значение parent_question_id
-        if parent_question_id == 0:
-            parent_question_id = None
+        # Если указана подкатегория, получить её
+        if subcategory_id:
+            subcategory = await db.get(Category, subcategory_id)
+            if not subcategory or subcategory.parent_id != category_id:
+                raise CategoryNotFound  # подкатегория не найдена или не принадлежит родительской
 
-        new_question = Question(
-            text=question.text,
-            category_id=category_id,
-            parent_question_id=parent_question_id,  # Используем None, если parent_question_id == 0
-            number=None,  # Установка значения по умолчанию
-            answer=question.answer  # Установка значения для нового поля
-        )
+        new_question = await QuestionService.create_question(question,
+                                                             subcategory_id if subcategory_id else category_id,
+                                                             parent_question_id,
+                                                             db)
 
-        # Добавление вопроса в базу данных
-        db.add(new_question)
-        await db.commit()
-        await db.refresh(new_question)  # Обновление нового вопроса после коммита
-
-        # Устанавливаем значение number на основе ID
-        new_question.number = new_question.id
-        db.add(new_question)
-        await db.commit()
-
-        # Преобразуем новый вопрос в словарь для ответа
-        question_data = {
-            'id': new_question.id,
-            'text': new_question.text,
-            'answer': new_question.answer,
-            'category_id': new_question.category_id,
-            'parent_question_id': new_question.parent_question_id,
-            'number': new_question.number,
-            'sub_questions': []  # Здесь можно добавить под-вопросы, если это необходимо
-        }
-
-        logger.info(f"Создан новый вопрос: {question_data}")
-        return QuestionResponse(**question_data)
-
-    except IntegrityError as e:
+        return QuestionResponse(
+                id=new_question.id,
+                text=new_question.text,
+                answer=new_question.answer,
+                category_id=subcategory_id if subcategory_id else new_question.category_id,
+                number=new_question.number,
+                count=new_question.count,
+                sub_questions=[])
+    except IntegrityError:
         await db.rollback()
-        logger.error(f"IntegrityError при создании вопроса: {e}")
+        logger.error("IntegrityError при создании вопроса")
         raise DataIntegrityErrorPerhapsQuestionWithThisTextAlreadyExists
     except Exception as e:
         logger.error(f"Ошибка при создании вопроса: {e}")
         logger.error(traceback.format_exc())
-        await db.rollback()
         raise FailedToCreateQuestion
 
 
@@ -101,48 +84,24 @@ async def create_subquestion(
 ):
     """Форма создания Создание под-вопроса"""
     try:
-        logger.debug(f"Получение родительского вопроса с идентификатором: {parent_question_id}")
-        parent_question = await db.get(Question, parent_question_id)
-        if not parent_question:
-            logger.warning(f"Родительский вопрос с id {parent_question_id} не найден")
-            raise ParentQuestionNotFound
-
-        new_question = Question(
-            text=question.text,
-            category_id=parent_question.category_id,
-            parent_question_id=parent_question_id
-        )
-        db.add(new_question)
-        await db.commit()
-        await db.refresh(new_question)
-
-        # Устанавливаем значение number на основе ID
-        new_question.number = new_question.id
-        db.add(new_question)
-        await db.commit()
-        await db.refresh(new_question)
-
-        # Преобразуем новый под-вопрос в Pydantic модель
-        response = QuestionResponse(
+        new_question = await QuestionService.create_subquestion(question, parent_question_id, db)
+        return QuestionResponse(
             id=new_question.id,
             text=new_question.text,
             answer=new_question.answer,
             category_id=new_question.category_id,
             number=new_question.number,
+            count=new_question.count,
             sub_questions=[]
         )
-
-        logger.info(f"Создан новый под-вопрос: {response}")
-        return response
-
-    except IntegrityError as e:
+    except IntegrityError:
         await db.rollback()
-        logger.error(f"IntegrityError при создании под-вопроса: {e}")
+        logger.error("IntegrityError при создании под-вопроса")
         raise DataIntegrityErrorPerhapsQuestionWithThisTextAlreadyExists
     except Exception as e:
+        await db.rollback()
         logger.error(f"Ошибка при создании под-вопроса: {e}")
         logger.error(traceback.format_exc())
-        await db.rollback()
         raise FailedToCreateSubQuestion
 
 
