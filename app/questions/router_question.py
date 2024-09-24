@@ -44,14 +44,11 @@ async def create_question(
 
         # Устанавливаем значение number на основе ID
         new_question.number = new_question.id
-        db.add(new_question)
-        await db.commit()
-        await db.refresh(new_question)
+        await db.commit()  # Коммитим изменения
 
         if question.sub_questions:
             logger.info("Создание под-вопросов")
             for sub in question.sub_questions:
-                # Создаем экземпляр SubQuestion для каждого sub вопроса
                 new_sub_question = SubQuestion(
                     question_id=new_question.id,
                     text=sub.text,
@@ -62,8 +59,13 @@ async def create_question(
             await db.commit()
             logger.info("Под-вопросы успешно созданы")
 
-        # new_question.sub_questions не нужно устанавливать
-        # Вместо этого просто возвращаем новый вопрос
+        # Обновляем sub_questions в new_question
+        await db.refresh(new_question)  # Обновляем состояние new_question
+
+        # Получаем список под-вопросов
+        sub_questions_result = await db.execute(select(SubQuestion).filter_by(question_id=new_question.id))
+        new_question.sub_questions = sub_questions_result.scalars().all()  # Преобразуем в список
+
         return new_question
     except IntegrityError:
         await db.rollback()
