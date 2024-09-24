@@ -167,16 +167,19 @@ async def create_sub_questions(parent_id: int, sub_questions: List[SubQuestionCr
         if new_sub_question.id:
             logger.info("Под-вопрос успешно создан с id: %d", new_sub_question.id)
 
-        # Ожидание завершения транзакции
-        await db.refresh(new_sub_question)  # Обновляем объект, чтобы получить актуальные данные
+        # Обновление объекта, чтобы получить актуальные данные
+        await db.refresh(new_sub_question)
 
         # Рекурсивный вызов для вложенных под-вопросов
         if hasattr(sub_question, 'sub_questions') and sub_question.sub_questions:
             logger.info("Обработка вложенных под-вопросов для: %s", sub_question.text)
-            await create_sub_questions(new_sub_question.id, sub_question.sub_questions, db, depth + 1)
+            await create_sub_questions(parent_id, sub_question.sub_questions, db, depth + 1)  # Используйте parent_id
         else:
             logger.info("Нет вложенных под-вопросов для: %s", sub_question.text)
+
+
 
 async def get_questions_by_depth(depth: int, db: AsyncSession):
     result = await db.execute(select(SubQuestion).filter_by(depth=depth))
     return result.scalars().all()
+
