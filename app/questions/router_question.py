@@ -19,7 +19,6 @@ from app.questions.schemas import QuestionResponse, QuestionCreate, DynamicAnswe
     SimilarQuestionResponse, DynamicSubAnswerResponse, QuestionAllResponse
 from app.questions.utils import get_category_by_id
 
-
 router_question = APIRouter(
     prefix="/question",
     tags=["Вопросы"],
@@ -58,13 +57,13 @@ async def create_question(
                                                              db)
 
         return QuestionResponse(
-                id=new_question.id,
-                text=new_question.text,
-                answer=new_question.answer,
-                category_id=subcategory_id if subcategory_id else new_question.category_id,
-                number=new_question.number,
-                count=new_question.count,
-                sub_questions=[])
+            id=new_question.id,
+            text=new_question.text,
+            answer=new_question.answer,
+            category_id=subcategory_id if subcategory_id else new_question.category_id,
+            number=new_question.number,
+            count=new_question.count,
+            sub_questions=[])
     except IntegrityError:
         await db.rollback()
         logger.error("IntegrityError при создании вопроса")
@@ -160,41 +159,8 @@ async def get_question_answer(
         raise CouldNotGetAnswerToQuestion
 
 
-# @router_question.get("/questions", response_model=List[QuestionResponse], summary="Получить все вопросы")
-# async def get_all_questions(db: AsyncSession = Depends(get_db)):
-#     """Возвращает список всех вопросов"""
-#     try:
-#         result = await db.execute(
-#             select(Question).options(selectinload(Question.sub_questions))
-#         )
-#         questions = result.scalars().all()
-#
-#         logger.info(f"Полученные вопросы: {questions}")
-#
-#         response_questions = []
-#         for q in questions:
-#             logger.debug(f"Вопрос: {q}, Подвопросы: {getattr(q, 'sub_questions', 'Нет под вопросов')}")
-#             response_questions.append(
-#                 QuestionResponse(
-#                     id=q.id,
-#                     text=q.text,
-#                     answer=q.answer,
-#                     category_id=q.category_id,
-#                     number=q.number,
-#                     count=q.count,
-#                     sub_questions=[{'id': sq.id, 'text': sq.text} for sq in q.sub_questions] if hasattr(q,
-#                                                                                                         'sub_questions') else []
-#                 )
-#             )
-#
-#         return response_questions
-#     except Exception as e:
-#         logger.error(f"Ошибка при получении вопросов: {e}")
-#         raise HTTPException(status_code=500, detail="Ошибка при получении вопросов")
-#
-
-
-@router_question.get("", response_model=List[QuestionAllResponse])
+@router_question.get("", response_model=List[QuestionAllResponse], summary="Получение всех вопросов")
+@version(1)
 async def get_all_questions(db: AsyncSession = Depends(get_db)):
     try:
         questions = await QuestionsDAO.get_all_questions(db)
@@ -203,3 +169,56 @@ async def get_all_questions(db: AsyncSession = Depends(get_db)):
     except Exception as e:
         logger.error("Ошибка при получении вопросов: %s", e, exc_info=True)
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router_question.post("/delete/{question_id}", summary="Удаление вопроса")
+async def delete_question(
+        question_id: int = Path(..., ge=1),
+        db: AsyncSession = Depends(get_db),
+        current_user=Depends(get_current_user)
+):
+    """Удаление вопроса по ID с каскадным удалением под-вопросов"""
+    try:
+        question = await db.get(Question, question_id)
+        if not question:
+            raise HTTPException(status_code=404, detail="Вопрос не найден")
+
+        # Удаляем все под-вопросы
+        for sub_questions in question.sub_questions:
+            await db.delete(sub_questions)
+
+        # Удаление основного вопроса
+        await db.delete(question)
+        await db.commit()
+        return {"detail": "Вопрос и его под-вопросы успешно удалены"}
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Ошибка при удалении вопроса: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router_question.post("/update/{question_id}", response_model=QuestionResponse, summary="Обновление вопроса")
+@version(1)
+async def update_question(
+        question_data: QuestionCreate,
+        question_id: int = Path(..., ge=1),
+        db: AsyncSession = Depends(get_db),
+        current_user = Depends(get_current_user)
+):
+    """Обновление вопроса по ID"""
+    try:
+        question = await db.get(Question, question_id)
+        if not question:
+            raise HTTPException(status_code=404, detail="Вопрос не найден")
+
+        # Обновляем поля вопроса
+        for key, value in question_data.dict(exclude_unset=True).items():
+            setattr(question, key, value)
+
+        await db.commit()
+        return QuestionResponse.model_validate(question)
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Ошибка при обновлении вопроса: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+

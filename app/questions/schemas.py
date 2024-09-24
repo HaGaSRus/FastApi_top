@@ -37,7 +37,7 @@ class CategoryCreateResponse(CategoryBase):
 class QuestionCreate(BaseModel):
     text: str
     answer: Optional[str] = None
-    subcategory_id: Optional[int] = None
+    subcategory_id: Optional[int] = Field(None, exclude=True)
 
     class Config:
         from_attributes = True
