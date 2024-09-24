@@ -144,3 +144,16 @@ class DetailedQuestion(BaseModel):
 
 class DetailedQuestionResponse(BaseModel):
     questions: List[DetailedQuestion]
+
+
+class QuestionAllResponse(BaseModel):
+    id: int
+    text: str
+    number: int
+    answer: Optional[str] = None
+    category_id: Optional[int] = None
+    parent_question_id: Optional[int] = None
+    count: Optional[int] = None
+
+    class Config:
+        from_attributes = True

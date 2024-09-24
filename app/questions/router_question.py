@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Path, Query, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, Session
 from app.dao.dao import QuestionsDAO
 from app.dao.dependencies import get_current_user
 from app.database import get_db
@@ -16,7 +16,7 @@ from app.logger.logger import logger
 from app.questions.dao_queestion import QuestionService, get_similar_questions_cosine, calculate_similarity
 from app.questions.models import Question, Category
 from app.questions.schemas import QuestionResponse, QuestionCreate, DynamicAnswerResponse, SubQuestionResponse, \
-    SimilarQuestionResponse, DynamicSubAnswerResponse
+    SimilarQuestionResponse, DynamicSubAnswerResponse, QuestionAllResponse
 from app.questions.utils import get_category_by_id
 
 
@@ -160,36 +160,46 @@ async def get_question_answer(
         raise CouldNotGetAnswerToQuestion
 
 
-@router_question.get("/questions", response_model=List[QuestionResponse], summary="Получить все вопросы")
+# @router_question.get("/questions", response_model=List[QuestionResponse], summary="Получить все вопросы")
+# async def get_all_questions(db: AsyncSession = Depends(get_db)):
+#     """Возвращает список всех вопросов"""
+#     try:
+#         result = await db.execute(
+#             select(Question).options(selectinload(Question.sub_questions))
+#         )
+#         questions = result.scalars().all()
+#
+#         logger.info(f"Полученные вопросы: {questions}")
+#
+#         response_questions = []
+#         for q in questions:
+#             logger.debug(f"Вопрос: {q}, Подвопросы: {getattr(q, 'sub_questions', 'Нет под вопросов')}")
+#             response_questions.append(
+#                 QuestionResponse(
+#                     id=q.id,
+#                     text=q.text,
+#                     answer=q.answer,
+#                     category_id=q.category_id,
+#                     number=q.number,
+#                     count=q.count,
+#                     sub_questions=[{'id': sq.id, 'text': sq.text} for sq in q.sub_questions] if hasattr(q,
+#                                                                                                         'sub_questions') else []
+#                 )
+#             )
+#
+#         return response_questions
+#     except Exception as e:
+#         logger.error(f"Ошибка при получении вопросов: {e}")
+#         raise HTTPException(status_code=500, detail="Ошибка при получении вопросов")
+#
+
+
+@router_question.get("", response_model=List[QuestionAllResponse])
 async def get_all_questions(db: AsyncSession = Depends(get_db)):
-    """Возвращает список всех вопросов"""
     try:
-        result = await db.execute(
-            select(Question).options(selectinload(Question.sub_questions))
-        )
-        questions = result.scalars().all()
-
-        logger.info(f"Полученные вопросы: {questions}")
-
-        response_questions = []
-        for q in questions:
-            logger.debug(f"Вопрос: {q}, Подвопросы: {getattr(q, 'sub_questions', 'Нет под вопросов')}")
-            response_questions.append(
-                QuestionResponse(
-                    id=q.id,
-                    text=q.text,
-                    answer=q.answer,
-                    category_id=q.category_id,
-                    number=q.number,
-                    count=q.count,
-                    sub_questions=[{'id': sq.id, 'text': sq.text} for sq in q.sub_questions] if hasattr(q,
-                                                                                                        'sub_questions') else []
-                )
-            )
-
-        return response_questions
+        questions = await QuestionsDAO.get_all_questions(db)
+        logger.info(f"Отправка ответа: {questions}")
+        return questions
     except Exception as e:
-        logger.error(f"Ошибка при получении вопросов: {e}")
-        raise HTTPException(status_code=500, detail="Ошибка при получении вопросов")
-
-
+        logger.error("Ошибка при получении вопросов: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail=str(e))
