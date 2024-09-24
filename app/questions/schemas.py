@@ -132,3 +132,15 @@ class DynamicSubAnswerResponse(BaseModel):
     number: Optional[int]
     sub_questions: List[SimilarQuestionResponse]
 
+
+class DetailedQuestion(BaseModel):
+    id: int
+    text: str
+    category: str
+    similarity: Optional[float] = None
+    created_at: str
+    additional_data: Optional[dict] = None
+
+
+class DetailedQuestionResponse(BaseModel):
+    questions: List[DetailedQuestion]

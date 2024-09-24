@@ -31,5 +31,7 @@ class Question(Base):
     category = relationship("Category", back_populates="questions")
     parent_question = relationship("Question", remote_side=[id], backref="sub_questions")
 
+
+
     def __repr__(self):
         return f"<Question(id={self.id}, text={self.text}, number={self.number})>"

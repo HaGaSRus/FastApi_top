@@ -1,10 +1,12 @@
 import traceback
 from typing import Optional, List
 from fastapi_versioning import version
-from fastapi import APIRouter, Depends, Path, Query
+from fastapi import APIRouter, Depends, Path, Query, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import selectinload
+from app.dao.dao import QuestionsDAO
 from app.dao.dependencies import get_current_user
 from app.database import get_db
 from app.exceptions import CategoryNotFound, DataIntegrityErrorPerhapsQuestionWithThisTextAlreadyExists, \
@@ -73,90 +75,6 @@ async def create_question(
         raise FailedToCreateQuestion
 
 
-# Создание под-вопроса
-@router_question.post("/{parent_question_id}/subquestions",
-                      response_model=QuestionResponse,
-                      summary="Создание под-вопроса")
-@version(1)
-async def create_subquestion(
-        question: QuestionCreate,
-        parent_question_id: int = Path(..., ge=1),
-        db: AsyncSession = Depends(get_db),
-        current_user=Depends(get_current_user)
-):
-    """Форма создания Создание под-вопроса"""
-    try:
-        new_question = await QuestionService.create_subquestion(question, parent_question_id, db)
-        return QuestionResponse(
-            id=new_question.id,
-            text=new_question.text,
-            answer=new_question.answer,
-            category_id=new_question.category_id,
-            number=new_question.number,
-            count=new_question.count,
-            sub_questions=[]
-        )
-    except IntegrityError:
-        await db.rollback()
-        logger.error("IntegrityError при создании под-вопроса")
-        raise DataIntegrityErrorPerhapsQuestionWithThisTextAlreadyExists
-    except Exception as e:
-        await db.rollback()
-        logger.error(f"Ошибка при создании под-вопроса: {e}")
-        logger.error(traceback.format_exc())
-        raise FailedToCreateSubQuestion
-
-
-@router_question.get("/{question_id}/answer",
-                     response_model=DynamicAnswerResponse,
-                     summary="Создание ответа на поставленный вопрос")
-@version(1)
-async def get_question_answer(
-        question_id: int = Path(..., ge=1),
-        db: AsyncSession = Depends(get_db),
-        current_user=Depends(get_current_user)
-):
-    """Форма создания ответа на вопрос с динамическим формированием ответа"""
-    try:
-        logger.debug(f"Получение вопроса с id: {question_id}")
-        question = await db.get(Question, question_id)
-
-        if not question:
-            logger.warning(f"Вопрос с id {question_id} не найден")
-            raise QuestionNotFound
-
-        # Проверяем, есть ли ответ на вопрос
-        has_answer = question.answer is not None
-
-        # Получаем похожие вопросы
-
-        similar_questions = await get_similar_questions(question.text, db)
-
-        # Преобразуем вопрос в Pydantic модель для ответа
-        response = DynamicAnswerResponse(
-            id=question.id,
-            text=question.text,
-            has_answer=has_answer,  # Проверяем, если ответ
-            answer=question.answer if question.answer else None,
-            category_id=question.category_id,
-            number=question.number,
-            sub_question=[]  # Можно дополнить под-вопросами, если это необходимо
-        )
-
-        # Если ответа нет, подтягиваем похожие вопросы или варианты ответов
-        # if not response_data["has_answer"]:
-        #     similar_questions = await get_similar_questions(question.text, db)
-        #     response_data["similar_questions"] = similar_questions
-
-        logger.info(f"Ответ на вопрос с id {question_id} успешно получен")
-        return response
-
-    except Exception as e:
-        logger.error(f"Ошибка при получении ответа на вопрос: {e}")
-        logger.error(traceback.format_exc())
-        raise CouldNotGetAnswerToQuestion
-
-
 @router_question.get("/answer",
                      response_model=DynamicAnswerResponse,
                      summary="Получение ответа на вопрос по тексту")
@@ -171,18 +89,38 @@ async def get_question_answer(
     try:
         logger.debug(f"Получение ответа на вопрос: {question_text}")
 
+        # Получаем похожие вопросы с порогом 0.2
+        similar_questions = await get_similar_questions_cosine(question_text, db, min_similarity=0.2)
+
         # Получаем вопрос по тексту
         question_result = await db.execute(select(Question).where(Question.text == question_text))
         question = question_result.scalars().first()
 
-        # Получаем похожие вопросы с порогом 0.2
-        similar_questions = await get_similar_questions_cosine(question_text, db, min_similarity=0.2)
+        response_sub_questions = []
+
+        # Формируем базовый список похожих вопросов
+        if similar_questions:
+            response_sub_questions = [
+                SimilarQuestionResponse(
+                    id=q.id,
+                    question_text=q.text,
+                    similarity_score=calculate_similarity(q.text, question_text),
+                ) for q in similar_questions
+            ]
 
         if question:
-            # Проверяем, есть ли ответ на вопрос
             has_answer = question.answer is not None
 
-            # Формируем ответ
+            # Если найден вопрос, добавляем его в начало списка
+            response_sub_questions.insert(0, SimilarQuestionResponse(
+                id=question.id,
+                question_text=question.text,
+                similarity_score=1.0  # 100% совпадение
+            ))
+
+            # Сортируем sub_questions от максимального совпадения к наименьшему
+            response_sub_questions = sorted(response_sub_questions, key=lambda x: x.similarity_score, reverse=True)
+
             response = DynamicAnswerResponse(
                 id=question.id,
                 text=question.text,
@@ -190,19 +128,20 @@ async def get_question_answer(
                 answer=question.answer if has_answer else None,
                 category_id=question.category_id,
                 number=question.number,
-                sub_questions=[
-                    SimilarQuestionResponse(
-                        id=q.id,
-                        question_text=q.text,
-                        similarity_score=calculate_similarity(q.text, question_text)
-                    ) for q in similar_questions if q.id != question.id
-                ]
+                sub_questions=response_sub_questions
             )
 
             logger.info(f"Ответ на вопрос '{question_text}' успешно получен")
             return response
         else:
             logger.warning(f"Вопрос с текстом '{question_text}' не найден")
+
+            if not response_sub_questions:
+                raise HTTPException(status_code=404, detail="Нет ответа на такой вопрос.")
+
+            # Сортируем sub_questions от максимального совпадения к наименьшему
+            response_sub_questions = sorted(response_sub_questions, key=lambda x: x.similarity_score, reverse=True)
+
             response = DynamicSubAnswerResponse(
                 id=None,
                 text=f"Вопрос '{question_text}' не найден, но вот похожие вопросы:",
@@ -210,13 +149,7 @@ async def get_question_answer(
                 answer=None,
                 category_id=None,
                 number=None,
-                sub_questions=[
-                    SimilarQuestionResponse(
-                        id=q.id,
-                        question_text=q.text,
-                        similarity_score=calculate_similarity(q.text, question_text)
-                    ) for q in similar_questions
-                ]
+                sub_questions=response_sub_questions
             )
 
             return response
@@ -225,5 +158,38 @@ async def get_question_answer(
         logger.error(f"Ошибка при получении ответа на вопрос: {e}")
         logger.error(traceback.format_exc())
         raise CouldNotGetAnswerToQuestion
+
+
+@router_question.get("/questions", response_model=List[QuestionResponse], summary="Получить все вопросы")
+async def get_all_questions(db: AsyncSession = Depends(get_db)):
+    """Возвращает список всех вопросов"""
+    try:
+        result = await db.execute(
+            select(Question).options(selectinload(Question.sub_questions))
+        )
+        questions = result.scalars().all()
+
+        logger.info(f"Полученные вопросы: {questions}")
+
+        response_questions = []
+        for q in questions:
+            logger.debug(f"Вопрос: {q}, Подвопросы: {getattr(q, 'sub_questions', 'Нет под вопросов')}")
+            response_questions.append(
+                QuestionResponse(
+                    id=q.id,
+                    text=q.text,
+                    answer=q.answer,
+                    category_id=q.category_id,
+                    number=q.number,
+                    count=q.count,
+                    sub_questions=[{'id': sq.id, 'text': sq.text} for sq in q.sub_questions] if hasattr(q,
+                                                                                                        'sub_questions') else []
+                )
+            )
+
+        return response_questions
+    except Exception as e:
+        logger.error(f"Ошибка при получении вопросов: {e}")
+        raise HTTPException(status_code=500, detail="Ошибка при получении вопросов")
 
 
