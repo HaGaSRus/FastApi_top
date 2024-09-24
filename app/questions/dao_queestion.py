@@ -1,10 +1,11 @@
+import asyncio
 from typing import Optional, List
 from fastapi import Depends
 from app.database import get_db
 from app.exceptions import CategoryNotFound, ParentQuestionNotFound
 from app.logger.logger import logger
-from app.questions.models import Question, Category
-from app.questions.schemas import QuestionCreate
+from app.questions.models import Question, Category, SubQuestion
+from app.questions.schemas import QuestionCreate, SubQuestionCreate
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.questions.utils import get_category_by_id
@@ -142,3 +143,40 @@ def calculate_similarity(text1: str, text2: str) -> float:
     except Exception as e:
         logger.error(f"Ошибка при расчете сходства между '{text1}' и '{text2}': {e}")
         return 0.0
+
+
+async def create_sub_questions(parent_id: int, sub_questions: List[SubQuestionCreate], db: AsyncSession, depth: int):
+    # Проверка существования родительского вопроса
+    parent_question = await db.get(Question, parent_id)
+    if not parent_question:
+        logger.error("Родительский вопрос с id %d не найден", parent_id)
+        return  # Или выбросьте исключение
+
+    for sub_question in sub_questions:
+        logger.info("Создание под-вопроса: %s, уровень глубины: %d", sub_question.text, depth)
+        new_sub_question = SubQuestion(
+            text=sub_question.text,
+            answer=sub_question.answer,
+            question_id=parent_id,
+            depth=depth
+        )
+        db.add(new_sub_question)
+        await db.commit()  # Сохраняем под-вопрос сразу после его создания
+
+        # Проверка, что под-вопрос был успешно создан
+        if new_sub_question.id:
+            logger.info("Под-вопрос успешно создан с id: %d", new_sub_question.id)
+
+        # Ожидание завершения транзакции
+        await db.refresh(new_sub_question)  # Обновляем объект, чтобы получить актуальные данные
+
+        # Рекурсивный вызов для вложенных под-вопросов
+        if hasattr(sub_question, 'sub_questions') and sub_question.sub_questions:
+            logger.info("Обработка вложенных под-вопросов для: %s", sub_question.text)
+            await create_sub_questions(new_sub_question.id, sub_question.sub_questions, db, depth + 1)
+        else:
+            logger.info("Нет вложенных под-вопросов для: %s", sub_question.text)
+
+async def get_questions_by_depth(depth: int, db: AsyncSession):
+    result = await db.execute(select(SubQuestion).filter_by(depth=depth))
+    return result.scalars().all()

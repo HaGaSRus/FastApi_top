@@ -13,7 +13,8 @@ from app.exceptions import CategoryNotFound, DataIntegrityErrorPerhapsQuestionWi
     FailedToCreateQuestion, ParentQuestionNotFound, FailedToCreateSubQuestion, \
     QuestionNotFound, CouldNotGetAnswerToQuestion
 from app.logger.logger import logger
-from app.questions.dao_queestion import QuestionService, get_similar_questions_cosine, calculate_similarity
+from app.questions.dao_queestion import QuestionService, get_similar_questions_cosine, calculate_similarity, \
+    create_sub_questions
 from app.questions.models import Question, Category, SubQuestion
 from app.questions.schemas import QuestionResponse, QuestionCreate, DynamicAnswerResponse, SubQuestionResponse, \
     SimilarQuestionResponse, DynamicSubAnswerResponse, QuestionAllResponse
@@ -37,42 +38,30 @@ async def create_question(
         current_user=Depends(get_current_user)
 ):
     try:
-        logger.info("Создание нового вопроса")
+        logger.info("Создание нового вопроса с текстом: %s", question.text)
+
         new_question = Question(text=question.text, category_id=category_id, answer=question.answer)
         db.add(new_question)
         await db.commit()
-
-        # Устанавливаем значение number на основе ID
         new_question.number = new_question.id
-        await db.commit()  # Коммитим изменения
 
         if question.sub_questions:
-            logger.info("Создание под-вопросов")
-            for sub in question.sub_questions:
-                new_sub_question = SubQuestion(
-                    question_id=new_question.id,
-                    text=sub.text,
-                    answer=sub.answer,
-                    depth=sub.depth
-                )
-                db.add(new_sub_question)
-            await db.commit()
-            logger.info("Под-вопросы успешно созданы")
+            logger.info("Создание под-вопросов для вопроса ID %d", new_question.id)
+            await create_sub_questions(new_question.id, question.sub_questions, db, depth=1)
 
-        # Обновляем sub_questions в new_question
-        await db.refresh(new_question)  # Обновляем состояние new_question
+        await db.refresh(new_question)
 
-        # Получаем список под-вопросов
         sub_questions_result = await db.execute(select(SubQuestion).filter_by(question_id=new_question.id))
-        new_question.sub_questions = sub_questions_result.scalars().all()  # Преобразуем в список
+        new_question.sub_questions = sub_questions_result.scalars().all()
 
+        logger.info("Вопрос успешно создан: %s", new_question)
         return new_question
-    except IntegrityError:
+    except IntegrityError as e:
         await db.rollback()
-        logger.error("IntegrityError при создании вопроса")
+        logger.error("IntegrityError при создании вопроса: %s", e)
         raise DataIntegrityErrorPerhapsQuestionWithThisTextAlreadyExists
     except Exception as e:
-        logger.error(f"Ошибка при создании вопроса: {e}")
+        logger.error("Ошибка при создании вопроса: %s", e)
         logger.error(traceback.format_exc())
         raise FailedToCreateQuestion
 

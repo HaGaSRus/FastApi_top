@@ -34,15 +34,16 @@ class CategoryCreateResponse(CategoryBase):
 
 
 class SubQuestionCreate(BaseModel):
-    answer: str
+    answer: Optional[str]
     text: str
     depth: int
+    sub_questions: Optional[List["SubQuestionCreate"]] = None
 
 
 # Модель для создания вопроса
 class QuestionCreate(BaseModel):
     text: str
-    answer: str
+    answer: Optional[str]
     number: int
     count: int
     subcategory_id: Optional[int] = Field(None, exclude=True)
@@ -164,6 +165,7 @@ class QuestionAllResponse(BaseModel):
     answer: Optional[str] = None
     category_id: Optional[int] = None
     count: Optional[int] = None
+    sub_questions: List[SubQuestionResponse] = []
 
     class Config:
         from_attributes = True
