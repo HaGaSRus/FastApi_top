@@ -33,4 +33,4 @@ class Question(Base):
     category = relationship("Category", back_populates="questions")
 
     def __repr__(self):
-        return f"<Question(id={self.id}, text={self.text}, number={self.number})>"
+        return f"<Question(id={self.id}, text={self.text}, number={self.number}, answer={self.answer}, category_id={self.category_id}, parent_question_id={self.parent_question_id}, count={self.count})>"
