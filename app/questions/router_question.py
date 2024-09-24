@@ -1,24 +1,22 @@
 import traceback
-from typing import Optional, List
+from typing import List
 from fastapi_versioning import version
 from fastapi import APIRouter, Depends, Path, Query, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import selectinload, Session
 from app.dao.dao import QuestionsDAO
 from app.dao.dependencies import get_current_user
 from app.database import get_db
-from app.exceptions import CategoryNotFound, DataIntegrityErrorPerhapsQuestionWithThisTextAlreadyExists, \
-    FailedToCreateQuestion, ParentQuestionNotFound, FailedToCreateSubQuestion, \
-    QuestionNotFound, CouldNotGetAnswerToQuestion
+from app.exceptions import DataIntegrityErrorPerhapsQuestionWithThisTextAlreadyExists, \
+    FailedToCreateQuestion, CouldNotGetAnswerToQuestion
 from app.logger.logger import logger
-from app.questions.dao_queestion import QuestionService, get_similar_questions_cosine, calculate_similarity, \
-    create_sub_questions
-from app.questions.models import Question, Category, SubQuestion
-from app.questions.schemas import QuestionResponse, QuestionCreate, DynamicAnswerResponse, SubQuestionResponse, \
+from app.questions.dao_queestion import get_similar_questions_cosine, calculate_similarity, \
+    create_sub_questions, build_question_response
+from app.questions.models import Question
+from app.questions.schemas import QuestionResponse, QuestionCreate, DynamicAnswerResponse, \
     SimilarQuestionResponse, DynamicSubAnswerResponse, QuestionAllResponse
-from app.questions.utils import get_category_by_id
+
 
 router_question = APIRouter(
     prefix="/question",
@@ -51,11 +49,11 @@ async def create_question(
 
         await db.refresh(new_question)
 
-        sub_questions_result = await db.execute(select(SubQuestion).filter_by(question_id=new_question.id))
-        new_question.sub_questions = sub_questions_result.scalars().all()
+        # Формируем ответ в нужной структуре
+        response = await build_question_response(new_question, db)
 
-        logger.info("Вопрос успешно создан: %s", new_question)
-        return new_question
+        logger.info("Вопрос успешно создан: %s", response)
+        return response
     except IntegrityError as e:
         await db.rollback()
         logger.error("IntegrityError при создании вопроса: %s", e)

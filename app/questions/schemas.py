@@ -55,10 +55,11 @@ class QuestionCreate(BaseModel):
 
 class SubQuestionResponse(BaseModel):
     id: int
-    question_id: int
     text: str
-    answer: Optional[str]
+    answer: str
     depth: int
+    parent_id: Optional[int] = None
+    sub_questions: List[Optional['SubQuestionResponse']] = []
 
 
 # Модель ответа на вопрос
@@ -66,10 +67,10 @@ class QuestionResponse(BaseModel):
     id: int
     text: str
     answer: str
-    category_id: int
     number: int
-    count: Optional[int] = None
-    sub_questions: List[SubQuestionResponse] = []  # Сделайте поле необязательным
+    count: int
+    subcategory_id: int
+    sub_questions: List[SubQuestionResponse] = []
 
     class Config:
         from_attributes = True
