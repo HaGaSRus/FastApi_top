@@ -14,7 +14,7 @@ from app.exceptions import CategoryNotFound, DataIntegrityErrorPerhapsQuestionWi
     QuestionNotFound, CouldNotGetAnswerToQuestion
 from app.logger.logger import logger
 from app.questions.dao_queestion import QuestionService, get_similar_questions_cosine, calculate_similarity
-from app.questions.models import Question, Category
+from app.questions.models import Question, Category, SubQuestion
 from app.questions.schemas import QuestionResponse, QuestionCreate, DynamicAnswerResponse, SubQuestionResponse, \
     SimilarQuestionResponse, DynamicSubAnswerResponse, QuestionAllResponse
 from app.questions.utils import get_category_by_id
@@ -33,37 +33,38 @@ router_question = APIRouter(
 async def create_question(
         question: QuestionCreate,
         category_id: int = Path(..., ge=1),
-        subcategory_id: Optional[int] = Query(None, description="ID подкатегории"),
-        parent_question_id: Optional[int] = Query(None, description="ID родительского вопроса"),  # Новый параметр
         db: AsyncSession = Depends(get_db),
         current_user=Depends(get_current_user)
 ):
-    """Форма создания вопроса верхнего уровня"""
     try:
-        # Обработка категории
-        category = await get_category_by_id(category_id, db)
-        if not category:
-            raise CategoryNotFound
+        logger.info("Создание нового вопроса")
+        new_question = Question(text=question.text, category_id=category_id, answer=question.answer)
+        db.add(new_question)
+        await db.commit()
 
-        # Если указана подкатегория, получить её
-        if subcategory_id:
-            subcategory = await db.get(Category, subcategory_id)
-            if not subcategory or subcategory.parent_id != category_id:
-                raise CategoryNotFound  # подкатегория не найдена или не принадлежит родительской
+        # Устанавливаем значение number на основе ID
+        new_question.number = new_question.id
+        db.add(new_question)
+        await db.commit()
+        await db.refresh(new_question)
 
-        new_question = await QuestionService.create_question(question,
-                                                             subcategory_id if subcategory_id else category_id,
-                                                             parent_question_id,
-                                                             db)
+        if question.sub_questions:
+            logger.info("Создание под-вопросов")
+            for sub in question.sub_questions:
+                # Создаем экземпляр SubQuestion для каждого sub вопроса
+                new_sub_question = SubQuestion(
+                    question_id=new_question.id,
+                    text=sub.text,
+                    answer=sub.answer,
+                    depth=sub.depth
+                )
+                db.add(new_sub_question)
+            await db.commit()
+            logger.info("Под-вопросы успешно созданы")
 
-        return QuestionResponse(
-            id=new_question.id,
-            text=new_question.text,
-            answer=new_question.answer,
-            category_id=subcategory_id if subcategory_id else new_question.category_id,
-            number=new_question.number,
-            count=new_question.count,
-            sub_questions=[])
+        # new_question.sub_questions не нужно устанавливать
+        # Вместо этого просто возвращаем новый вопрос
+        return new_question
     except IntegrityError:
         await db.rollback()
         logger.error("IntegrityError при создании вопроса")
@@ -183,9 +184,10 @@ async def delete_question(
         if not question:
             raise HTTPException(status_code=404, detail="Вопрос не найден")
 
-        # Удаляем все под-вопросы
-        for sub_questions in question.sub_questions:
-            await db.delete(sub_questions)
+        # Удаляем все под-вопросы, если они есть
+        if question.sub_questions:
+            for sub_question in question.sub_questions:
+                await db.delete(sub_question)
 
         # Удаление основного вопроса
         await db.delete(question)

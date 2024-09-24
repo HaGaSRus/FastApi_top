@@ -23,14 +23,28 @@ class Question(Base):
     id = Column(Integer, primary_key=True, index=True)
     text = Column(String, index=True)
     category_id = Column(Integer, ForeignKey('categories.id'))
-    parent_question_id = Column(Integer, ForeignKey('questions.id'), nullable=True)
     number = Column(Integer, nullable=True)
     answer = Column(String, nullable=True)
     count = Column(Integer, nullable=True)
 
     # Определение отношений
-    sub_questions = relationship("Question", backref="parent_question", remote_side=[id], lazy="subquery")
+    sub_questions = relationship("SubQuestion", back_populates="question", lazy="subquery")
     category = relationship("Category", back_populates="questions")
 
     def __repr__(self):
-        return f"<Question(id={self.id}, text={self.text}, number={self.number}, answer={self.answer}, category_id={self.category_id}, parent_question_id={self.parent_question_id}, count={self.count})>"
+        return f"<Question(id={self.id}, text={self.text}, number={self.number}, answer={self.answer}, category_id={self.category_id}, count={self.count})>"
+
+
+class SubQuestion(Base):
+    __tablename__ = "sub_questions"
+    id = Column(Integer, primary_key=True, index=True)
+    question_id = Column(Integer, ForeignKey('questions.id'))
+    text = Column(String, index=True)
+    answer = Column(String, nullable=True)
+    depth = Column(Integer, nullable=False)
+
+    # Обратная связь к вопросу
+    question = relationship("Question", back_populates="sub_questions")
+
+    def __repr__(self):
+        return f"<SubQuestion(id={self.id}, question_id={self.question_id}, text={self.text}, depth={self.depth})>"

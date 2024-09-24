@@ -33,25 +33,42 @@ class CategoryCreateResponse(CategoryBase):
         from_attributes = True
 
 
+class SubQuestionCreate(BaseModel):
+    answer: str
+    text: str
+    depth: int
+
+
 # Модель для создания вопроса
 class QuestionCreate(BaseModel):
     text: str
-    answer: Optional[str] = None
+    answer: str
+    number: int
+    count: int
     subcategory_id: Optional[int] = Field(None, exclude=True)
+    sub_questions: Optional[List[SubQuestionCreate]] = None
 
     class Config:
         from_attributes = True
+
+
+class SubQuestionResponse(BaseModel):
+    id: int
+    question_id: int
+    text: str
+    answer: Optional[str]
+    depth: int
 
 
 # Модель ответа на вопрос
 class QuestionResponse(BaseModel):
     id: int
     text: str
-    answer: Optional[str] = None
+    answer: str
     category_id: int
     number: int
     count: Optional[int] = None
-    sub_questions: Optional[List['QuestionResponseRef']] = None  # Сделайте поле необязательным
+    sub_questions: List[SubQuestionResponse] = []  # Сделайте поле необязательным
 
     class Config:
         from_attributes = True
@@ -101,12 +118,6 @@ class UpdateSubcategoryData(BaseModel):
     number: Optional[int]
 
 
-class SubQuestionResponse(BaseModel):
-    id: int
-    text: str
-    answer: Optional[str] = None
-
-
 class SimilarQuestionResponse(BaseModel):
     id: int
     question_text: str
@@ -152,7 +163,6 @@ class QuestionAllResponse(BaseModel):
     number: int
     answer: Optional[str] = None
     category_id: Optional[int] = None
-    parent_question_id: Optional[int] = None
     count: Optional[int] = None
 
     class Config:
