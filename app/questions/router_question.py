@@ -1,10 +1,11 @@
+import asyncio
 import traceback
 from typing import List
 from fastapi_versioning import version
 from fastapi import APIRouter, Depends, Path, Query, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from app.dao.dao import QuestionsDAO
 from app.dao.dependencies import get_current_user
 from app.database import get_db
@@ -12,10 +13,12 @@ from app.exceptions import DataIntegrityErrorPerhapsQuestionWithThisTextAlreadyE
     FailedToCreateQuestion, CouldNotGetAnswerToQuestion, FailedToRetrieveQuestions
 from app.logger.logger import logger
 from app.questions.dao_queestion import get_similar_questions_cosine, calculate_similarity, \
-    build_question_response
-from app.questions.models import Question
+    convert_question_to_response, build_question_response, QuestionService
+from app.questions.models import Question, SubQuestion, Category
 from app.questions.schemas import QuestionResponse, QuestionCreate, DynamicAnswerResponse, \
     SimilarQuestionResponse, DynamicSubAnswerResponse, QuestionAllResponse
+from sqlalchemy.orm import selectinload
+
 
 router_question = APIRouter(
     prefix="/question",
@@ -24,32 +27,75 @@ router_question = APIRouter(
 
 
 # Создание вопроса верхнего уровня
-@router_question.get("",
-                     response_model=List[QuestionResponse],
-                     summary="Получение списка вопросов по категории")
+@router_question.get("", response_model=List[QuestionResponse], summary="Получение списка вопросов по категории")
 @version(1)
 async def get_questions_by_category(
         db: AsyncSession = Depends(get_db),
         current_user=Depends(get_current_user)
 ):
     try:
-        logger.info("Получение списка вопросов для категории ID: %d")
+        logger.info("Получение списка вопросов")
 
-        # Получаем все вопросы
-        questions_result = await db.execute(select(Question))
-        questions = questions_result.scalars().all()
+        # Получаем все родительские вопросы с под-вопросами
+        questions_result = await db.execute(select(Question).options(selectinload(Question.sub_questions)).where(Question.parent_id.is_(None)))
+        parent_questions = questions_result.scalars().all()
 
-        # Формируем ответы для каждого вопроса
-        response_list = []
-        for question in questions:
-            response_list.append(await build_question_response(question, db))
+        # Используем await, если convert_question_to_response асинхронная
+        response = await asyncio.gather(
+            *(convert_question_to_response(parent_question, parent_question.sub_questions) for parent_question in parent_questions)
+        )
 
-        logger.info("Список вопросов успешно получен")
-        return response_list
+        logger.info("Список вопросов успешно получен: %s", response)
+        return response
     except Exception as e:
         logger.error("Ошибка при получении списка вопросов: %s", e)
         logger.error(traceback.format_exc())
         raise FailedToRetrieveQuestions
+
+
+
+
+# Роут для создания вопроса или под вопроса
+@router_question.post("/questions",
+                      response_model=QuestionResponse,
+                      summary="Создание вопроса или подвопроса")
+@version(1)
+async def create_question(
+        question: QuestionCreate,
+        db: AsyncSession = Depends(get_db),
+        current_user=Depends(get_current_user)
+):
+    try:
+        logger.info("Создание нового вопроса с текстом: %s", question.text)
+
+        if question.parent_id:
+            new_question = await QuestionService.create_subquestion(
+                question=question,
+                parent_question_id=question.parent_id,
+                db=db
+            )
+            logger.info("Создание подвопроса для родительского вопроса ID: %d", question.parent_id)
+        else:
+            new_question = await QuestionService.create_question(
+                question=question,
+                category_id=question.category_id,  # используем category_id из тела
+                parent_question_id=None,
+                db=db
+            )
+            logger.info("Создание родительского вопроса")
+
+        response = await build_question_response(new_question)
+        logger.info("Вопрос успешно создан: %s", response)
+        return response
+
+    except IntegrityError as e:
+        await db.rollback()
+        logger.error("IntegrityError при создании вопроса: %s", e)
+        raise DataIntegrityErrorPerhapsQuestionWithThisTextAlreadyExists
+    except Exception as e:
+        logger.error("Ошибка при создании вопроса: %s", e)
+        logger.error(traceback.format_exc())
+        raise FailedToCreateQuestion
 
 
 @router_question.get("/answer",
