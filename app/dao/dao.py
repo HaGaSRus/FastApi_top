@@ -4,8 +4,11 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 from app.dao.base import BaseDAO
 from app.database import async_session_maker
+from app.exceptions import ParentQuestionNotFound, CategoryNotFound
 from app.logger.logger import logger
-from app.questions.models import Question
+from app.questions.models import Question, SubQuestion
+from app.questions.schemas import SubQuestionCreate, QuestionCreate
+from app.questions.utils import get_category_by_id
 from app.users.models import Users, Roles, Permissions, role_user_association
 from app.users.schemas import UserResponse
 from sqlalchemy.exc import SQLAlchemyError

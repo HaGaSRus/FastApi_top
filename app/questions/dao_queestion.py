@@ -1,6 +1,6 @@
 import asyncio
 from typing import Optional, List
-from fastapi import Depends
+from fastapi import Depends, HTTPException
 from app.database import get_db
 from app.exceptions import CategoryNotFound, ParentQuestionNotFound
 from app.logger.logger import logger
@@ -22,63 +22,74 @@ class QuestionService:
             parent_question_id: Optional[int],
             db: AsyncSession
     ) -> Question:
-        # Обработка категории
-        category = await get_category_by_id(category_id, db)
-        if not category:
-            raise CategoryNotFound
+        try:
+            category = await get_category_by_id(category_id, db)
+            if not category:
+                raise CategoryNotFound
 
-        # Обработка значения parent_question_id
-        if parent_question_id is None:
-            parent_question_id = None
+            if parent_question_id:
+                return await QuestionService.create_question(
+                    question=question,
+                    parent_question_id=parent_question_id,
+                    db=db
+                )
 
-        # Создание нового вопроса
-        new_question = Question(
-            text=question.text,
-            answer=question.answer,
-            category_id=category_id,
-            parent_question_id=parent_question_id,
-        )
+            new_question = Question(
+                text=question.text,
+                answer=question.answer,
+                category_id=category_id,
+                parent_id=None  # Это родительский вопрос
+            )
 
-        # Добавление и сохранение вопроса
+            db.add(new_question)
+            await db.commit()
+            await db.refresh(new_question)
 
-        db.add(new_question)
-        await db.commit()
-        await db.refresh(new_question)
+            new_question.number = new_question.id
+            db.add(new_question)
+            await db.commit()
 
-        # Присваивание id в поле number
-
-        new_question.number = new_question.id
-        db.add(new_question)
-        await db.commit()
-
-        return new_question
+            return new_question
+        except Exception as e:
+            logger.error(f"Ошибка при создании вопроса: {e}")
+            raise HTTPException(status_code=500, detail="Не удалось создать вопрос")
 
     @staticmethod
     async def create_subquestion(
-            question: QuestionCreate,
+            question: SubQuestionCreate,
             parent_question_id: int,
             db: AsyncSession,
-    ) -> Question:
-        parent_question = await db.get(Question, parent_question_id)
-        if not parent_question:
-            raise ParentQuestionNotFound
+    ) -> SubQuestion:
+        try:
+            parent_question = await db.get(Question, parent_question_id)
+            if not parent_question:
+                raise ParentQuestionNotFound
 
-        # Создание под-вопроса
-        new_question = Question(
-            text=question.text,
-            category_id=parent_question.category_id,
-            parent_question_id=parent_question_id,
-        )
-        db.add(new_question)
-        await db.commit()
-        await db.refresh(new_question)
+            new_sub_question = SubQuestion(
+                text=question.text,
+                answer=question.answer,
+                question_id=parent_question_id,
+                depth=1
+            )
 
-        # Устанавливаем значение number
-        new_question.number = new_question.id
-        db.add(new_question)
-        await db.commit()
+            # Логируем информацию о новом подвопросе
+            logger.info(f"Создание подвопроса для родительского вопроса ID: {parent_question_id}")
 
-        return new_question
+            # Сохраняем новый подвопрос в БД
+            db.add(new_sub_question)
+            await db.commit()
+            await db.refresh(new_sub_question)
+
+            new_sub_question.number = new_sub_question.id
+            db.add(new_sub_question)
+            await db.commit()
+
+            logger.info(f"Создан подвопрос: {new_sub_question}")
+
+            return new_sub_question
+        except Exception as e:
+            logger.error(f"Ошибка при создании подвопроса: {e}")
+            raise HTTPException(status_code=500, detail="Не удалось создать подвопрос")
 
 
 async def get_category(category_id: int, db: AsyncSession = Depends(get_db)):
@@ -145,91 +156,42 @@ def calculate_similarity(text1: str, text2: str) -> float:
     except Exception as e:
         logger.error(f"Ошибка при расчете сходства между '{text1}' и '{text2}': {e}")
         return 0.0
-async def get_questions_by_depth(depth: int, db: AsyncSession):
-    result = await db.execute(select(SubQuestion).filter_by(depth=depth))
-    return result.scalars().all()
 
 
-# async def create_sub_questions(parent_id: int, sub_questions: List[SubQuestionCreate], db: AsyncSession, depth: int):
-#     parent_question = await db.get(Question, parent_id)
-#     if not parent_question:
-#         logger.error("Родительский вопрос с id %d не найден", parent_id)
-#         return
-#
-#     for sub_question in sub_questions:
-#         logger.info("Создание под-вопроса: %s, уровень глубины: %d", sub_question.text, depth)
-#         new_sub_question = SubQuestion(
-#             text=sub_question.text,
-#             answer=sub_question.answer,
-#             question_id=parent_id,
-#             depth=depth
-#         )
-#         db.add(new_sub_question)
-#         await db.commit()
-#
-#         if new_sub_question.id:
-#             logger.info("Под-вопрос успешно создан с id: %d", new_sub_question.id)
-#
-#         await db.refresh(new_sub_question)
-#
-#         if sub_question.sub_questions:
-#             logger.info("Обработка вложенных под-вопросов для: %s", sub_question.text)
-#             await create_sub_questions(new_sub_question.id, sub_question.sub_questions, db, depth + 1)
-#         else:
-#             logger.info("Нет вложенных под-вопросов для: %s", sub_question.text)
-#
-
-
-async def build_question_response(question: Question, db: AsyncSession) -> QuestionResponse:
-    # Создаем ответ для основного вопроса
-    response = QuestionResponse(
-        id=question.id,
-        text=question.text,
-        answer=question.answer,
-        number=question.id,
-        count=0,  # Здесь можно добавить логику для подсчета количества под-вопросов
-        subcategory_id=question.category_id,
-        sub_questions=[]
-    )
-
-    # Получаем под-вопросы для текущего вопроса
-    sub_questions_result = await db.execute(select(SubQuestion).filter_by(question_id=question.id))
-    sub_questions = sub_questions_result.scalars().all()
-
-    # Рекурсивно добавляем под-вопросы
-    unique_sub_question_ids = set()  # Множество для отслеживания уникальных под-вопросов
-    for sub_question in sub_questions:
-        if sub_question.id not in unique_sub_question_ids:
-            unique_sub_question_ids.add(sub_question.id)
-            response.sub_questions.append(await build_sub_question_response(sub_question, db, question.id))
-
-    return response
-
-
-MAX_DEPTH = 10  # Максимальная глубина вложенности
-
-
-async def build_sub_question_response(sub_question, db, parent_id, depth=0):
-    response = SubQuestionResponse(
-        id=sub_question.id,
-        text=sub_question.text,
-        answer=sub_question.answer,
-        depth=sub_question.depth,
-        parent_id=parent_id  # Указываем родительский ID
-    )
-
-    if depth < MAX_DEPTH:
-        nested_sub_questions_result = await db.execute(
-            select(SubQuestion).filter_by(question_id=sub_question.id)
+async def build_question_response(question):
+    if isinstance(question, SubQuestion):
+        return SubQuestionResponse(
+            id=question.id,
+            text=question.text,
+            answer=question.answer,
+            number=question.number,
+            count=question.count,
+            question_id=question.question_id,
         )
-        nested_sub_questions = nested_sub_questions_result.scalars().all()
+    else:
+        return QuestionResponse(
+            id=question.id,
+            text=question.text,
+            answer=question.answer,
+            number=question.number,
+            count=question.count,
+            category_id=question.category_id,
+        )
 
-        unique_nested_sub_question_ids = set()  # Множество для отслеживания уникальных вложенных под-вопросов
-        for nested_sub_question in nested_sub_questions:
-            if nested_sub_question.id not in unique_nested_sub_question_ids:
-                unique_nested_sub_question_ids.add(nested_sub_question.id)
-                response.sub_questions.append(
-                    await build_sub_question_response(nested_sub_question, db, sub_question.id, depth + 1)
-                )
-    return response
+
+# Функция для преобразования Question в QuestionResponse
+async def convert_question_to_response(question, sub_questions) -> QuestionResponse:
+    try:
+        return QuestionResponse(
+            id=question.id,
+            text=question.text,
+            answer=question.answer,
+            number=question.number,
+            count=question.count,
+            category_id=question.category_id,
+            sub_questions=[await build_question_response(q) for q in sub_questions]  # Преобразуем под-вопросы
+        )
+    except Exception as e:
+        logger.error(f"Ошибка при преобразовании вопроса в ответ: {e}")
+        raise  # Выбрасываем исключение, чтобы обработать его в вызывающем коде
 

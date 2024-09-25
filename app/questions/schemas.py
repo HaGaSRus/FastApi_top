@@ -33,44 +33,50 @@ class CategoryCreateResponse(CategoryBase):
         from_attributes = True
 
 
-class SubQuestionCreate(BaseModel):
-    answer: Optional[str]
-    text: str
-    depth: int
-    sub_questions: Optional[List["SubQuestionCreate"]] = None
-
-
 # Модель для создания вопроса
-class QuestionCreate(BaseModel):
+class SubQuestionCreate(BaseModel):
     text: str
-    answer: Optional[str]
+    answer: str
     number: int
     count: int
-    subcategory_id: Optional[int] = Field(None, exclude=True)
-    sub_questions: Optional[List[SubQuestionCreate]] = None
+    question_id: int  # ID родительского вопроса
+
+
+class QuestionCreate(BaseModel):
+    text: str
+    answer: Optional[str] = None
+    number: int
+    category_id: int
+    count: Optional[int]
+    parent_id: Optional[int] = None  # Поле для указания родительского вопроса
 
     class Config:
         from_attributes = True
 
 
+# Модель ответа на вопрос
 class SubQuestionResponse(BaseModel):
     id: int
     text: str
     answer: str
-    depth: int
-    parent_id: Optional[int] = None
-    sub_questions: List[Optional['SubQuestionResponse']] = []
+    number: int
+    count: Optional[int] = 0
+    question_id: int
+    depth: Optional[int] = None
+
+    class Config:
+        from_attributes = True
 
 
-# Модель ответа на вопрос
 class QuestionResponse(BaseModel):
     id: int
     text: str
+    category_id: int
     answer: str
     number: int
-    count: int
-    subcategory_id: int
-    sub_questions: List[SubQuestionResponse] = []
+    count: Optional[int]
+    parent_id: Optional[int] = None
+    sub_questions: Optional[List[SubQuestionResponse]] = None
 
     class Config:
         from_attributes = True
