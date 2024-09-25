@@ -9,14 +9,13 @@ from app.dao.dao import QuestionsDAO
 from app.dao.dependencies import get_current_user
 from app.database import get_db
 from app.exceptions import DataIntegrityErrorPerhapsQuestionWithThisTextAlreadyExists, \
-    FailedToCreateQuestion, CouldNotGetAnswerToQuestion
+    FailedToCreateQuestion, CouldNotGetAnswerToQuestion, FailedToRetrieveQuestions
 from app.logger.logger import logger
 from app.questions.dao_queestion import get_similar_questions_cosine, calculate_similarity, \
-    create_sub_questions, build_question_response
+    build_question_response
 from app.questions.models import Question
 from app.questions.schemas import QuestionResponse, QuestionCreate, DynamicAnswerResponse, \
     SimilarQuestionResponse, DynamicSubAnswerResponse, QuestionAllResponse
-
 
 router_question = APIRouter(
     prefix="/question",
@@ -25,43 +24,32 @@ router_question = APIRouter(
 
 
 # Создание вопроса верхнего уровня
-@router_question.post("/{category_id}/questions",
-                      response_model=QuestionResponse,
-                      summary="Создание вопроса верхнего уровня")
+@router_question.get("",
+                     response_model=List[QuestionResponse],
+                     summary="Получение списка вопросов по категории")
 @version(1)
-async def create_question(
-        question: QuestionCreate,
-        category_id: int = Path(..., ge=1),
+async def get_questions_by_category(
         db: AsyncSession = Depends(get_db),
         current_user=Depends(get_current_user)
 ):
     try:
-        logger.info("Создание нового вопроса с текстом: %s", question.text)
+        logger.info("Получение списка вопросов для категории ID: %d")
 
-        new_question = Question(text=question.text, category_id=category_id, answer=question.answer)
-        db.add(new_question)
-        await db.commit()
-        new_question.number = new_question.id
+        # Получаем все вопросы
+        questions_result = await db.execute(select(Question))
+        questions = questions_result.scalars().all()
 
-        if question.sub_questions:
-            logger.info("Создание под-вопросов для вопроса ID %d", new_question.id)
-            await create_sub_questions(new_question.id, question.sub_questions, db, depth=1)
+        # Формируем ответы для каждого вопроса
+        response_list = []
+        for question in questions:
+            response_list.append(await build_question_response(question, db))
 
-        await db.refresh(new_question)
-
-        # Формируем ответ в нужной структуре
-        response = await build_question_response(new_question, db)
-
-        logger.info("Вопрос успешно создан: %s", response)
-        return response
-    except IntegrityError as e:
-        await db.rollback()
-        logger.error("IntegrityError при создании вопроса: %s", e)
-        raise DataIntegrityErrorPerhapsQuestionWithThisTextAlreadyExists
+        logger.info("Список вопросов успешно получен")
+        return response_list
     except Exception as e:
-        logger.error("Ошибка при создании вопроса: %s", e)
+        logger.error("Ошибка при получении списка вопросов: %s", e)
         logger.error(traceback.format_exc())
-        raise FailedToCreateQuestion
+        raise FailedToRetrieveQuestions
 
 
 @router_question.get("/answer",
@@ -149,18 +137,6 @@ async def get_question_answer(
         raise CouldNotGetAnswerToQuestion
 
 
-@router_question.get("", response_model=List[QuestionAllResponse], summary="Получение всех вопросов")
-@version(1)
-async def get_all_questions(db: AsyncSession = Depends(get_db)):
-    try:
-        questions = await QuestionsDAO.get_all_questions(db)
-        logger.info(f"Отправка ответа: {questions}")
-        return questions
-    except Exception as e:
-        logger.error("Ошибка при получении вопросов: %s", e, exc_info=True)
-        raise HTTPException(status_code=400, detail=str(e))
-
-
 @router_question.post("/delete/{question_id}", summary="Удаление вопроса")
 async def delete_question(
         question_id: int = Path(..., ge=1),
@@ -194,7 +170,7 @@ async def update_question(
         question_data: QuestionCreate,
         question_id: int = Path(..., ge=1),
         db: AsyncSession = Depends(get_db),
-        current_user = Depends(get_current_user)
+        current_user=Depends(get_current_user)
 ):
     """Обновление вопроса по ID"""
     try:
@@ -212,4 +188,3 @@ async def update_question(
         await db.rollback()
         logger.error(f"Ошибка при обновлении вопроса: {e}")
         raise HTTPException(status_code=400, detail=str(e))
-

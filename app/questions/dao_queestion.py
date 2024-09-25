@@ -150,34 +150,34 @@ async def get_questions_by_depth(depth: int, db: AsyncSession):
     return result.scalars().all()
 
 
-async def create_sub_questions(parent_id: int, sub_questions: List[SubQuestionCreate], db: AsyncSession, depth: int):
-    parent_question = await db.get(Question, parent_id)
-    if not parent_question:
-        logger.error("Родительский вопрос с id %d не найден", parent_id)
-        return
-
-    for sub_question in sub_questions:
-        logger.info("Создание под-вопроса: %s, уровень глубины: %d", sub_question.text, depth)
-        new_sub_question = SubQuestion(
-            text=sub_question.text,
-            answer=sub_question.answer,
-            question_id=parent_id,
-            depth=depth
-        )
-        db.add(new_sub_question)
-        await db.commit()
-
-        if new_sub_question.id:
-            logger.info("Под-вопрос успешно создан с id: %d", new_sub_question.id)
-
-        await db.refresh(new_sub_question)
-
-        if sub_question.sub_questions:
-            logger.info("Обработка вложенных под-вопросов для: %s", sub_question.text)
-            await create_sub_questions(new_sub_question.id, sub_question.sub_questions, db, depth + 1)
-        else:
-            logger.info("Нет вложенных под-вопросов для: %s", sub_question.text)
-
+# async def create_sub_questions(parent_id: int, sub_questions: List[SubQuestionCreate], db: AsyncSession, depth: int):
+#     parent_question = await db.get(Question, parent_id)
+#     if not parent_question:
+#         logger.error("Родительский вопрос с id %d не найден", parent_id)
+#         return
+#
+#     for sub_question in sub_questions:
+#         logger.info("Создание под-вопроса: %s, уровень глубины: %d", sub_question.text, depth)
+#         new_sub_question = SubQuestion(
+#             text=sub_question.text,
+#             answer=sub_question.answer,
+#             question_id=parent_id,
+#             depth=depth
+#         )
+#         db.add(new_sub_question)
+#         await db.commit()
+#
+#         if new_sub_question.id:
+#             logger.info("Под-вопрос успешно создан с id: %d", new_sub_question.id)
+#
+#         await db.refresh(new_sub_question)
+#
+#         if sub_question.sub_questions:
+#             logger.info("Обработка вложенных под-вопросов для: %s", sub_question.text)
+#             await create_sub_questions(new_sub_question.id, sub_question.sub_questions, db, depth + 1)
+#         else:
+#             logger.info("Нет вложенных под-вопросов для: %s", sub_question.text)
+#
 
 
 async def build_question_response(question: Question, db: AsyncSession) -> QuestionResponse:
@@ -187,37 +187,49 @@ async def build_question_response(question: Question, db: AsyncSession) -> Quest
         text=question.text,
         answer=question.answer,
         number=question.id,
-        count=0,
+        count=0,  # Здесь можно добавить логику для подсчета количества под-вопросов
         subcategory_id=question.category_id,
         sub_questions=[]
     )
 
-    # Получаем под-вопросы
+    # Получаем под-вопросы для текущего вопроса
     sub_questions_result = await db.execute(select(SubQuestion).filter_by(question_id=question.id))
     sub_questions = sub_questions_result.scalars().all()
 
     # Рекурсивно добавляем под-вопросы
+    unique_sub_question_ids = set()  # Множество для отслеживания уникальных под-вопросов
     for sub_question in sub_questions:
-        response.sub_questions.append(await build_sub_question_response(sub_question, db, question.id))  # Передаем id основного вопроса как родительский
+        if sub_question.id not in unique_sub_question_ids:
+            unique_sub_question_ids.add(sub_question.id)
+            response.sub_questions.append(await build_sub_question_response(sub_question, db, question.id))
 
     return response
 
 
-async def build_sub_question_response(sub_question: SubQuestion, db: AsyncSession, parent_id: Optional[int] = None) -> SubQuestionResponse:
+MAX_DEPTH = 10  # Максимальная глубина вложенности
+
+
+async def build_sub_question_response(sub_question, db, parent_id, depth=0):
     response = SubQuestionResponse(
         id=sub_question.id,
         text=sub_question.text,
         answer=sub_question.answer,
         depth=sub_question.depth,
-        parent_id=parent_id,
-        sub_questions=[]
+        parent_id=parent_id  # Указываем родительский ID
     )
 
-    nested_sub_questions_result = await db.execute(select(SubQuestion).filter_by(question_id=sub_question.id))
-    nested_sub_questions = nested_sub_questions_result.scalars().all()
+    if depth < MAX_DEPTH:
+        nested_sub_questions_result = await db.execute(
+            select(SubQuestion).filter_by(question_id=sub_question.id)
+        )
+        nested_sub_questions = nested_sub_questions_result.scalars().all()
 
-    for nested_sub_question in nested_sub_questions:
-        logger.info("Добавление вложенного под-вопроса: %s", nested_sub_question.text)
-        response.sub_questions.append(await build_sub_question_response(nested_sub_question, db, sub_question.id))
-
+        unique_nested_sub_question_ids = set()  # Множество для отслеживания уникальных вложенных под-вопросов
+        for nested_sub_question in nested_sub_questions:
+            if nested_sub_question.id not in unique_nested_sub_question_ids:
+                unique_nested_sub_question_ids.add(nested_sub_question.id)
+                response.sub_questions.append(
+                    await build_sub_question_response(nested_sub_question, db, sub_question.id, depth + 1)
+                )
     return response
+

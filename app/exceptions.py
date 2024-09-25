@@ -245,3 +245,9 @@ class ErrorGettingUser(HootLineException):
 class MissingTokenException(HootLineExceptionDynamic):
     def __init__(self, detail="Токен отсутствует или недействителен"):
         super().__init__(status_code=status.HTTP_401_UNAUTHORIZED, detail=detail)
+
+
+class FailedToRetrieveQuestions(HootLineException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    detail = "Не удалось получить вопросы"
+
