@@ -57,7 +57,7 @@ class SubQuestion(Base):
     text = Column(String, index=True)
     answer = Column(String, nullable=False)
     count = Column(Integer, nullable=True)
-    depth = Column(Integer, nullable=True)
+    depth = Column(Integer, nullable=False)
     number = Column(Integer, nullable=True)
 
     # Связь с родительским подвопросом (если есть)

@@ -76,14 +76,16 @@ class QuestionService:
                 logger.error(f"Родительский вопрос с ID {parent_question_id} не найден.")
                 raise ParentQuestionNotFound
 
-            # Определяем глубину
-            depth = 1
+            # Найдите родительский подвопрос, если он указан
+            parent_sub_question = None
             if question.parent_subquestion_id:
                 parent_sub_question = await db.get(SubQuestion, question.parent_subquestion_id)
-                if parent_sub_question:
-                    depth = parent_sub_question.depth + 1
-                else:
-                    raise HTTPException(status_code=400, detail="Родительский подвопрос не найден")
+
+            # Устанавливаем глубину
+            if parent_sub_question:
+                depth = parent_sub_question.depth + 1  # Увеличиваем на 1
+            else:
+                depth = 1  # Если это первый подвопрос для этого вопроса
 
             logger.info(
                 f"Создание нового подвопроса для родительского вопроса с ID: {parent_question_id} и глубиной: {depth}")
@@ -92,7 +94,7 @@ class QuestionService:
                 answer=question.answer,
                 question_id=parent_question.id,
                 depth=depth,
-                parent_subquestion_id=question.parent_subquestion_id
+                parent_subquestion_id=question.parent_subquestion_id if question.parent_subquestion_id else None
             )
 
             db.add(new_sub_question)
