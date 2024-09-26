@@ -96,7 +96,8 @@ class QuestionService:
                 answer=question.answer,
                 question_id=parent_question.id,
                 depth=depth,
-                parent_subquestion_id=question.parent_subquestion_id  # Устанавливаем связь с родительским подвопросом, если есть
+                parent_subquestion_id=question.parent_subquestion_id
+                # Убедитесь, что здесь вы правильно передаете значение
             )
 
             # Сохраняем подвопрос в БД
@@ -118,7 +119,6 @@ class QuestionService:
             logger.error(f"Ошибка при создании подвопроса: {e}")
             logger.error(traceback.format_exc())  # Логирование полного стека вызовов
             raise HTTPException(status_code=500, detail="Не удалось создать подвопрос")
-
 
 
 async def get_category(category_id: int, db: AsyncSession = Depends(get_db)):
@@ -196,7 +196,8 @@ async def build_question_response(question):
             number=question.number,
             count=question.count,
             question_id=question.question_id,
-            depth=question.depth
+            depth=question.depth,
+            parent_subquestion_id=question.parent_subquestion_id  # Убедитесь, что это поле передается
         )
         logger.info(f"Возвращаемая модель для подвопроса: {response}")
         return response
@@ -208,20 +209,15 @@ async def build_question_response(question):
             number=question.number,
             count=question.count,
             category_id=question.category_id,
+            parent_question_id=question.parent_question_id,  # Убедитесь, что это поле передается, если нужно
         )
         logger.info(f"Возвращаемая модель для вопроса: {response}")
         return response
 
 
-async def build_hierarchical_subquestions(sub_questions):
-    question_map = {}
 
-    # Создаем карту подвопросов
-    for sub_question in sub_questions:
-        question_map[sub_question.id] = {
-            "sub_question": sub_question,
-            "children": []
-        }
+async def build_hierarchical_subquestions(sub_questions: List[SubQuestion]) -> List[SubQuestionResponse]:
+    question_map = {sub_question.id: {"sub_question": sub_question, "children": []} for sub_question in sub_questions}
 
     # Построение иерархии
     for sub_question in sub_questions:
@@ -229,38 +225,28 @@ async def build_hierarchical_subquestions(sub_questions):
             parent_id = sub_question.parent_subquestion_id
             if parent_id in question_map:
                 question_map[parent_id]["children"].append(question_map[sub_question.id])
-        else:
-            # Если нет родительского ID, это корневой подвопрос
-            question_map[sub_question.id]  # добавляем корневой подвопрос в карту
 
-    # Преобразование в структуру для ответа
-    result = []
-    for sub_question in sub_questions:
-        if not sub_question.parent_subquestion_id:  # Добавляем только корневые подвопросы
-            result.append(await convert_subquestion_to_response(question_map[sub_question.id]["sub_question"],
-                                                                question_map[sub_question.id]["children"]))
-
-    return result
+    # Преобразование в структуру для ответа, добавляя корневые подвопросы
+    return [
+        await convert_subquestion_to_response(question_map[sub_question.id]["sub_question"],
+                                              question_map[sub_question.id]["children"])
+        for sub_question in sub_questions if not sub_question.parent_subquestion_id  # Только корневые
+    ]
 
 
 # Функция для преобразования Question в QuestionResponse
-async def convert_question_to_response(question, sub_questions) -> QuestionResponse:
-    try:
-        # Преобразуем подвопросы с учетом иерархии
-        sub_question_responses = await build_hierarchical_subquestions(sub_questions)
+async def convert_question_to_response(question: Question, sub_questions: List[SubQuestion]) -> QuestionResponse:
+    sub_question_responses = await build_hierarchical_subquestions(sub_questions)
+    return QuestionResponse(
+        id=question.id,
+        text=question.text,
+        answer=question.answer,
+        number=question.number,
+        count=question.count,
+        category_id=question.category_id,
+        sub_questions=sub_question_responses
+    )
 
-        return QuestionResponse(
-            id=question.id,
-            text=question.text,
-            answer=question.answer,
-            number=question.number,
-            count=question.count,
-            category_id=question.category_id,
-            sub_questions=sub_question_responses  # Преобразуем под-вопросы
-        )
-    except Exception as e:
-        logger.error(f"Ошибка при преобразовании вопроса в ответ: {e}")
-        raise
 
 
 async def convert_subquestion_to_response(sub_question, children) -> SubQuestionResponse:
@@ -271,12 +257,15 @@ async def convert_subquestion_to_response(sub_question, children) -> SubQuestion
         number=sub_question.number,
         count=sub_question.count,
         question_id=sub_question.question_id,
-        depth=sub_question.depth
+        depth=sub_question.depth,
+        parent_question_id=sub_question.parent_subquestion_id  # Добавьте это поле
     )
 
     # Добавляем детей в ответ, если они есть
     if children:
         sub_question_response.children = [
-            await convert_subquestion_to_response(child["sub_question"], child["children"]) for child in children]
+            await convert_subquestion_to_response(child["sub_question"], child["children"]) for child in children
+        ]
 
     return sub_question_response
+

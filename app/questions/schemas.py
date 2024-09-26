@@ -65,7 +65,7 @@ class SubQuestionResponse(BaseModel):
     count: Optional[int] = None
     question_id: int
     depth: Optional[int] = None
-    parent_question_id: Optional[int] = None
+    parent_subquestion_id: Optional[int] = None
 
     class Config:
         from_attributes = True

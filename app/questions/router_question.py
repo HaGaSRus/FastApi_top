@@ -39,8 +39,8 @@ async def get_questions_by_category(
         # Получаем все родительские вопросы с под-вопросами
         questions_result = await db.execute(
             select(Question)
-            .options(selectinload(Question.sub_questions))
-            .where(Question.parent_question_id.is_(None))
+            .options(selectinload(Question.sub_questions))  # Загружаем под-вопросы
+            .where(Question.parent_question_id.is_(None))  # Только корневые вопросы
         )
         parent_questions = questions_result.scalars().all()
 
