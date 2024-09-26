@@ -50,7 +50,7 @@ class QuestionCreate(BaseModel):
     count: Optional[int]
     parent_question_id: Optional[int] = None  # Поле для указания родительского вопроса
     is_subquestion: bool = False  # Поле для указания поиска в под-вопросах
-    parent_subquestion_id: Optional[int] = None
+    parent_subquestion_id: Optional[int]
 
     class Config:
         from_attributes = True
@@ -65,6 +65,7 @@ class SubQuestionResponse(BaseModel):
     count: Optional[int] = None
     question_id: int
     depth: Optional[int] = None
+    parent_question_id: Optional[int] = None
 
     class Config:
         from_attributes = True

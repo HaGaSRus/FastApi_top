@@ -37,10 +37,14 @@ async def get_questions_by_category(
         logger.info("Получение списка вопросов")
 
         # Получаем все родительские вопросы с под-вопросами
-        questions_result = await db.execute(select(Question).options(selectinload(Question.sub_questions)).where(Question.parent_question_id.is_(None)))
+        questions_result = await db.execute(
+            select(Question)
+            .options(selectinload(Question.sub_questions))
+            .where(Question.parent_question_id.is_(None))
+        )
         parent_questions = questions_result.scalars().all()
 
-        # Используем await, если convert_question_to_response асинхронная
+        # Используем await для преобразования родительских вопросов
         response = await asyncio.gather(
             *(convert_question_to_response(parent_question, parent_question.sub_questions) for parent_question in parent_questions)
         )
@@ -51,6 +55,7 @@ async def get_questions_by_category(
         logger.error("Ошибка при получении списка вопросов: %s", e)
         logger.error(traceback.format_exc())
         raise FailedToRetrieveQuestions
+
 
 
 # Роут для создания вопроса или под вопроса
