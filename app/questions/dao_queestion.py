@@ -76,16 +76,8 @@ class QuestionService:
                 logger.error(f"Родительский вопрос с ID {parent_question_id} не найден.")
                 raise ParentQuestionNotFound
 
-            # Найдите родительский подвопрос, если он указан
-            parent_sub_question = None
-            if question.parent_subquestion_id:
-                parent_sub_question = await db.get(SubQuestion, question.parent_subquestion_id)
-
             # Устанавливаем глубину
-            if parent_sub_question:
-                depth = parent_sub_question.depth + 1  # Увеличиваем на 1
-            else:
-                depth = 1  # Если это первый подвопрос для этого вопроса
+            depth = 1  # По умолчанию для первого подвопроса
 
             logger.info(
                 f"Создание нового подвопроса для родительского вопроса с ID: {parent_question_id} и глубиной: {depth}")
@@ -93,8 +85,7 @@ class QuestionService:
                 text=question.text,
                 answer=question.answer,
                 question_id=parent_question.id,
-                depth=depth,
-                parent_subquestion_id=question.parent_subquestion_id if question.parent_subquestion_id else None
+                depth=depth,  # Устанавливаем глубину
             )
 
             db.add(new_sub_question)
@@ -182,7 +173,7 @@ def calculate_similarity(text1: str, text2: str) -> float:
         return 0.0
 
 
-async def build_question_response(question):
+async def build_question_response(question, sub_questions=None):
     if isinstance(question, SubQuestion):
         response = SubQuestionResponse(
             id=question.id,
@@ -192,7 +183,8 @@ async def build_question_response(question):
             count=question.count,
             question_id=question.question_id,
             depth=question.depth,
-            parent_subquestion_id=question.parent_subquestion_id  # Убедитесь, что это поле передается
+            parent_subquestion_id=question.parent_subquestion_id,  # Передаем поле
+            sub_questions=sub_questions or []  # Передаем вложенные подвопросы
         )
         logger.info(f"Возвращаемая модель для подвопроса: {response}")
         return response
@@ -204,43 +196,31 @@ async def build_question_response(question):
             number=question.number,
             count=question.count,
             category_id=question.category_id,
-            parent_question_id=question.parent_question_id,  # Убедитесь, что это поле передается, если нужно
+            parent_question_id=question.parent_question_id,  # Передаем поле, если нужно
+            sub_questions=[]  # Инициализируем пустым списком, если у вопроса нет подвопросов
         )
         logger.info(f"Возвращаемая модель для вопроса: {response}")
         return response
 
 
-async def build_hierarchical_subquestions(sub_questions: List[SubQuestion]) -> List[SubQuestionResponse]:
-    question_map = {sub_question.id: {"sub_question": sub_question, "children": []} for sub_question in sub_questions}
 
-    # Построение иерархии
-    for sub_question in sub_questions:
-        if sub_question.parent_subquestion_id:  # Если есть родительский подвопрос
-            parent_id = sub_question.parent_subquestion_id
-            if parent_id in question_map:
-                question_map[parent_id]["children"].append(question_map[sub_question.id])
-    logger.info(f"Карта под-вопросов: {question_map}")
+async def build_hierarchical_subquestions(sub_questions):
+    hierarchical_subquestions = []
+    for sub in sub_questions:
+        hierarchical_subquestions.append(
+            SubQuestionResponse(
+                id=sub.id,
+                text=sub.text,
+                answer=sub.answer,
+                number=sub.number,
+                count=sub.count,
+                question_id=sub.question_id,
+                depth=sub.depth,
+                sub_questions=[]  # Здесь можно добавлять вложенные под-вопросы
+            )
+        )
+    return hierarchical_subquestions
 
-    # Преобразование в структуру для ответа, добавляя корневые подвопросы
-    return [
-        await convert_subquestion_to_response(question_map[sub_question.id]["sub_question"],
-                                              question_map[sub_question.id]["children"])
-        for sub_question in sub_questions if not sub_question.parent_subquestion_id  # Только корневые
-    ]
-
-
-# Функция для преобразования Question в QuestionResponse
-async def convert_question_to_response(question: Question, sub_questions: List[SubQuestion]) -> QuestionResponse:
-    sub_question_responses = await build_hierarchical_subquestions(sub_questions)
-    return QuestionResponse(
-        id=question.id,
-        text=question.text,
-        answer=question.answer,
-        number=question.number,
-        count=question.count,
-        category_id=question.category_id,
-        sub_questions=sub_question_responses
-    )
 
 
 async def convert_subquestion_to_response(sub_question, children) -> SubQuestionResponse:
@@ -252,7 +232,7 @@ async def convert_subquestion_to_response(sub_question, children) -> SubQuestion
         count=sub_question.count,
         question_id=sub_question.question_id,
         depth=sub_question.depth,
-        parent_subquestion_id=sub_question.parent_subquestion_id  # Добавьте это поле
+        sub_questions=children  # Здесь могут быть вложенные под-вопросы
     )
 
     # Добавляем детей в ответ, если они есть
@@ -260,7 +240,7 @@ async def convert_subquestion_to_response(sub_question, children) -> SubQuestion
         sub_question_response.children = [
             await convert_subquestion_to_response(child["sub_question"], child["children"]) for child in children
         ]
-    logger.info(f"Под-вопрос {sub_question.id} имеет parent_subquestion_id: {sub_question.parent_subquestion_id}")
+    logger.info(f"Под-вопрос {sub_question.id} имеет parent_subquestion_id: {sub_question.depth}")
 
     return sub_question_response
 
@@ -280,7 +260,6 @@ async def get_sub_questions(db: AsyncSession, question_id: int) -> List[SubQuest
                 count=sub_question.count,
                 question_id=sub_question.question_id,
                 depth=sub_question.depth,
-                parent_subquestion_id=sub_question.parent_subquestion_id,
                 sub_questions=[]  # Пустой список, т.к. иерархию мы построим позже
             )
             for sub_question in sub_questions
@@ -291,6 +270,7 @@ async def get_sub_questions(db: AsyncSession, question_id: int) -> List[SubQuest
     except Exception as e:
         logger.error(f"Ошибка в get_sub_questions: {e}")
         raise
+
 
 
 def build_subquestions_hierarchy(sub_questions, parent_id=None):
