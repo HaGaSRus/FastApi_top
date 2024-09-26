@@ -13,12 +13,14 @@ from app.exceptions import DataIntegrityErrorPerhapsQuestionWithThisTextAlreadyE
     FailedToCreateQuestion, CouldNotGetAnswerToQuestion, FailedToRetrieveQuestions
 from app.logger.logger import logger
 from app.questions.dao_queestion import get_similar_questions_cosine, calculate_similarity, \
-    convert_question_to_response, build_question_response, QuestionService
+    convert_question_to_response, build_question_response, QuestionService, get_sub_questions
 from app.questions.models import Question, SubQuestion, Category
 from app.questions.schemas import QuestionResponse, QuestionCreate, DynamicAnswerResponse, \
     SimilarQuestionResponse, DynamicSubAnswerResponse, QuestionAllResponse
 from sqlalchemy.orm import selectinload
 from pydantic import ValidationError
+import asyncio
+
 
 router_question = APIRouter(
     prefix="/question",
@@ -27,39 +29,34 @@ router_question = APIRouter(
 
 
 # Создание вопроса верхнего уровня
-@router_question.get("", response_model=List[QuestionResponse], summary="Получение списка вопросов по категории")
+# Эндпоинт для получения всех вопросов с вложенными под-вопросами
+
+
+@router_question.get("/questions", response_model=List[QuestionResponse])
 @version(1)
-async def get_questions_by_category(
-        db: AsyncSession = Depends(get_db),
-        current_user=Depends(get_current_user)
-):
+async def get_questions(db: AsyncSession = Depends(get_db)):
     try:
-        logger.info("Получение списка вопросов")
+        result = await db.execute(select(Question))
+        questions = result.scalars().all()
+        print(f"Retrieved questions: {questions}")
 
-        # Получаем все родительские вопросы с под-вопросами
-        questions_result = await db.execute(
-            select(Question)
-            .options(selectinload(Question.sub_questions))  # Загружаем под-вопросы
-            .where(Question.parent_question_id.is_(None))  # Только корневые вопросы
-        )
-        parent_questions = questions_result.scalars().all()
+        tasks = [get_sub_questions(db, question.id) for question in questions]
+        sub_questions_list = await asyncio.gather(*tasks)
 
-        # Используем await для преобразования родительских вопросов
-        response = await asyncio.gather(
-            *(convert_question_to_response(parent_question, parent_question.sub_questions) for parent_question in parent_questions)
-        )
+        for question, sub_questions in zip(questions, sub_questions_list):
+            question.sub_questions = sub_questions
+            print(f"Question ID: {question.id}, Sub-questions: {question.sub_questions}")
 
-        logger.info("Список вопросов успешно получен: %s", response)
-        return response
+        return questions
     except Exception as e:
-        logger.error("Ошибка при получении списка вопросов: %s", e)
-        logger.error(traceback.format_exc())
-        raise FailedToRetrieveQuestions
+        print(f"Error in get_questions: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 
 
 # Роут для создания вопроса или под вопроса
-@router_question.post("/questions", summary="Создание вопроса или подвопроса")
+@router_question.post("/create", summary="Создание вопроса или подвопроса")
 @version(1)
 async def create_question(
     question: QuestionCreate,

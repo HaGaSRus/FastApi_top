@@ -44,7 +44,7 @@ class QuestionService:
                 text=question.text,
                 answer=question.answer,
                 category_id=category_id,
-                parent_id=None  # Это родительский вопрос
+                parent_question_id=None  # Это родительский вопрос
             )
 
             db.add(new_question)
@@ -70,42 +70,35 @@ class QuestionService:
             db: AsyncSession,
     ) -> SubQuestion:
         try:
-            # Логирование перед поиском родительского вопроса
             logger.info(f"Попытка найти родительский вопрос с ID: {parent_question_id}")
-
-            # Находим родительский вопрос по ID
             parent_question = await db.get(Question, parent_question_id)
             if not parent_question:
                 logger.error(f"Родительский вопрос с ID {parent_question_id} не найден.")
                 raise ParentQuestionNotFound
 
-            # Проверяем глубину и родительский подвопрос, если таковой существует
-            logger.info(f"Проверка глубины вложенности для вопроса с ID: {parent_question_id}")
-            parent_sub_question = await db.execute(
-                select(SubQuestion).where(SubQuestion.question_id == parent_question_id)
-            )
-            parent_sub_question = parent_sub_question.scalars().first()
+            # Определяем глубину
+            depth = 1
+            if question.parent_subquestion_id:
+                parent_sub_question = await db.get(SubQuestion, question.parent_subquestion_id)
+                if parent_sub_question:
+                    depth = parent_sub_question.depth + 1
+                else:
+                    raise HTTPException(status_code=400, detail="Родительский подвопрос не найден")
 
-            # Устанавливаем depth
-            depth = 1 if not parent_sub_question else parent_sub_question.depth + 1
-
-            # Создаем новый подвопрос
-            logger.info(f"Создание нового подвопроса для родительского вопроса с ID: {parent_question_id}")
+            logger.info(
+                f"Создание нового подвопроса для родительского вопроса с ID: {parent_question_id} и глубиной: {depth}")
             new_sub_question = SubQuestion(
                 text=question.text,
                 answer=question.answer,
                 question_id=parent_question.id,
                 depth=depth,
                 parent_subquestion_id=question.parent_subquestion_id
-                # Убедитесь, что здесь вы правильно передаете значение
             )
 
-            # Сохраняем подвопрос в БД
             db.add(new_sub_question)
             await db.commit()
             await db.refresh(new_sub_question)
 
-            # Устанавливаем поле number равным id и сохраняем снова
             new_sub_question.number = new_sub_question.id
             db.add(new_sub_question)
             await db.commit()
@@ -117,7 +110,7 @@ class QuestionService:
             raise HTTPException(status_code=404, detail="Родительский вопрос не найден")
         except Exception as e:
             logger.error(f"Ошибка при создании подвопроса: {e}")
-            logger.error(traceback.format_exc())  # Логирование полного стека вызовов
+            logger.error(traceback.format_exc())
             raise HTTPException(status_code=500, detail="Не удалось создать подвопрос")
 
 
@@ -215,7 +208,6 @@ async def build_question_response(question):
         return response
 
 
-
 async def build_hierarchical_subquestions(sub_questions: List[SubQuestion]) -> List[SubQuestionResponse]:
     question_map = {sub_question.id: {"sub_question": sub_question, "children": []} for sub_question in sub_questions}
 
@@ -225,6 +217,7 @@ async def build_hierarchical_subquestions(sub_questions: List[SubQuestion]) -> L
             parent_id = sub_question.parent_subquestion_id
             if parent_id in question_map:
                 question_map[parent_id]["children"].append(question_map[sub_question.id])
+    logger.info(f"Карта под-вопросов: {question_map}")
 
     # Преобразование в структуру для ответа, добавляя корневые подвопросы
     return [
@@ -248,7 +241,6 @@ async def convert_question_to_response(question: Question, sub_questions: List[S
     )
 
 
-
 async def convert_subquestion_to_response(sub_question, children) -> SubQuestionResponse:
     sub_question_response = SubQuestionResponse(
         id=sub_question.id,
@@ -258,7 +250,7 @@ async def convert_subquestion_to_response(sub_question, children) -> SubQuestion
         count=sub_question.count,
         question_id=sub_question.question_id,
         depth=sub_question.depth,
-        parent_question_id=sub_question.parent_subquestion_id  # Добавьте это поле
+        parent_subquestion_id=sub_question.parent_subquestion_id  # Добавьте это поле
     )
 
     # Добавляем детей в ответ, если они есть
@@ -266,6 +258,17 @@ async def convert_subquestion_to_response(sub_question, children) -> SubQuestion
         sub_question_response.children = [
             await convert_subquestion_to_response(child["sub_question"], child["children"]) for child in children
         ]
+    logger.info(f"Под-вопрос {sub_question.id} имеет parent_subquestion_id: {sub_question.parent_subquestion_id}")
 
     return sub_question_response
 
+
+# Функция для построения вложенных под-вопросов
+async def get_sub_questions(db: AsyncSession, question_id: int) -> List[SubQuestionResponse]:
+    try:
+        result = await db.execute(select(SubQuestion).where(SubQuestion.question_id == question_id))
+        sub_questions = result.scalars().all()
+        return sub_questions
+    except Exception as e:
+        print(f"Error in get_sub_questions: {e}")
+        raise
