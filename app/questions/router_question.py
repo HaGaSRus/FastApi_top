@@ -18,7 +18,7 @@ from app.questions.models import Question, SubQuestion, Category
 from app.questions.schemas import QuestionResponse, QuestionCreate, DynamicAnswerResponse, \
     SimilarQuestionResponse, DynamicSubAnswerResponse, QuestionAllResponse
 from sqlalchemy.orm import selectinload
-
+from pydantic import ValidationError
 
 router_question = APIRouter(
     prefix="/question",
@@ -53,17 +53,13 @@ async def get_questions_by_category(
         raise FailedToRetrieveQuestions
 
 
-
-
 # Роут для создания вопроса или под вопроса
-@router_question.post("/questions",
-                      response_model=QuestionResponse,
-                      summary="Создание вопроса или подвопроса")
+@router_question.post("/questions", summary="Создание вопроса или подвопроса")
 @version(1)
 async def create_question(
-        question: QuestionCreate,
-        db: AsyncSession = Depends(get_db),
-        current_user=Depends(get_current_user)
+    question: QuestionCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user)
 ):
     try:
         logger.info("Создание нового вопроса с текстом: %s", question.text)
@@ -88,6 +84,9 @@ async def create_question(
         logger.info("Вопрос успешно создан: %s", response)
         return response
 
+    except ValidationError as ve:
+        logger.error(f"Ошибка валидации данных ответа: {ve}")
+        raise HTTPException(status_code=422, detail=f"Validation error: {ve.errors()}")
     except IntegrityError as e:
         await db.rollback()
         logger.error("IntegrityError при создании вопроса: %s", e)
@@ -95,7 +94,8 @@ async def create_question(
     except Exception as e:
         logger.error("Ошибка при создании вопроса: %s", e)
         logger.error(traceback.format_exc())
-        raise FailedToCreateQuestion
+        raise HTTPException(status_code=500, detail="Не удалось создать вопрос")
+
 
 
 @router_question.get("/answer",

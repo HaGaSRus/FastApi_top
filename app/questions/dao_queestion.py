@@ -61,19 +61,30 @@ class QuestionService:
             db: AsyncSession,
     ) -> SubQuestion:
         try:
-            parent_question = await db.get(Question, parent_question_id)
+            # Проверяем существование родительского подвопроса
+            parent_sub_question = await db.get(SubQuestion, parent_question_id)
+
+            # Если родительский подвопрос не найден, выбрасываем исключение
+            if not parent_sub_question:
+                raise ParentQuestionNotFound
+
+            # Проверяем существование родительского вопроса в таблице questions
+            parent_question = await db.get(Question, parent_sub_question.question_id)
+
+            # Если родительский вопрос не найден, выбрасываем исключение
             if not parent_question:
                 raise ParentQuestionNotFound
 
+            # Создаем новый подвопрос
             new_sub_question = SubQuestion(
                 text=question.text,
                 answer=question.answer,
-                question_id=parent_question_id,
-                depth=1
+                question_id=parent_question.id,  # Используем id найденного родительского вопроса
+                depth=parent_sub_question.depth + 1  # Увеличиваем глубину на 1
             )
 
             # Логируем информацию о новом подвопросе
-            logger.info(f"Создание подвопроса для родительского вопроса ID: {parent_question_id}")
+            logger.info(f"Создание подвопроса для родительского вопроса ID: {parent_question.id}")
 
             # Сохраняем новый подвопрос в БД
             db.add(new_sub_question)
@@ -160,16 +171,19 @@ def calculate_similarity(text1: str, text2: str) -> float:
 
 async def build_question_response(question):
     if isinstance(question, SubQuestion):
-        return SubQuestionResponse(
+        response = SubQuestionResponse(
             id=question.id,
             text=question.text,
             answer=question.answer,
             number=question.number,
             count=question.count,
             question_id=question.question_id,
+            depth=question.depth
         )
+        logger.info(f"Возвращаемая модель для подвопроса: {response}")
+        return response
     else:
-        return QuestionResponse(
+        response = QuestionResponse(
             id=question.id,
             text=question.text,
             answer=question.answer,
@@ -177,6 +191,8 @@ async def build_question_response(question):
             count=question.count,
             category_id=question.category_id,
         )
+        logger.info(f"Возвращаемая модель для вопроса: {response}")
+        return response
 
 
 # Функция для преобразования Question в QuestionResponse

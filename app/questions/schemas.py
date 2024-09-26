@@ -60,7 +60,7 @@ class SubQuestionResponse(BaseModel):
     text: str
     answer: str
     number: int
-    count: Optional[int] = 0
+    count: Optional[int] = None
     question_id: int
     depth: Optional[int] = None
 
