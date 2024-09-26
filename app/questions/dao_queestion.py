@@ -270,7 +270,34 @@ async def get_sub_questions(db: AsyncSession, question_id: int) -> List[SubQuest
     try:
         result = await db.execute(select(SubQuestion).where(SubQuestion.question_id == question_id))
         sub_questions = result.scalars().all()
-        return sub_questions
+
+        sub_question_responses = [
+            SubQuestionResponse(
+                id=sub_question.id,
+                text=sub_question.text,
+                answer=sub_question.answer,
+                number=sub_question.number,
+                count=sub_question.count,
+                question_id=sub_question.question_id,
+                depth=sub_question.depth,
+                parent_subquestion_id=sub_question.parent_subquestion_id,
+                sub_questions=[]  # Пустой список, т.к. иерархию мы построим позже
+            )
+            for sub_question in sub_questions
+        ]
+
+        logger.info(f"Получено sub_questions для вопроса_id. {question_id}: {sub_question_responses}")
+        return sub_question_responses
     except Exception as e:
-        print(f"Error in get_sub_questions: {e}")
+        logger.error(f"Ошибка в get_sub_questions: {e}")
         raise
+
+
+def build_subquestions_hierarchy(sub_questions, parent_id=None):
+    hierarchy = []
+    for sub_question in sub_questions:
+        if sub_question.parent_subquestion_id == parent_id:
+            # Рекурсивно строим вложенность
+            sub_question.sub_questions = build_subquestions_hierarchy(sub_questions, sub_question.id)
+            hierarchy.append(sub_question)
+    return hierarchy

@@ -66,6 +66,7 @@ class SubQuestionResponse(BaseModel):
     question_id: int
     depth: Optional[int] = None
     parent_subquestion_id: Optional[int] = None
+    sub_questions: List['SubQuestionResponse'] = []  # Recursive structure
 
     class Config:
         from_attributes = True
@@ -79,7 +80,7 @@ class QuestionResponse(BaseModel):
     number: int
     count: Optional[int]
     parent_question_id: Optional[int] = None
-    sub_questions: Optional[List[SubQuestionResponse]] = None
+    sub_questions: List[SubQuestionResponse] = []
 
     class Config:
         from_attributes = True

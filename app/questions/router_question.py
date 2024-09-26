@@ -13,7 +13,8 @@ from app.exceptions import DataIntegrityErrorPerhapsQuestionWithThisTextAlreadyE
     FailedToCreateQuestion, CouldNotGetAnswerToQuestion, FailedToRetrieveQuestions
 from app.logger.logger import logger
 from app.questions.dao_queestion import get_similar_questions_cosine, calculate_similarity, \
-    convert_question_to_response, build_question_response, QuestionService, get_sub_questions
+    convert_question_to_response, build_question_response, QuestionService, get_sub_questions, \
+    build_subquestions_hierarchy
 from app.questions.models import Question, SubQuestion, Category
 from app.questions.schemas import QuestionResponse, QuestionCreate, DynamicAnswerResponse, \
     SimilarQuestionResponse, DynamicSubAnswerResponse, QuestionAllResponse
@@ -32,27 +33,38 @@ router_question = APIRouter(
 # Эндпоинт для получения всех вопросов с вложенными под-вопросами
 
 
-@router_question.get("/questions", response_model=List[QuestionResponse])
+@router_question.get("/all-questions", response_model=List[QuestionResponse])
 @version(1)
 async def get_questions(db: AsyncSession = Depends(get_db)):
     try:
         result = await db.execute(select(Question))
         questions = result.scalars().all()
-        print(f"Retrieved questions: {questions}")
+        logger.info(f"Полученные вопросы: {questions}")
 
         tasks = [get_sub_questions(db, question.id) for question in questions]
         sub_questions_list = await asyncio.gather(*tasks)
 
+        question_responses = []
         for question, sub_questions in zip(questions, sub_questions_list):
-            question.sub_questions = sub_questions
-            print(f"Question ID: {question.id}, Sub-questions: {question.sub_questions}")
+            # Применяем функцию build_subquestions_hierarchy для создания иерархии
+            hierarchical_sub_questions = build_subquestions_hierarchy(sub_questions)
 
-        return questions
+            question_response = QuestionResponse(
+                id=question.id,
+                text=question.text,
+                category_id=question.category_id,
+                answer=question.answer,
+                number=question.number,
+                count=question.count,
+                parent_question_id=question.parent_question_id,
+                sub_questions=hierarchical_sub_questions  # Здесь уже иерархия
+            )
+            question_responses.append(question_response)
+
+        return question_responses
     except Exception as e:
-        print(f"Error in get_questions: {e}")
+        logger.error(f"Ошибка в get_questions: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
-
 
 
 # Роут для создания вопроса или под вопроса
