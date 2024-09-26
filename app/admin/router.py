@@ -1,12 +1,11 @@
 from typing import Optional, List
-from sqlalchemy import or_
-from fastapi import APIRouter, status, Depends, Body, HTTPException
+from fastapi import APIRouter, status, Depends, Body
 from fastapi_versioning import version
 from app.auth.auth import get_password_hash, pwd_context
 from app.dao.dao import UsersDAO, UsersRolesDAO
 from app.dao.dependencies import get_current_admin_user
-from app.exceptions import UserEmailAlreadyExistsException, UserNameAlreadyExistsException, UserCreated, UserChangeRole, \
-    DeleteUser, UserNotFoundException, UpdateUser, ErrorUpdatingUser
+from app.exceptions import UserEmailAlreadyExistsException, UserNameAlreadyExistsException, UserCreated, \
+    DeleteUser, UserNotFoundException, ErrorUpdatingUser
 from app.logger.logger import logger
 from app.users.models import Users
 from app.admin.schemas import SUserAuth, UserIdRequest
@@ -14,12 +13,13 @@ from app.admin.schemas import SUserAuth, UserIdRequest
 router_admin = APIRouter(
     prefix="/auth",
     tags=["Админка"],
+    dependencies=[Depends(get_current_admin_user)]
 )
 
 
 @router_admin.post("/register", status_code=status.HTTP_201_CREATED, summary="Форма регистрации нового пользователя ")
 @version(1)
-async def register_user(user_data: SUserAuth, current_user: Users = Depends(get_current_admin_user)):
+async def register_user(user_data: SUserAuth):
     """Логика регистрации нового пользователя админом"""
     users_dao = UsersDAO()
     users_roles_dao = UsersRolesDAO()
@@ -59,7 +59,6 @@ async def update_user(
         password: str = Body(None, description="Новый пароль пользователя"),
         firstname: str = Body(None, description="Новое имя пользователя"),
         update_roles: Optional[List[str]] = Body(None, description="Список новых ролей для пользователя"),
-        current_user: Users = Depends(get_current_admin_user)  # Теперь используется для проверки прав администратора
 ):
     """Обновление информации о пользователе и его ролей"""
     users_dao = UsersDAO()
@@ -120,7 +119,7 @@ async def update_user(
 
 @router_admin.post("/delete", status_code=status.HTTP_200_OK, summary="Удаление пользователя по id")
 @version(1)
-async def delete_user(user_request: UserIdRequest, current_user: Users = Depends(get_current_admin_user)):
+async def delete_user(user_request: UserIdRequest):
     """Удаление пользователя. Только для администратора"""
     users_dao = UsersDAO()
     await users_dao.delete(user_request.user_id)

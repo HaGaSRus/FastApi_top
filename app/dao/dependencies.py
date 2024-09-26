@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from fastapi import Request, Depends
+from fastapi import Request, Depends, Response, HTTPException
 from jose import jwt, JWTError
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
@@ -11,7 +11,7 @@ from app.exceptions import (
     TokenExpiredException,
     TokenAbsentException,
     IncorrectTokenFormatException,
-    UserIsNotPresentException, PermissionDeniedException,
+    UserIsNotPresentException, PermissionDeniedException, HootLineException, ErrorGettingUser,
 )
 from app.logger.logger import logger
 
@@ -20,6 +20,8 @@ from app.users.models import Users
 
 def get_token(request: Request) -> str:
     """Извлекает токен из файлов cookie или заголовков."""
+    logger.info(f"Куки при запросе: {request.cookies}")  # Логируем куки
+
     token = request.cookies.get("access_token")
     if not token:
         token = request.headers.get("access_token")
@@ -30,8 +32,12 @@ def get_token(request: Request) -> str:
     return token
 
 
-async def get_current_user(token: str = Depends(get_token)) -> Users:
+async def get_current_user(response: Response, token: str = Depends(get_token)):
     """Проверяем токен и получаем текущего пользователя."""
+    if not token:
+        logger.error("Токен отсутствует.")
+        raise TokenAbsentException
+
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         logger.info(f"Токен успешно декодирован: {payload}")
@@ -39,20 +45,22 @@ async def get_current_user(token: str = Depends(get_token)) -> Users:
         logger.error(f"Ошибка декодирования токена: {str(e)}")
         raise IncorrectTokenFormatException
 
-    expire: Optional[int] = payload.get("exp")
+    expire = payload.get("exp")
     if not expire:
         logger.error("Срок действия токена не указан.")
         raise TokenExpiredException
 
+    # Проверяем, не истек ли срок действия токена
     if int(expire) < datetime.now().timestamp():
         logger.error("Срок действия токена истек.")
         raise TokenExpiredException
 
-    user_id: Optional[str] = payload.get("sub")
+    user_id = payload.get("sub")
     if not user_id:
         logger.error("Идентификатор пользователя не найден в токене.")
         raise UserIsNotPresentException
 
+    # Запрос в базу данных для получения пользователя
     async with async_session_maker() as session:
         try:
             result = await session.execute(
@@ -67,8 +75,8 @@ async def get_current_user(token: str = Depends(get_token)) -> Users:
             logger.info(f"Пользователь получен: {user.username}")
             return user
         except Exception as e:
-            logger.error(f"Ошибка при получении пользователя: {e}")
-            raise
+            logger.error(f"Необработанная ошибка при получении пользователя: {e}")
+            raise ErrorGettingUser
 
 
 async def get_current_admin_user(current_user: Users = Depends(get_current_user)) -> Users:

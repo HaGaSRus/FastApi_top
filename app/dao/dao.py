@@ -4,12 +4,16 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 from app.dao.base import BaseDAO
 from app.database import async_session_maker
+from app.exceptions import ParentQuestionNotFound, CategoryNotFound
 from app.logger.logger import logger
+from app.questions.models import Question, SubQuestion
+from app.questions.schemas import SubQuestionCreate, QuestionCreate
+from app.questions.utils import get_category_by_id
 from app.users.models import Users, Roles, Permissions, role_user_association
 from app.users.schemas import UserResponse
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import or_
-
+from sqlalchemy.ext.asyncio import AsyncSession
 
 class UsersDAO(BaseDAO):
     model = Users
@@ -215,3 +219,19 @@ class UsersRolesDAO(BaseDAO):
 class UserPermissionsDAO(BaseDAO):
     model = Permissions
 
+
+class QuestionsDAO(BaseDAO):
+    model = Question
+
+    @classmethod
+    async def get_all_questions(cls, session: AsyncSession):
+        try:
+            result = await session.execute(
+                select(cls.model).options(selectinload(cls.model.sub_questions))
+            )
+            questions = result.scalars().all()
+            logger.info(f"Получено {len(questions)} вопросов")
+            return questions
+        except SQLAlchemyError as e:
+            logger.error(f"Ошибка при получении вопросов: {e}")
+            raise

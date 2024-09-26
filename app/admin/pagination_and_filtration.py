@@ -9,7 +9,7 @@ from app.database import async_session_maker
 from fastapi_versioning import version
 from fastapi_filter import FilterDepends
 from app.users.models import Users
-from app.users.schemas import AllUserResponse, Role
+from app.users.schemas import AllUserResponse
 
 # Создаем роутер
 router_pagination = APIRouter(

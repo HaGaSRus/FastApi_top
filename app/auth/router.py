@@ -6,7 +6,7 @@ from app.config import settings
 from app.dao.dao import UsersDAO
 from app.exceptions import UserInCorrectEmailOrUsername, PasswordRecoveryInstructions, IncorrectTokenFormatException, \
     TokenExpiredException, UserIsNotPresentException, PasswordUpdatedSuccessfully, EmailOrUsernameWasNotFound, \
-    InvalidPassword, FailedToGetUserRoles
+    InvalidPassword, FailedToGetUserRoles, HootLineException, ErrorGettingUser
 from app.logger.logger import logger
 from app.auth.schemas import SUserSignUp, ForgotPasswordRequest, ResetPasswordRequest
 
@@ -25,37 +25,47 @@ router_auth = APIRouter(
 async def login_user(response: Response, user_data: SUserSignUp):
     """Логика авторизации для входа на горячую линию"""
     users_dao = UsersDAO()
-    user = await users_dao.find_one_or_none(email=user_data.email) or await users_dao.find_one_or_none(username=user_data.username)
+    try:
+        user = (await users_dao.find_one_or_none(email=user_data.email)
+                or await users_dao.find_one_or_none(username=user_data.username))
 
-    if not user:
-        raise EmailOrUsernameWasNotFound
+        if not user:
+            logger.error("Пользователь не найден")
+            raise EmailOrUsernameWasNotFound()
 
-    if not verify_password(user_data.password, user.hashed_password):
-        raise InvalidPassword
+        if not verify_password(user_data.password, user.hashed_password):
+            logger.error("Неверный пароль")
+            raise InvalidPassword()
 
-    user_with_roles = await users_dao.get_user_with_roles(user.id)
-    if not user_with_roles:
-        raise FailedToGetUserRoles
+        user_with_roles = await users_dao.get_user_with_roles(user.id)
+        if not user_with_roles:
+            logger.error("Не удалось получить роли пользователя")
+            raise FailedToGetUserRoles()
 
-    access_token = create_access_token({
-        "sub": str(user.id),
-        "username": str(user.username),
-        "roles": user_with_roles.roles
-    })
+        access_token = create_access_token({
+            "sub": str(user.id),
+            "username": str(user.username),
+            "roles": user_with_roles.roles
+        })
 
-    response.set_cookie(
-        key="access_token",
-        value=access_token,
-        httponly=False,  # Чтобы кука была доступна только для HTTP запросов, а не через JavaScript
-        samesite='lax',  # Политика безопасности куки
-        secure=False,
-        max_age=3600,  # Срок жизни куки в секундах
-        expires=3601,  # Время истечения срока действия куки
-    )
-    return {"access_token": access_token}
+        response.set_cookie(
+            key="access_token",
+            value=access_token,
+            httponly=False,
+            samesite='lax',
+            secure=False,
+            max_age=32_400,
+            expires=32_401,
+        )
+        return {"access_token": access_token}
+    except Exception as e:
+        logger.error(f"Ошибка при авторизации: {e}")
+        return ErrorGettingUser
 
 
-@router_auth.post("/forgot-password", status_code=status.HTTP_200_OK, summary="Форма-восстановления пароля для пользователя ")
+@router_auth.post("/forgot-password",
+                  status_code=status.HTTP_200_OK,
+                  summary="Форма-восстановления пароля для пользователя")
 @version(1)
 async def forgot_password(request: ForgotPasswordRequest):
     """ Восстановление пароля для пользователя, логика отправки формы на почту"""

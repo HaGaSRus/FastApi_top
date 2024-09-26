@@ -5,8 +5,16 @@ class HootLineException(HTTPException):
     status_code = 500
     detail = "Вышла ошибочка, мы уже думаем над её решением!"
 
-    def __init__(self, status_code: int, detail: str, **kwargs):
-        super().__init__(status_code=status_code, detail=detail, **kwargs)
+    def __init__(self):
+        super().__init__(status_code=self.status_code, detail=self.detail)
+
+
+class HootLineExceptionDynamic(HTTPException):
+    status_code = 500
+    detail = "Вышла ошибочка, мы уже думаем над её решением!"
+
+    def __init__(self, status_code: int, detail: str):
+        super().__init__(status_code=status_code, detail=detail)
 
 
 class UserNameAlreadyExistsException(HootLineException):
@@ -24,9 +32,9 @@ class TokenExpiredException(HootLineException):
     detail = "Срок действия токена истек"
 
 
-class TokenAbsentException(HootLineException):
-    status_code = status.HTTP_401_UNAUTHORIZED
-    detail = "Токен отсутствует"
+class TokenAbsentException(HTTPException):
+    def __init__(self):
+        super().__init__(status_code=401, detail="Токен отсутствует")
 
 
 class IncorrectTokenFormatException(HootLineException):
@@ -89,19 +97,19 @@ class ErrorUpdatingUser(HootLineException):
     detail = "Ошибка при обновлении пользователя"
 
 
-class EmailOrUsernameWasNotFound(HootLineException):
-    status_code = status.HTTP_404_NOT_FOUND
-    detail = "Пользователь с указанным email или username не найден"
+class EmailOrUsernameWasNotFound(HootLineExceptionDynamic):
+    def __init__(self):
+        super().__init__(status_code=404, detail="Пользователь не найден")
 
 
-class InvalidPassword(HootLineException):
-    status_code = status.HTTP_401_UNAUTHORIZED
-    detail = "Неверный пароль"
+class InvalidPassword(HootLineExceptionDynamic):
+    def __init__(self):
+        super().__init__(status_code=401, detail="Неверный пароль")
 
 
-class FailedToGetUserRoles(HootLineException):
-    status_code = status.HTTP_401_UNAUTHORIZED
-    detail = "Не удалось получить роли пользователя"
+class FailedToGetUserRoles(HootLineExceptionDynamic):
+    def __init__(self):
+        super().__init__(status_code=400, detail="Не удалось получить роли пользователя")
 
 
 class FailedTGetDataFromDatabase(HootLineException):
@@ -109,9 +117,10 @@ class FailedTGetDataFromDatabase(HootLineException):
     detail = "Не удалось получить данные из базы"
 
 
-class CategoryWithTheSameNameAlreadyExists(HootLineException):
-    status_code = status.HTTP_400_BAD_REQUEST
-    detail = "Категория с таким именем уже существует"
+class CategoryWithTheSameNameAlreadyExists(Exception):
+    def __init__(self, detail: str):
+        self.detail = detail
+        super().__init__(detail)
 
 
 class ErrorCreatingCategory(HootLineException):
@@ -169,13 +178,13 @@ class InvalidDataFormat(HootLineException):
     detail = "Неверный формат данных"
 
 
-class CategoryNotFoundException(HootLineException):
+class CategoryNotFoundException(HootLineExceptionDynamic):
     def __init__(self, category_id: int):
         detail = f"Категория с id {category_id} не найдена"
         super().__init__(status_code=status.HTTP_404_NOT_FOUND, detail=detail)
 
 
-class ValidationErrorException(HootLineException):
+class ValidationErrorException(HootLineExceptionDynamic):
     def __init__(self, error_detail: str):
         super().__init__(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=error_detail)
 
@@ -205,4 +214,40 @@ class ParentCategoryNotFound(HootLineException):
     detail = "Родительская категория не найдена"
 
 
+class CategoryWithSameNameAlreadyExists(HootLineExceptionDynamic):
+    def __init__(self, category_name: str):
+        detail = f"Категория с именем '{category_name}' уже существует."
+        super().__init__(status_code=400, detail=detail)
+
+
+class ParentCategoryNotFoundException(HootLineExceptionDynamic):
+    def __init__(self, parent_question_id: int):
+        self.parent_question_id = parent_question_id
+        self.message = f"Родительская категория с id {self.parent_question_id} не найдена"
+        super().__init__(self.message)
+
+
+class ErrorUpdatingSubcategories(HootLineException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    detail = "Ошибка при обновлении подкатегорий"
+
+
+class FailedToUpdateSubcategories(HootLineException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    detail = "Не удалось обновить подкатегории"
+
+
+class ErrorGettingUser(HootLineException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    detail = "Ошибка при получении пользователя"
+
+
+class MissingTokenException(HootLineExceptionDynamic):
+    def __init__(self, detail="Токен отсутствует или недействителен"):
+        super().__init__(status_code=status.HTTP_401_UNAUTHORIZED, detail=detail)
+
+
+class FailedToRetrieveQuestions(HootLineException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    detail = "Не удалось получить вопросы"
 
