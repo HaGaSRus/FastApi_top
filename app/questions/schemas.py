@@ -48,7 +48,9 @@ class QuestionCreate(BaseModel):
     number: int
     category_id: int
     count: Optional[int]
-    parent_id: Optional[int] = None  # Поле для указания родительского вопроса
+    parent_question_id: Optional[int] = None  # Поле для указания родительского вопроса
+    is_subquestion: bool = False  # Поле для указания поиска в под-вопросах
+    parent_subquestion_id: Optional[int] = None
 
     class Config:
         from_attributes = True
@@ -75,7 +77,7 @@ class QuestionResponse(BaseModel):
     answer: str
     number: int
     count: Optional[int]
-    parent_id: Optional[int] = None
+    parent_question_id: Optional[int] = None
     sub_questions: Optional[List[SubQuestionResponse]] = None
 
     class Config:

@@ -37,7 +37,7 @@ async def get_questions_by_category(
         logger.info("Получение списка вопросов")
 
         # Получаем все родительские вопросы с под-вопросами
-        questions_result = await db.execute(select(Question).options(selectinload(Question.sub_questions)).where(Question.parent_id.is_(None)))
+        questions_result = await db.execute(select(Question).options(selectinload(Question.sub_questions)).where(Question.parent_question_id.is_(None)))
         parent_questions = questions_result.scalars().all()
 
         # Используем await, если convert_question_to_response асинхронная
@@ -64,22 +64,27 @@ async def create_question(
     try:
         logger.info("Создание нового вопроса с текстом: %s", question.text)
 
-        if question.parent_id:
+        if question.is_subquestion:
+            if not question.parent_question_id:
+                raise HTTPException(status_code=400, detail="Для подвопроса нужно указать parent_id")
+
+            # Создаем подвопрос
             new_question = await QuestionService.create_subquestion(
                 question=question,
-                parent_question_id=question.parent_id,
+                parent_question_id=question.parent_question_id,
                 db=db
             )
-            logger.info("Создание подвопроса для родительского вопроса ID: %d", question.parent_id)
+            logger.info(f"Создание подвопроса для родительского вопроса с ID: {question.parent_question_id}")
         else:
+            # Создаем родительский вопрос
             new_question = await QuestionService.create_question(
                 question=question,
-                category_id=question.category_id,  # используем category_id из тела
-                parent_question_id=None,
+                category_id=question.category_id,  # Используем category_id из тела запроса
                 db=db
             )
             logger.info("Создание родительского вопроса")
 
+        # Формируем ответ
         response = await build_question_response(new_question)
         logger.info("Вопрос успешно создан: %s", response)
         return response
@@ -93,9 +98,8 @@ async def create_question(
         raise DataIntegrityErrorPerhapsQuestionWithThisTextAlreadyExists
     except Exception as e:
         logger.error("Ошибка при создании вопроса: %s", e)
-        logger.error(traceback.format_exc())
+        logger.error(traceback.format_exc())  # Логирование полного стека вызовов
         raise HTTPException(status_code=500, detail="Не удалось создать вопрос")
-
 
 
 @router_question.get("/answer",

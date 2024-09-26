@@ -1,4 +1,5 @@
 import asyncio
+import traceback
 from typing import Optional, List
 from fastapi import Depends, HTTPException
 from app.database import get_db
@@ -19,7 +20,6 @@ class QuestionService:
     async def create_question(
             question: QuestionCreate,
             category_id: int,
-            parent_question_id: Optional[int],
             db: AsyncSession
     ) -> Question:
         try:
@@ -27,13 +27,19 @@ class QuestionService:
             if not category:
                 raise CategoryNotFound
 
-            if parent_question_id:
-                return await QuestionService.create_question(
+            # Если это подвопрос, перенаправляем на создание подвопроса
+            if question.is_subquestion:
+                if not question.parent_question_id:  # Изменено на parent_question_id
+                    raise HTTPException(status_code=400, detail="Для подвопроса нужно указать parent_question_id")
+
+                logger.info(f"Попытка создания подвопроса с parent_question_id: {question.parent_question_id}")
+                return await QuestionService.create_subquestion(
                     question=question,
-                    parent_question_id=parent_question_id,
+                    parent_question_id=question.parent_question_id,  # Изменено на parent_question_id
                     db=db
                 )
 
+            # Создание родительского вопроса
             new_question = Question(
                 text=question.text,
                 answer=question.answer,
@@ -45,62 +51,74 @@ class QuestionService:
             await db.commit()
             await db.refresh(new_question)
 
+            # Устанавливаем поле number равным id и сохраняем снова
             new_question.number = new_question.id
             db.add(new_question)
             await db.commit()
 
             return new_question
+
         except Exception as e:
             logger.error(f"Ошибка при создании вопроса: {e}")
+            logger.error(traceback.format_exc())  # Логирование полного стека вызовов
             raise HTTPException(status_code=500, detail="Не удалось создать вопрос")
 
     @staticmethod
     async def create_subquestion(
-            question: SubQuestionCreate,
+            question: QuestionCreate,
             parent_question_id: int,
             db: AsyncSession,
     ) -> SubQuestion:
         try:
-            # Проверяем существование родительского подвопроса
-            parent_sub_question = await db.get(SubQuestion, parent_question_id)
+            # Логирование перед поиском родительского вопроса
+            logger.info(f"Попытка найти родительский вопрос с ID: {parent_question_id}")
 
-            # Если родительский подвопрос не найден, выбрасываем исключение
-            if not parent_sub_question:
-                raise ParentQuestionNotFound
-
-            # Проверяем существование родительского вопроса в таблице questions
-            parent_question = await db.get(Question, parent_sub_question.question_id)
-
-            # Если родительский вопрос не найден, выбрасываем исключение
+            # Находим родительский вопрос по ID
+            parent_question = await db.get(Question, parent_question_id)
             if not parent_question:
+                logger.error(f"Родительский вопрос с ID {parent_question_id} не найден.")
                 raise ParentQuestionNotFound
+
+            # Проверяем глубину и родительский подвопрос, если таковой существует
+            logger.info(f"Проверка глубины вложенности для вопроса с ID: {parent_question_id}")
+            parent_sub_question = await db.execute(
+                select(SubQuestion).where(SubQuestion.question_id == parent_question_id)
+            )
+            parent_sub_question = parent_sub_question.scalars().first()
+
+            # Устанавливаем depth
+            depth = 1 if not parent_sub_question else parent_sub_question.depth + 1
 
             # Создаем новый подвопрос
+            logger.info(f"Создание нового подвопроса для родительского вопроса с ID: {parent_question_id}")
             new_sub_question = SubQuestion(
                 text=question.text,
                 answer=question.answer,
-                question_id=parent_question.id,  # Используем id найденного родительского вопроса
-                depth=parent_sub_question.depth + 1  # Увеличиваем глубину на 1
+                question_id=parent_question.id,
+                depth=depth,
+                parent_subquestion_id=question.parent_subquestion_id  # Устанавливаем связь с родительским подвопросом, если есть
             )
 
-            # Логируем информацию о новом подвопросе
-            logger.info(f"Создание подвопроса для родительского вопроса ID: {parent_question.id}")
-
-            # Сохраняем новый подвопрос в БД
+            # Сохраняем подвопрос в БД
             db.add(new_sub_question)
             await db.commit()
             await db.refresh(new_sub_question)
 
+            # Устанавливаем поле number равным id и сохраняем снова
             new_sub_question.number = new_sub_question.id
             db.add(new_sub_question)
             await db.commit()
 
-            logger.info(f"Создан подвопрос: {new_sub_question}")
-
             return new_sub_question
+
+        except ParentQuestionNotFound as e:
+            logger.error(f"Ошибка при создании подвопроса: {e}")
+            raise HTTPException(status_code=404, detail="Родительский вопрос не найден")
         except Exception as e:
             logger.error(f"Ошибка при создании подвопроса: {e}")
+            logger.error(traceback.format_exc())  # Логирование полного стека вызовов
             raise HTTPException(status_code=500, detail="Не удалось создать подвопрос")
+
 
 
 async def get_category(category_id: int, db: AsyncSession = Depends(get_db)):

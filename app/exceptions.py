@@ -221,9 +221,9 @@ class CategoryWithSameNameAlreadyExists(HootLineExceptionDynamic):
 
 
 class ParentCategoryNotFoundException(HootLineExceptionDynamic):
-    def __init__(self, parent_id: int):
-        self.parent_id = parent_id
-        self.message = f"Родительская категория с id {self.parent_id} не найдена"
+    def __init__(self, parent_question_id: int):
+        self.parent_question_id = parent_question_id
+        self.message = f"Родительская категория с id {self.parent_question_id} не найдена"
         super().__init__(self.message)
 
 
