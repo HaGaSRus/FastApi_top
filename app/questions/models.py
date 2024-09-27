@@ -61,11 +61,11 @@ class SubQuestion(Base):
     number = Column(Integer, nullable=True)
 
     # Связь с родительским подвопросом (если есть)
-    parent_subquestion_id = Column(Integer, ForeignKey('sub_questions.id', name='fk_subquestions_parent_subquestion_id'), nullable=True)
+    # parent_subquestion_id = Column(Integer, ForeignKey('sub_questions.id', name='fk_subquestions_parent_subquestion_id'), nullable=True)
 
     # Обратная связь к вопросу
     question = relationship("Question", back_populates="sub_questions")
-    parent_subquestion = relationship("SubQuestion", remote_side=[id], backref="children")
+    # parent_subquestion = relationship("SubQuestion", remote_side=[id], backref="children")
 
     def __repr__(self):
         return f"<SubQuestion(id={self.id}, question_id={self.question_id}, text={self.text}, depth={self.depth})>"

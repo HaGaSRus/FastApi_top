@@ -34,6 +34,7 @@ class CategoryCreateResponse(CategoryBase):
 
 
 # Модель для создания вопроса
+
 class SubQuestionCreate(BaseModel):
     text: str
     answer: str
@@ -42,6 +43,8 @@ class SubQuestionCreate(BaseModel):
     depth: int
     question_id: int  # ID родительского вопроса
     is_deeper: bool = False  # Новое поле для указания глубины
+    depth: int  # Глубина подвопроса
+
 
 
 class QuestionCreate(BaseModel):
@@ -52,7 +55,8 @@ class QuestionCreate(BaseModel):
     count: Optional[int]
     parent_question_id: Optional[int] = None  # Поле для указания родительского вопроса
     is_subquestion: bool = False  # Поле для указания поиска в под-вопросах
-    parent_subquestion_id: Optional[int]
+    parent_subquestion_id: Optional[int] = None
+    depth: Optional[int] = None  # Поле для указания глубины
 
     class Config:
         from_attributes = True
@@ -66,8 +70,7 @@ class SubQuestionResponse(BaseModel):
     number: int
     count: Optional[int] = None
     question_id: int
-    depth: int  # Обязательно, так как это будет отображать уровень вложенности
-    parent_subquestion_id: Optional[int] = None
+    depth: int  # Добавлено поле depth для хранения глубины
     sub_questions: List['SubQuestionResponse'] = []  # Рекурсивная структура
 
     class Config:
@@ -81,8 +84,11 @@ class QuestionResponse(BaseModel):
     answer: Optional[str] = None  # Сделать ответ необязательным, если требуется
     number: int
     count: Optional[int] = None
+
     parent_question_id: Optional[int] = None  # Это поле должно оставаться, если есть родительский вопрос
     sub_questions: List[SubQuestionResponse] = []
+
+
 
     class Config:
         from_attributes = True

@@ -10,9 +10,11 @@ from app.database import get_db
 from app.exceptions import DataIntegrityErrorPerhapsQuestionWithThisTextAlreadyExists, \
     CouldNotGetAnswerToQuestion
 from app.logger.logger import logger
-from app.questions.dao_queestion import build_question_response, QuestionService, get_sub_questions, \
-    build_subquestions_hierarchy
-from app.questions.models import Question
+from app.questions.dao_queestion import get_similar_questions_cosine, calculate_similarity, \
+    build_question_response, QuestionService, get_sub_questions, \
+    build_subquestions_hierarchy, \
+    build_hierarchical_subquestions
+from app.questions.models import Question, SubQuestion, Category
 from app.questions.schemas import QuestionResponse, QuestionCreate, DynamicAnswerResponse, \
     SimilarQuestionResponse, DynamicSubAnswerResponse
 from pydantic import ValidationError
@@ -42,9 +44,7 @@ async def get_questions(db: AsyncSession = Depends(get_db)):
 
         question_responses = []
         for question, sub_questions in zip(questions, sub_questions_list):
-            # Применяем функцию build_subquestions_hierarchy для создания иерархии
-            hierarchical_sub_questions = build_subquestions_hierarchy(sub_questions)
-
+            hierarchical_sub_questions = await build_hierarchical_subquestions(sub_questions)
             question_response = QuestionResponse(
                 id=question.id,
                 text=question.text,
@@ -53,7 +53,7 @@ async def get_questions(db: AsyncSession = Depends(get_db)):
                 number=question.number,
                 count=question.count,
                 parent_question_id=question.parent_question_id,
-                sub_questions=hierarchical_sub_questions  # Здесь уже иерархия
+                sub_questions=hierarchical_sub_questions  # Вложенные под-вопросы
             )
             question_responses.append(question_response)
 
