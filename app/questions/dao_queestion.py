@@ -1,10 +1,9 @@
 import traceback
-from typing import Optional, List
-from fastapi import Depends, HTTPException
-from app.database import get_db
+from typing import List
+from fastapi import HTTPException
 from app.exceptions import CategoryNotFound, ParentQuestionNotFound
 from app.logger.logger import logger
-from app.questions.models import Question, Category, SubQuestion
+from app.questions.models import Question, SubQuestion
 from app.questions.schemas import QuestionCreate, SubQuestionCreate, SubQuestionResponse, QuestionResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
