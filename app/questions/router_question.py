@@ -1,16 +1,14 @@
-import asyncio
 import traceback
 from typing import List
 from fastapi_versioning import version
 from fastapi import APIRouter, Depends, Path, Query, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.exc import IntegrityError, SQLAlchemyError
-from app.dao.dao import QuestionsDAO
+from sqlalchemy.exc import IntegrityError
 from app.dao.dependencies import get_current_user
 from app.database import get_db
 from app.exceptions import DataIntegrityErrorPerhapsQuestionWithThisTextAlreadyExists, \
-    FailedToCreateQuestion, CouldNotGetAnswerToQuestion, FailedToRetrieveQuestions
+    CouldNotGetAnswerToQuestion
 from app.logger.logger import logger
 from app.questions.dao_queestion import get_similar_questions_cosine, calculate_similarity, \
     build_question_response, QuestionService, get_sub_questions, \
@@ -18,8 +16,7 @@ from app.questions.dao_queestion import get_similar_questions_cosine, calculate_
     build_hierarchical_subquestions
 from app.questions.models import Question, SubQuestion, Category
 from app.questions.schemas import QuestionResponse, QuestionCreate, DynamicAnswerResponse, \
-    SimilarQuestionResponse, DynamicSubAnswerResponse, QuestionAllResponse
-from sqlalchemy.orm import selectinload
+    SimilarQuestionResponse, DynamicSubAnswerResponse
 from pydantic import ValidationError
 import asyncio
 
@@ -92,7 +89,7 @@ async def create_question(
             # Создаем родительский вопрос
             new_question = await QuestionService.create_question(
                 question=question,
-                category_id=question.category_id,  # Используем category_id из тела запроса
+                category_id=question.category_id,
                 db=db
             )
             logger.info("Создание родительского вопроса")
@@ -111,7 +108,7 @@ async def create_question(
         raise DataIntegrityErrorPerhapsQuestionWithThisTextAlreadyExists
     except Exception as e:
         logger.error("Ошибка при создании вопроса: %s", e)
-        logger.error(traceback.format_exc())  # Логирование полного стека вызовов
+        logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail="Не удалось создать вопрос")
 
 
