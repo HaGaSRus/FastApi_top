@@ -41,6 +41,7 @@ class SubQuestionCreate(BaseModel):
     count: int
     depth: int
     question_id: int  # ID родительского вопроса
+    is_deeper: bool = False  # Новое поле для указания глубины
 
 
 class QuestionCreate(BaseModel):
@@ -61,13 +62,13 @@ class QuestionCreate(BaseModel):
 class SubQuestionResponse(BaseModel):
     id: int
     text: str
-    answer: str
+    answer: Optional[str] = None  # Сделать ответ необязательным, если требуется
     number: int
     count: Optional[int] = None
     question_id: int
-    depth: Optional[int] = None
+    depth: int  # Обязательно, так как это будет отображать уровень вложенности
     parent_subquestion_id: Optional[int] = None
-    sub_questions: List['SubQuestionResponse'] = []  # Recursive structure
+    sub_questions: List['SubQuestionResponse'] = []  # Рекурсивная структура
 
     class Config:
         from_attributes = True
@@ -77,14 +78,15 @@ class QuestionResponse(BaseModel):
     id: int
     text: str
     category_id: int
-    answer: str
+    answer: Optional[str] = None  # Сделать ответ необязательным, если требуется
     number: int
-    count: Optional[int]
-    parent_question_id: Optional[int] = None
+    count: Optional[int] = None
+    parent_question_id: Optional[int] = None  # Это поле должно оставаться, если есть родительский вопрос
     sub_questions: List[SubQuestionResponse] = []
 
     class Config:
         from_attributes = True
+
 
 
 # Упрощённый ответ для под-вопросов

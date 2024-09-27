@@ -71,26 +71,35 @@ class QuestionService:
                 logger.error(f"Родительский вопрос с ID {parent_question_id} не найден.")
                 raise ParentQuestionNotFound
 
-            # Найдите родительский подвопрос, если он указан
-            parent_sub_question = None
-            if question.question_id:
-                parent_sub_question = await db.get(SubQuestion, question.question_id)
-
             # Устанавливаем глубину
-            if parent_sub_question:
-                depth = parent_sub_question.depth + 1  # Увеличиваем на 1
-            else:
-                depth = 1  # Если это первый подвопрос для этого вопроса
+            depth = question.depth
+            if question.is_deeper:  # Если нужно углубить вложенность
+                depth += 1
 
             logger.info(
-                f"Создание нового подвопроса для родительского вопроса с ID: {parent_question_id} и глубиной: {depth}")
+                f"Создание нового подвопроса для родительского вопроса с ID: {parent_question_id} и глубиной: {depth}"
+            )
             new_sub_question = SubQuestion(
                 text=question.text,
                 answer=question.answer,
                 question_id=parent_question.id,
                 depth=depth,
-                parent_subquestion_id=question.parent_subquestion_id if question.parent_subquestion_id else None
+                number=question.number,
+                # parent_subquestion_id=None  # Это поле мы установим позже
             )
+
+            # Находим последний созданный подвопрос для родительского вопроса
+            if depth > 1:  # Проверка на глубину
+                last_subquestion = await db.execute(
+                    select(SubQuestion).filter(
+                        SubQuestion.question_id == parent_question.id,
+                        SubQuestion.depth == depth - 1
+                    ).order_by(SubQuestion.id.desc())
+                )
+                last_subquestion = last_subquestion.scalars().first()
+
+                if last_subquestion:
+                    new_sub_question.parent_subquestion_id = last_subquestion.id  # Автоматически устанавливаем parent_subquestion_id
 
             db.add(new_sub_question)
             await db.commit()
@@ -111,32 +120,35 @@ class QuestionService:
             raise HTTPException(status_code=500, detail="Не удалось создать подвопрос")
 
 
-async def build_question_response(question):
-    if isinstance(question, SubQuestion):
-        response = SubQuestionResponse(
-            id=question.id,
-            text=question.text,
-            answer=question.answer,
-            number=question.number,
-            count=question.count,
-            question_id=question.question_id,
-            depth=question.depth,
-            parent_subquestion_id=question.parent_subquestion_id  # Убедитесь, что это поле передается
+async def build_question_response(question: Question) -> QuestionResponse:
+    response = QuestionResponse(
+        id=question.id,
+        text=question.text,
+        category_id=question.category_id,
+        answer=question.answer,
+        number=question.number,
+        count=question.count,
+        parent_question_id=question.parent_question_id,
+        sub_questions=[]
+    )
+
+    # Заполнение подвопросов без parent_subquestion_id
+    for sub_question in question.sub_questions:
+        sub_response = SubQuestionResponse(
+            id=sub_question.id,
+            text=sub_question.text,
+            answer=sub_question.answer,
+            number=sub_question.number,
+            count=sub_question.count,
+            question_id=sub_question.question_id,
+            depth=sub_question.depth,
+            sub_questions=[]  # Убираем parent_subquestion_id
         )
-        logger.info(f"Возвращаемая модель для подвопроса: {response}")
-        return response
-    else:
-        response = QuestionResponse(
-            id=question.id,
-            text=question.text,
-            answer=question.answer,
-            number=question.number,
-            count=question.count,
-            category_id=question.category_id,
-            parent_question_id=question.parent_question_id,  # Убедитесь, что это поле передается, если нужно
-        )
-        logger.info(f"Возвращаемая модель для вопроса: {response}")
-        return response
+        response.sub_questions.append(sub_response)
+
+    return response
+
+
 
 
 # Функция для построения вложенных под-вопросов

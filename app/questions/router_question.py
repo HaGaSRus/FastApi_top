@@ -89,7 +89,7 @@ async def create_question(
             # Создаем родительский вопрос
             new_question = await QuestionService.create_question(
                 question=question,
-                category_id=question.category_id,  # Используем category_id из тела запроса
+                category_id=question.category_id,
                 db=db
             )
             logger.info("Создание родительского вопроса")
@@ -108,7 +108,7 @@ async def create_question(
         raise DataIntegrityErrorPerhapsQuestionWithThisTextAlreadyExists
     except Exception as e:
         logger.error("Ошибка при создании вопроса: %s", e)
-        logger.error(traceback.format_exc())  # Логирование полного стека вызовов
+        logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail="Не удалось создать вопрос")
 
 
