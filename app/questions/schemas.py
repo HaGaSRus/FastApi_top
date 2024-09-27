@@ -50,10 +50,10 @@ class QuestionCreate(BaseModel):
     number: int
     category_id: int
     count: Optional[int]
-    parent_question_id: Optional[int] = None  # Поле для указания родительского вопроса
+    parent_question_id: Optional[int] = None
     is_subquestion: bool = False  # Поле для указания поиска в под-вопросах
-    parent_subquestion_id: Optional[int] = None
     depth: Optional[int] = None  # Поле для указания глубины
+    additional_subquestions: Optional[List[SubQuestionCreate]] = None
 
     class Config:
         from_attributes = True
@@ -77,11 +77,11 @@ class SubQuestionResponse(BaseModel):
 class QuestionResponse(BaseModel):
     id: int
     text: str
-    category_id: int
-    answer: str
+    answer: Optional[str] = None
     number: int
     count: Optional[int] = None
-    parent_question_id: Optional[int] = None
+    depth: int
+    category_id: int
     sub_questions: List[SubQuestionResponse] = []  # Список подвопросов
 
     class Config:

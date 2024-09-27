@@ -1,18 +1,14 @@
-import asyncio
 import traceback
-from typing import Optional, List
+from typing import List
 from fastapi import Depends, HTTPException
 from app.database import get_db
 from app.exceptions import CategoryNotFound, ParentQuestionNotFound
 from app.logger.logger import logger
 from app.questions.models import Question, Category, SubQuestion
-from app.questions.schemas import QuestionCreate, SubQuestionCreate, SubQuestionResponse, QuestionResponse
+from app.questions.schemas import QuestionCreate, SubQuestionResponse, QuestionResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.questions.utils import get_category_by_id
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
-import re
 
 
 class QuestionService:
@@ -106,6 +102,24 @@ class QuestionService:
             logger.error(traceback.format_exc())
             raise HTTPException(status_code=500, detail="Не удалось создать подвопрос")
 
+    @staticmethod
+    async def get_all_questions(db: AsyncSession) -> List[Question]:
+        try:
+            # Получаем все вопросы
+            result = await db.execute(select(Question))
+            questions = result.scalars().all()
+
+            # Получаем под-вопросы для каждого вопроса
+            for question in questions:
+                result = await db.execute(select(SubQuestion).where(SubQuestion.question_id == question.id))
+                question.sub_questions = result.scalars().all()
+
+            return questions
+
+        except Exception as e:
+            logger.error(f"Ошибка при получении всех вопросов: {e}")
+            raise HTTPException(status_code=500, detail="Не удалось получить вопросы")
+
 
 async def get_category(category_id: int, db: AsyncSession = Depends(get_db)):
     category = await db.get(Category, category_id)
@@ -114,94 +128,33 @@ async def get_category(category_id: int, db: AsyncSession = Depends(get_db)):
     return category
 
 
-# Функция для нормализации текста
-def normalize_text(text: str) -> str:
-    text = text.lower()  # Приведение к нижнему регистру
-    text = re.sub(r'\s+', ' ', text)  # Удаление лишних пробелов
-    return text.strip()
+# Используем эту функцию для построения ответа на вопрос
+async def build_question_response(question):
+    # Если это подвопрос, конвертируем через SubQuestionResponse
+    response = QuestionResponse(
+        id=question.id,
+        text=question.text,
+        answer=question.answer,
+        number=question.number,
+        count=question.count,
+        depth=question.depth,
+        category_id=question.category_id,
+        sub_questions=[]  # Строим иерархию для под-вопросов
+    )
+    logger.info(f"Возвращаемая модель для вопроса: {response}")
+
+    # Добавляем под-вопросы
+    for sub_question in question.sub_questions:
+        response.sub_questions.append(build_question_response(sub_question))
+
+    return response
 
 
-async def get_similar_questions_cosine(question_text: str, db: AsyncSession, min_similarity: float = 0.2) -> List[
-    Question]:
-    # Нормализуем текст вопроса
-    normalized_question_text = normalize_text(question_text)
+async def fetch_all_questions(db: AsyncSession):
+    questions = await QuestionService.get_all_questions(db)
 
-    # Получаем вопросы из базы с ограничением по количеству
-    questions = await db.execute(select(Question).limit(1000))
-    questions_list = questions.scalars().all()
-
-    if not questions_list:
-        logger.warning("Не удалось получить список вопросов из базы данных")
-        return []
-
-    # Нормализуем текст всех вопросов
-    all_texts = [normalize_text(q.text) for q in questions_list] + [normalized_question_text]
-
-    # Векторизация вопросов
-    vectorizer = TfidfVectorizer()
-    tfidf_matrix = vectorizer.fit_transform(all_texts)
-
-    # Вычисляем косинусное сходство
-    cosine_similarities = cosine_similarity(tfidf_matrix[-1], tfidf_matrix[:-1])
-
-    # Логируем результаты косинусного сходства
-    logger.debug(f"Косинусные сходства: {cosine_similarities}")
-
-    # Фильтруем вопросы с учетом минимального порога сходства
-    similar_questions = [
-        questions_list[i] for i in range(len(questions_list))
-        if cosine_similarities[0][i] >= min_similarity
-    ]
-
-    # Логируем отфильтрованные вопросы
-    logger.debug(f"Похожие вопросы: {[q.text for q in similar_questions]}")
-    return similar_questions
-
-
-def calculate_similarity(text1: str, text2: str) -> float:
-    try:
-        # Нормализуем текст
-        normalized_text1 = normalize_text(text1)
-        normalized_text2 = normalize_text(text2)
-
-        vectorizer = TfidfVectorizer().fit_transform([normalized_text1, normalized_text2])
-        vectors = vectorizer.toarray()
-        cosine_sim = cosine_similarity(vectors)
-        return float(cosine_sim[0][1])
-    except Exception as e:
-        logger.error(f"Ошибка при расчете сходства между '{text1}' и '{text2}': {e}")
-        return 0.0
-
-
-async def build_question_response(question, sub_questions=None):
-    if isinstance(question, SubQuestion):
-        response = SubQuestionResponse(
-            id=question.id,
-            text=question.text,
-            answer=question.answer,
-            number=question.number,
-            count=question.count,
-            question_id=question.question_id,
-            depth=question.depth,
-            parent_subquestion_id=question.parent_subquestion_id,  # Передаем поле
-            sub_questions=sub_questions or []  # Передаем вложенные подвопросы
-        )
-        logger.info(f"Возвращаемая модель для подвопроса: {response}")
-        return response
-    else:
-        response = QuestionResponse(
-            id=question.id,
-            text=question.text,
-            answer=question.answer,
-            number=question.number,
-            count=question.count,
-            category_id=question.category_id,
-            parent_question_id=question.parent_question_id,  # Передаем поле, если нужно
-            sub_questions=[]  # Инициализируем пустым списком, если у вопроса нет подвопросов
-        )
-        logger.info(f"Возвращаемая модель для вопроса: {response}")
-        return response
-
+    response_list = [await build_question_response(question) for question in questions]
+    return response_list
 
 
 async def build_hierarchical_subquestions(sub_questions):
@@ -222,9 +175,16 @@ async def build_hierarchical_subquestions(sub_questions):
     return hierarchical_subquestions
 
 
+async def convert_subquestion_to_response(sub_question: SubQuestionResponse, sub_questions: List[SubQuestionResponse]):
+    # Фильтруем детей текущего подвопроса
+    children = [
+        await convert_subquestion_to_response(child, sub_questions)
+        for child in sub_questions
+        if child.depth == sub_question.depth + 1 and child.question_id == sub_question.question_id
+    ]
 
-async def convert_subquestion_to_response(sub_question, children) -> SubQuestionResponse:
-    sub_question_response = SubQuestionResponse(
+    # Возвращаем объект SubQuestionResponse с детьми
+    return SubQuestionResponse(
         id=sub_question.id,
         text=sub_question.text,
         answer=sub_question.answer,
@@ -232,25 +192,30 @@ async def convert_subquestion_to_response(sub_question, children) -> SubQuestion
         count=sub_question.count,
         question_id=sub_question.question_id,
         depth=sub_question.depth,
-        sub_questions=children  # Здесь могут быть вложенные под-вопросы
+        sub_questions=children  # Добавляем вложенные под-вопросы
     )
 
+
     # Добавляем детей в ответ, если они есть
-    if children:
-        sub_question_response.children = [
-            await convert_subquestion_to_response(child["sub_question"], child["children"]) for child in children
-        ]
-    logger.info(f"Под-вопрос {sub_question.id} имеет parent_subquestion_id: {sub_question.depth}")
+    # if children:
+    #     sub_question_response.children = [
+    #         await convert_subquestion_to_response(child["sub_question"], child["children"]) for child in children
+    #     ]
+    # logger.info(f"Под-вопрос {sub_question.id} имеет parent_subquestion_id: {sub_question.depth}")
+    #
+    # return sub_question_response
 
-    return sub_question_response
 
-
-# Функция для построения вложенных под-вопросов
+# Обновляем функцию для получения всех подвопросов и построения иерархии
 async def get_sub_questions(db: AsyncSession, question_id: int) -> List[SubQuestionResponse]:
     try:
-        result = await db.execute(select(SubQuestion).where(SubQuestion.question_id == question_id))
+        # Получаем все подвопросы по question_id, сортируя по глубине
+        result = await db.execute(
+            select(SubQuestion).where(SubQuestion.question_id == question_id).order_by(SubQuestion.depth)
+        )
         sub_questions = result.scalars().all()
 
+        # Преобразуем в SubQuestionResponse объекты
         sub_question_responses = [
             SubQuestionResponse(
                 id=sub_question.id,
@@ -260,24 +225,104 @@ async def get_sub_questions(db: AsyncSession, question_id: int) -> List[SubQuest
                 count=sub_question.count,
                 question_id=sub_question.question_id,
                 depth=sub_question.depth,
-                sub_questions=[]  # Пустой список, т.к. иерархию мы построим позже
+                sub_questions=[]  # Инициализируем пустым списком
             )
             for sub_question in sub_questions
         ]
 
-        logger.info(f"Получено sub_questions для вопроса_id. {question_id}: {sub_question_responses}")
-        return sub_question_responses
+        logger.info(f"Получены под-вопросы для вопроса с ID {question_id}: {sub_question_responses}")
+
+        # Построение иерархии
+        hierarchical_sub_questions = build_subquestions_hierarchy(sub_question_responses)
+        return hierarchical_sub_questions
+
     except Exception as e:
         logger.error(f"Ошибка в get_sub_questions: {e}")
-        raise
+        raise HTTPException(status_code=500, detail="Не удалось получить подвопросы")
 
 
-
+# Обновленная функция для создания иерархии подвопросов
 def build_subquestions_hierarchy(sub_questions, parent_id=None):
     hierarchy = []
     for sub_question in sub_questions:
-        if sub_question.parent_subquestion_id == parent_id:
-            # Рекурсивно строим вложенность
-            sub_question.sub_questions = build_subquestions_hierarchy(sub_questions, sub_question.id)
-            hierarchy.append(sub_question)
+        if sub_question.question_id == parent_id:
+            # Рекурсивно строим иерархию
+            children = build_subquestions_hierarchy(sub_questions, sub_question.id)
+            hierarchy.append({
+                'id': sub_question.id,
+                'text': sub_question.text,
+                'answer': sub_question.answer,
+                'depth': sub_question.depth,
+                'sub_questions': children  # Вложенные подвопросы
+            })
     return hierarchy
+
+
+
+
+async def get_hierarchical_questions(db: AsyncSession):
+    result = await db.execute(select(Question))
+    questions = result.scalars().all()
+
+    result = await db.execute(select(SubQuestion))
+    sub_questions = result.scalars().all()
+
+    # Преобразуем вопросы в формат ответа
+    question_responses = [
+        QuestionResponse(
+            id=question.id,
+            text=question.text,
+            answer=question.answer,
+            number=question.number,
+            count=question.count,
+            category_id=question.category_id,
+            sub_questions=[]  # Будем добавлять подвопросы позже
+        )
+        for question in questions
+    ]
+
+    # Преобразуем подвопросы в формат ответа
+    sub_question_responses = [
+        SubQuestionResponse(
+            id=sub_question.id,
+            text=sub_question.text,
+            answer=sub_question.answer,
+            number=sub_question.number,
+            count=sub_question.count,
+            question_id=sub_question.question_id,
+            depth=sub_question.depth,
+            sub_questions=[]
+        )
+        for sub_question in sub_questions
+    ]
+
+    # Строим иерархию
+    hierarchical_questions = build_subquestions_hierarchy(sub_question_responses)
+
+    return hierarchical_questions
+
+
+async def create_subquestions(sub_questions_data, parent_question_id, current_depth, db):
+    if current_depth > 10:
+        raise HTTPException(status_code=400, detail="Глубина вложенности не должна превышать 10")
+
+    for sub_question_data in sub_questions_data:
+        # Создаем под вопрос
+        sub_question = SubQuestion(
+            text=sub_question_data['text'],
+            answer=sub_question_data.get('answer'),
+            number=sub_question_data['number'],
+            question_id=parent_question_id,
+            depth=current_depth
+        )
+        db.add(sub_question)
+        await db.commit()  # Сохраняем в базе данных
+
+        # Если есть вложенные подвопросы, вызываем функцию рекурсивно
+        if 'sub_questions' in sub_question_data:
+            await create_subquestions(
+                sub_question_data['sub_questions'],
+                sub_question.id,
+                current_depth + 1,
+                db
+            )

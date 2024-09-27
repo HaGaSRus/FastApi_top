@@ -12,13 +12,14 @@ from app.database import get_db
 from app.exceptions import DataIntegrityErrorPerhapsQuestionWithThisTextAlreadyExists, \
     FailedToCreateQuestion, CouldNotGetAnswerToQuestion, FailedToRetrieveQuestions
 from app.logger.logger import logger
-from app.questions.dao_queestion import get_similar_questions_cosine, calculate_similarity, \
-    build_question_response, QuestionService, get_sub_questions, \
+from app.questions.FSM import QuestionStateMachine
+from app.questions.ML import calculate_similarity, get_similar_questions_cosine
+from app.questions.dao_queestion import build_question_response, QuestionService, get_sub_questions, \
     build_subquestions_hierarchy, \
     build_hierarchical_subquestions
 from app.questions.models import Question, SubQuestion, Category
 from app.questions.schemas import QuestionResponse, QuestionCreate, DynamicAnswerResponse, \
-    SimilarQuestionResponse, DynamicSubAnswerResponse, QuestionAllResponse
+    SimilarQuestionResponse, DynamicSubAnswerResponse, QuestionAllResponse, SubQuestionResponse
 from sqlalchemy.orm import selectinload
 from pydantic import ValidationError
 import asyncio
@@ -38,16 +39,18 @@ router_question = APIRouter(
 @version(1)
 async def get_questions(db: AsyncSession = Depends(get_db)):
     try:
+        # Получаем все вопросы и подвопросы
         result = await db.execute(select(Question))
         questions = result.scalars().all()
-        logger.info(f"Полученные вопросы: {questions}")
 
-        tasks = [get_sub_questions(db, question.id) for question in questions]
-        sub_questions_list = await asyncio.gather(*tasks)
+        result = await db.execute(select(SubQuestion))
+        sub_questions = result.scalars().all()
+
+        # Создаем иерархию под вопросов
+        hierarchical_sub_questions = build_subquestions_hierarchy(sub_questions)
 
         question_responses = []
-        for question, sub_questions in zip(questions, sub_questions_list):
-            hierarchical_sub_questions = await build_hierarchical_subquestions(sub_questions)
+        for question in questions:
             question_response = QuestionResponse(
                 id=question.id,
                 text=question.text,
@@ -55,12 +58,14 @@ async def get_questions(db: AsyncSession = Depends(get_db)):
                 answer=question.answer,
                 number=question.number,
                 count=question.count,
-                parent_question_id=question.parent_question_id,
-                sub_questions=hierarchical_sub_questions  # Вложенные под-вопросы
+                sub_questions=[
+                    sub for sub in hierarchical_sub_questions if sub['question_id'] == question.id
+                ]
             )
             question_responses.append(question_response)
 
         return question_responses
+
     except Exception as e:
         logger.error(f"Ошибка в get_questions: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -74,12 +79,15 @@ async def create_question(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
+    state_machine = QuestionStateMachine()
+
     try:
         logger.info("Создание нового вопроса с текстом: %s", question.text)
 
         if question.is_subquestion:
+            state_machine.create_sub()
             if not question.parent_question_id:
-                raise HTTPException(status_code=400, detail="Для подвопроса нужно указать parent_id")
+                raise HTTPException(status_code=400, detail="Для под-вопроса нужно указать родительский id")
 
             # Создаем подвопрос
             new_question = await QuestionService.create_subquestion(
@@ -87,9 +95,20 @@ async def create_question(
                 parent_question_id=question.parent_question_id,
                 db=db
             )
-            logger.info(f"Создание подвопроса для родительского вопроса с ID: {question.parent_question_id}")
+            logger.info(f"Создание под-вопроса для родительского вопроса с ID: {question.parent_question_id}")
+
+            # Если нужно добавить несколько под-вопросов
+            if question.additional_subquestions:  # Проверяем, есть ли дополнительные подвопросы
+                state_machine.add_sub_questions()  # Переход к добавлению нескольких подвопросов
+                for sub_question_data in question.additional_subquestions:
+                    await QuestionService.create_subquestion(
+                        question=sub_question_data,
+                        parent_question_id=question.parent_question_id,
+                        db=db
+                    )
+                logger.info(f"Добавлены дополнительные под-впоросы для родительского вопроса с ID: {question.parent_question_id} ")
         else:
-            # Создаем родительский вопрос
+            state_machine.create_parent() # Создаем родительский вопрос
             new_question = await QuestionService.create_question(
                 question=question,
                 category_id=question.category_id,  # Используем category_id из тела запроса
