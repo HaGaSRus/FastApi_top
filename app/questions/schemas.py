@@ -39,6 +39,7 @@ class SubQuestionCreate(BaseModel):
     answer: str
     number: int
     count: int
+    depth: int
     question_id: int  # ID родительского вопроса
 
 

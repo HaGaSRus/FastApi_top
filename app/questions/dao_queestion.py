@@ -11,7 +11,6 @@ from sqlalchemy import select
 from app.questions.utils import get_category_by_id
 
 
-
 class QuestionService:
     @staticmethod
     async def create_question(
@@ -62,7 +61,7 @@ class QuestionService:
 
     @staticmethod
     async def create_subquestion(
-            question: QuestionCreate,
+            question: SubQuestionCreate,
             parent_question_id: int,
             db: AsyncSession,
     ) -> SubQuestion:
@@ -75,8 +74,8 @@ class QuestionService:
 
             # Найдите родительский подвопрос, если он указан
             parent_sub_question = None
-            if question.parent_subquestion_id:
-                parent_sub_question = await db.get(SubQuestion, question.parent_subquestion_id)
+            if question.question_id:
+                parent_sub_question = await db.get(SubQuestion, question.question_id)
 
             # Устанавливаем глубину
             if parent_sub_question:
@@ -113,13 +112,6 @@ class QuestionService:
             raise HTTPException(status_code=500, detail="Не удалось создать подвопрос")
 
 
-async def get_category(category_id: int, db: AsyncSession = Depends(get_db)):
-    category = await db.get(Category, category_id)
-    if not category:
-        raise CategoryNotFound
-    return category
-
-
 async def build_question_response(question):
     if isinstance(question, SubQuestion):
         response = SubQuestionResponse(
@@ -146,61 +138,6 @@ async def build_question_response(question):
         )
         logger.info(f"Возвращаемая модель для вопроса: {response}")
         return response
-
-
-async def build_hierarchical_subquestions(sub_questions: List[SubQuestion]) -> List[SubQuestionResponse]:
-    question_map = {sub_question.id: {"sub_question": sub_question, "children": []} for sub_question in sub_questions}
-
-    # Построение иерархии
-    for sub_question in sub_questions:
-        if sub_question.parent_subquestion_id:  # Если есть родительский подвопрос
-            parent_id = sub_question.parent_subquestion_id
-            if parent_id in question_map:
-                question_map[parent_id]["children"].append(question_map[sub_question.id])
-    logger.info(f"Карта под-вопросов: {question_map}")
-
-    # Преобразование в структуру для ответа, добавляя корневые подвопросы
-    return [
-        await convert_subquestion_to_response(question_map[sub_question.id]["sub_question"],
-                                              question_map[sub_question.id]["children"])
-        for sub_question in sub_questions if not sub_question.parent_subquestion_id  # Только корневые
-    ]
-
-
-# Функция для преобразования Question в QuestionResponse
-async def convert_question_to_response(question: Question, sub_questions: List[SubQuestion]) -> QuestionResponse:
-    sub_question_responses = await build_hierarchical_subquestions(sub_questions)
-    return QuestionResponse(
-        id=question.id,
-        text=question.text,
-        answer=question.answer,
-        number=question.number,
-        count=question.count,
-        category_id=question.category_id,
-        sub_questions=sub_question_responses
-    )
-
-
-async def convert_subquestion_to_response(sub_question, children) -> SubQuestionResponse:
-    sub_question_response = SubQuestionResponse(
-        id=sub_question.id,
-        text=sub_question.text,
-        answer=sub_question.answer,
-        number=sub_question.number,
-        count=sub_question.count,
-        question_id=sub_question.question_id,
-        depth=sub_question.depth,
-        parent_subquestion_id=sub_question.parent_subquestion_id  # Добавьте это поле
-    )
-
-    # Добавляем детей в ответ, если они есть
-    if children:
-        sub_question_response.children = [
-            await convert_subquestion_to_response(child["sub_question"], child["children"]) for child in children
-        ]
-    logger.info(f"Под-вопрос {sub_question.id} имеет parent_subquestion_id: {sub_question.parent_subquestion_id}")
-
-    return sub_question_response
 
 
 # Функция для построения вложенных под-вопросов

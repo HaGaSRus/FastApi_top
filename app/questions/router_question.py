@@ -1,24 +1,20 @@
-import asyncio
 import traceback
 from typing import List
 from fastapi_versioning import version
 from fastapi import APIRouter, Depends, Path, Query, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.exc import IntegrityError, SQLAlchemyError
-from app.dao.dao import QuestionsDAO
+from sqlalchemy.exc import IntegrityError
 from app.dao.dependencies import get_current_user
 from app.database import get_db
 from app.exceptions import DataIntegrityErrorPerhapsQuestionWithThisTextAlreadyExists, \
-    FailedToCreateQuestion, CouldNotGetAnswerToQuestion, FailedToRetrieveQuestions
+    CouldNotGetAnswerToQuestion
 from app.logger.logger import logger
-from app.questions.dao_queestion import get_similar_questions_cosine, calculate_similarity, \
-    convert_question_to_response, build_question_response, QuestionService, get_sub_questions, \
+from app.questions.dao_queestion import build_question_response, QuestionService, get_sub_questions, \
     build_subquestions_hierarchy
-from app.questions.models import Question, SubQuestion, Category
+from app.questions.models import Question
 from app.questions.schemas import QuestionResponse, QuestionCreate, DynamicAnswerResponse, \
-    SimilarQuestionResponse, DynamicSubAnswerResponse, QuestionAllResponse
-from sqlalchemy.orm import selectinload
+    SimilarQuestionResponse, DynamicSubAnswerResponse
 from pydantic import ValidationError
 import asyncio
 
