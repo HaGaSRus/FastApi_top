@@ -63,6 +63,42 @@ async def get_questions(db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router_question.get("/questions/{question_id}", response_model=QuestionResponse)
+@version(1)
+async def get_question_with_subquestions(
+    question_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    try:
+        # Получаем вопрос по ID
+        question = await db.get(Question, question_id)
+        if not question:
+            raise HTTPException(status_code=404, detail="Вопрос не найден")
+
+        # Получаем все подвопросы
+        sub_questions = await get_sub_questions(db, question_id)
+
+        # Строим иерархию подвопросов
+        hierarchical_sub_questions = build_subquestions_hierarchy(sub_questions)
+
+        # Формируем ответ
+        question_response = QuestionResponse(
+            id=question.id,
+            text=question.text,
+            category_id=question.category_id,
+            answer=question.answer,
+            number=question.number,
+            count=question.count,
+            parent_question_id=question.parent_question_id,
+            sub_questions=hierarchical_sub_questions  # Здесь иерархия подвопросов
+        )
+
+        return question_response
+    except Exception as e:
+        logger.error(f"Ошибка в get_question_with_subquestions: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # Роут для создания вопроса или под вопроса
 @router_question.post("/create", summary="Создание вопроса или подвопроса")
 @version(1)
