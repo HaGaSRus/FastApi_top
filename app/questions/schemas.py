@@ -37,26 +37,30 @@ class CategoryCreateResponse(CategoryBase):
 
 class SubQuestionCreate(BaseModel):
     text: str
-    answer: str
-    number: int
-    count: int
+    answer: Optional[str] = 0
+    number: Optional[int] = 0
+    count: Optional[int] = 0
     depth: int
-    question_id: int  # ID родительского вопроса
-    is_deeper: bool = False  # Новое поле для указания глубины
-    depth: int  # Глубина подвопроса
+
+    parent_question_id: int  # ID родительского вопроса
+    parent_subquestion_id: Optional[int] = 0
+    category_id: Optional[int] = 0
+    subcategory_id: Optional[int] = 0
 
 
 
 class QuestionCreate(BaseModel):
     text: str
-    answer: Optional[str] = None
-    number: int
-    category_id: int
+    answer: Optional[str] = 0
+    number: Optional[int] = 0
+    category_id: Optional[int]
+    subcategory_id: Optional[int] = 0
     count: Optional[int]
-    parent_question_id: Optional[int] = None  # Поле для указания родительского вопроса
+    parent_question_id: Optional[int] = 0  # Поле для указания родительского вопроса
     is_subquestion: bool = False  # Поле для указания поиска в под-вопросах
-    parent_subquestion_id: Optional[int] = None
-    depth: Optional[int] = None  # Поле для указания глубины
+    parent_subquestion_id: Optional[int] = 0
+    # depth: Optional[int] = 0
+
 
     class Config:
         from_attributes = True
@@ -66,11 +70,15 @@ class QuestionCreate(BaseModel):
 class SubQuestionResponse(BaseModel):
     id: int
     text: str
-    answer: Optional[str] = None  # Сделать ответ необязательным, если требуется
+    answer: Optional[str] = 0  # Сделать ответ необязательным, если требуется
     number: int
-    count: Optional[int] = None
-    question_id: int
-    depth: int  # Добавлено поле depth для хранения глубины
+
+    count: Optional[int] = 0
+    parent_question_id: int
+    depth: int  # Обязательно, так как это будет отображать уровень вложенности
+    parent_subquestion_id: Optional[int] = 0
+    category_id: Optional[int] = 0
+    subcategory_id: Optional[int] = 0
     sub_questions: List['SubQuestionResponse'] = []  # Рекурсивная структура
 
     class Config:
@@ -81,11 +89,13 @@ class QuestionResponse(BaseModel):
     id: int
     text: str
     category_id: int
-    answer: Optional[str] = None  # Сделать ответ необязательным, если требуется
+    subcategory_id: Optional[int] = 0
+    answer: Optional[str] = 0  # Сделать ответ необязательным, если требуется
     number: int
-    count: Optional[int] = None
+    depth: int
+    count: Optional[int] = 0
+    parent_question_id: Optional[int] = 0  # Это поле должно оставаться, если есть родительский вопрос
 
-    parent_question_id: Optional[int] = None  # Это поле должно оставаться, если есть родительский вопрос
     sub_questions: List[SubQuestionResponse] = []
 
 
