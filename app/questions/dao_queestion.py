@@ -133,6 +133,7 @@ async def build_question_response(question: Question) -> QuestionResponse:
 
 
 async def build_subquestion_response(sub_question: SubQuestion) -> SubQuestionResponse:
+    logger.info(f"Создание ответа для подвопроса: {sub_question}")  # Логируем объект перед возвратом
     return SubQuestionResponse(
         id=sub_question.id,
         text=sub_question.text,
@@ -143,16 +144,18 @@ async def build_subquestion_response(sub_question: SubQuestion) -> SubQuestionRe
         depth=sub_question.depth,
         category_id=sub_question.category_id,
         subcategory_id=sub_question.subcategory_id,
-        sub_questions=[]  # Пустой список, т.к. иерархию мы построим позже
+        parent_subquestion_id=sub_question.parent_subquestion_id,  # Проверяем это поле
+        sub_questions=[]  # Пустой список для построения иерархии
     )
 
 
-
 # Функция для построения вложенных под-вопросов
-async def get_sub_questions(db: AsyncSession, question_id: int) -> List[SubQuestionResponse]:
+async def get_sub_questions(db: AsyncSession, parent_question_id: int) -> List[SubQuestionResponse]:
     try:
-        result = await db.execute(select(SubQuestion).where(SubQuestion.parent_question_id == question_id))
+        result = await db.execute(select(SubQuestion).where(SubQuestion.parent_question_id == parent_question_id))
         sub_questions = result.scalars().all()
+
+        logger.info(f"Найденные под-вопросы для вопроса {parent_question_id}: {[sq.id for sq in sub_questions]}")
 
         sub_question_responses = [
             SubQuestionResponse(
@@ -163,25 +166,28 @@ async def get_sub_questions(db: AsyncSession, question_id: int) -> List[SubQuest
                 count=sub_question.count,
                 parent_question_id=sub_question.parent_question_id,
                 depth=sub_question.depth,
-                category_id=sub_question.category_id,  # Добавляем category_id
-                subcategory_id=sub_question.subcategory_id,  # Добавляем subcategory_id
-                sub_questions=[]  # Пустой список, т.к. иерархию мы построим позже
+                category_id=sub_question.category_id,
+                subcategory_id=sub_question.subcategory_id,
+                parent_subquestion_id=sub_question.parent_subquestion_id,
+                sub_questions=[]
             )
             for sub_question in sub_questions
         ]
 
-        logger.info(f"Получено sub_questions для вопроса_id. {question_id}: {sub_question_responses}")
         return sub_question_responses
     except Exception as e:
         logger.error(f"Ошибка в get_sub_questions: {e}")
         raise
 
 
-def build_subquestions_hierarchy(sub_questions, parent_id=None):
+
+def build_subquestions_hierarchy(sub_questions, parent_question_id=None):
     hierarchy = []
     for sub_question in sub_questions:
-        if sub_question.parent_subquestion_id == parent_id:
-            # Рекурсивно строим вложенность
+        if sub_question.parent_subquestion_id == parent_question_id:
             sub_question.sub_questions = build_subquestions_hierarchy(sub_questions, sub_question.id)
             hierarchy.append(sub_question)
     return hierarchy
+
+
+

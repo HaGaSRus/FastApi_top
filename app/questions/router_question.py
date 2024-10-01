@@ -35,26 +35,28 @@ async def get_questions(db: AsyncSession = Depends(get_db)):
     try:
         result = await db.execute(select(Question))
         questions = result.scalars().all()
-        logger.info(f"Полученные вопросы: {questions}")
+
+        logger.info(f"Найденные вопросы: {[q.id for q in questions]}")  # Логируем найденные вопросы
 
         tasks = [get_sub_questions(db, question.id) for question in questions]
         sub_questions_list = await asyncio.gather(*tasks)
 
+        logger.info(f"Найденные под-вопросы: {sub_questions_list}")  # Логируем найденные под-вопросы
+
         question_responses = []
         for question, sub_questions in zip(questions, sub_questions_list):
-            # Применяем функцию build_subquestions_hierarchy для создания иерархии
             hierarchical_sub_questions = build_subquestions_hierarchy(sub_questions)
 
             question_response = QuestionResponse(
                 id=question.id,
                 text=question.text,
                 category_id=question.category_id,
-                subcategory_id=question.subcategory_id,  # Новое поле
+                subcategory_id=question.subcategory_id,
                 answer=question.answer,
                 number=question.number,
                 count=question.count,
                 parent_question_id=question.parent_question_id,
-                sub_questions=hierarchical_sub_questions  # Здесь уже иерархия
+                sub_questions=hierarchical_sub_questions
             )
             question_responses.append(question_response)
 
@@ -79,20 +81,20 @@ async def get_question_with_subquestions(
         # Получаем все подвопросы
         sub_questions = await get_sub_questions(db, question_id)
 
-        # Строим иерархию подвопросов
+        # Формируем иерархию под-вопросов
         hierarchical_sub_questions = build_subquestions_hierarchy(sub_questions)
 
-        # Формируем ответ
+        # Формируем ответ с иерархией
         question_response = QuestionResponse(
             id=question.id,
             text=question.text,
             category_id=question.category_id,
-            subcategory_id=question.subcategory_id,  # Новое поле
+            subcategory_id=question.subcategory_id,
             answer=question.answer,
             number=question.number,
             count=question.count,
             parent_question_id=question.parent_question_id,
-            sub_questions=hierarchical_sub_questions  # Здесь иерархия подвопросов
+            sub_questions=hierarchical_sub_questions  # Используем уже построенную иерархию
         )
 
         return question_response

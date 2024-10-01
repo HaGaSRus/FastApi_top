@@ -41,6 +41,7 @@ class SubQuestionCreate(BaseModel):
     count: int
     depth: int
     parent_question_id: int  # ID родительского вопроса
+    parent_subquestion_id: Optional[int] = None
     category_id: Optional[int] = None
     subcategory_id: Optional[int] = None
 
