@@ -35,6 +35,7 @@ class Question(Base):
     answer = Column(String, nullable=True)
     count = Column(Integer, nullable=True)
     parent_question_id = Column(Integer, ForeignKey('questions.id', name='fk_questions_parent_id'), nullable=True)  # Изменено на parent_question_id
+    depth = Column(Integer, nullable=False, default=0)
 
     # Отношение к родительскому вопросу
     parent = relationship("Question", remote_side=[id], backref="children")  # Оставляем как есть
@@ -53,7 +54,7 @@ class SubQuestion(Base):
     __tablename__ = "sub_questions"
 
     id = Column(Integer, primary_key=True, index=True)
-    question_id = Column(Integer, ForeignKey('questions.id', name='fk_subquestions_question_id'))
+    parent_question_id = Column(Integer, ForeignKey('questions.id', name='fk_subquestions_question_id'))
     text = Column(String, index=True)
     answer = Column(String, nullable=False)
     count = Column(Integer, nullable=True)
@@ -68,4 +69,7 @@ class SubQuestion(Base):
     parent_subquestion = relationship("SubQuestion", remote_side=[id], backref="children")
 
     def __repr__(self):
-        return f"<SubQuestion(id={self.id}, question_id={self.question_id}, text={self.text}, depth={self.depth})>"
+        return f"<SubQuestion(id={self.id}, parent_question_id={self.parent_question_id}, text={self.text}, depth={self.depth})>"
+
+
+

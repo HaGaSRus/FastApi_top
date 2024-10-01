@@ -117,7 +117,6 @@ async def create_question(
             # Создаем подвопрос
             new_question = await QuestionService.create_subquestion(
                 question=question,
-                parent_question_id=question.parent_question_id,
                 db=db
             )
             logger.info(f"Создание подвопроса для родительского вопроса с ID: {question.parent_question_id}")
@@ -125,7 +124,7 @@ async def create_question(
             # Создаем родительский вопрос
             new_question = await QuestionService.create_question(
                 question=question,
-                category_id=question.category_id,
+                category_id=question.category_id,  # Это поле передается только для родительских вопросов
                 db=db
             )
             logger.info("Создание родительского вопроса")
@@ -141,11 +140,13 @@ async def create_question(
     except IntegrityError as e:
         await db.rollback()
         logger.error("IntegrityError при создании вопроса: %s", e)
-        raise DataIntegrityErrorPerhapsQuestionWithThisTextAlreadyExists
+        raise HTTPException(status_code=409, detail="Ошибка целостности данных: возможно, такой вопрос уже существует.")
     except Exception as e:
         logger.error("Ошибка при создании вопроса: %s", e)
         logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail="Не удалось создать вопрос")
+
+
 
 
 @router_question.get("/answer",

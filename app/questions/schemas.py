@@ -40,8 +40,7 @@ class SubQuestionCreate(BaseModel):
     number: int
     count: int
     depth: int
-    question_id: int  # ID родительского вопроса
-    is_deeper: bool = False  # Новое поле для указания глубины
+    parent_question_id: int  # ID родительского вопроса
 
 
 class QuestionCreate(BaseModel):
@@ -52,7 +51,8 @@ class QuestionCreate(BaseModel):
     count: Optional[int]
     parent_question_id: Optional[int] = None  # Поле для указания родительского вопроса
     is_subquestion: bool = False  # Поле для указания поиска в под-вопросах
-    parent_subquestion_id: Optional[int]
+    parent_subquestion_id: Optional[int] = None
+    # depth: Optional[int] = 0
 
     class Config:
         from_attributes = True
@@ -65,7 +65,7 @@ class SubQuestionResponse(BaseModel):
     answer: Optional[str] = None  # Сделать ответ необязательным, если требуется
     number: int
     count: Optional[int] = None
-    question_id: int
+    parent_question_id: int
     depth: int  # Обязательно, так как это будет отображать уровень вложенности
     parent_subquestion_id: Optional[int] = None
     sub_questions: List['SubQuestionResponse'] = []  # Рекурсивная структура
