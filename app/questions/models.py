@@ -7,7 +7,7 @@ class Category(Base):
     __tablename__ = "categories"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, index=True)
+    name = Column(String, index=True, nullable=False)
     parent_id = Column(Integer, ForeignKey('categories.id'), nullable=True)
     number = Column(Integer, nullable=True)
 
@@ -75,7 +75,7 @@ class SubQuestion(Base):
     parent_subquestion = relationship("SubQuestion", remote_side=[id], backref="children")
 
     def __repr__(self):
-        return f"<SubQuestion(id={self.id}, parent_question_id={self.parent_question_id}, text={self.text}, depth={self.depth})>"
+        return f"<SubQuestion(id={self.id}, parent_question_id={self.parent_question_id}, text={self.text}, depth={self.depth}, parent_subquestion_id={self.parent_subquestion_id})>"
 
 
 

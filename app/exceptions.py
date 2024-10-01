@@ -265,3 +265,23 @@ class FailedToCreateQuestionDynamic(HootLineExceptionDynamic):
 class ParentQuestionIDNotFound(HootLineExceptionDynamic):
     def __init__(self, detail="Родительский вопрос с ID"):
         super().__init__(status_code=status.HTTP_404_NOT_FOUND, detail=detail)
+
+
+class IncorrectParentSubquestionIdValueNumberExpected(HootLineExceptionDynamic):
+    def __init__(self, detail="Некорректное значение parent_subquestion_id, ожидается число"):
+        super().__init__(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
+
+
+class ErrorCreatingSubquestion(HootLineExceptionDynamic):
+    def __init__(self, detail="Ошибка при создании под-вопроса"):
+        super().__init__(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
+
+
+class ErrorInGetQuestions(HootLineExceptionDynamic):
+    def __init__(self, detail="Ошибка в get_questions"):
+        super().__init__(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
+
+
+class ErrorInGetQuestionWithSubquestions(HootLineExceptionDynamic):
+    def __init__(self, detail="Ошибка в get_question_with_subquestions"):
+        super().__init__(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)

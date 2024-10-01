@@ -11,7 +11,7 @@ from app.admin.pagination_and_filtration import CustomParams
 from app.dao.dependencies import get_current_user
 from app.database import get_db, async_session_maker
 from app.exceptions import DataIntegrityErrorPerhapsQuestionWithThisTextAlreadyExists, \
-    CouldNotGetAnswerToQuestion
+    CouldNotGetAnswerToQuestion, QuestionNotFound, ErrorInGetQuestions, ErrorInGetQuestionWithSubquestions
 from app.logger.logger import logger
 from app.questions.dao_queestion import build_question_response, QuestionService, get_sub_questions, \
     build_subquestions_hierarchy, build_subquestion_response
@@ -67,7 +67,7 @@ async def get_questions(db: AsyncSession = Depends(get_db)):
         return question_responses
     except Exception as e:
         logger.error(f"Ошибка в get_questions: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise ErrorInGetQuestions(detail=str(e))
 
 
 @router_question.get("/{question_id}", response_model=QuestionResponse)
@@ -80,7 +80,7 @@ async def get_question_with_subquestions(
         # Получаем вопрос по ID
         question = await db.get(Question, question_id)
         if not question:
-            raise HTTPException(status_code=404, detail="Вопрос не найден")
+            raise QuestionNotFound
 
         # Получаем все подвопросы
         sub_questions = await get_sub_questions(db, question_id)
@@ -105,7 +105,7 @@ async def get_question_with_subquestions(
         return question_response
     except Exception as e:
         logger.error(f"Ошибка в get_question_with_subquestions: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise ErrorInGetQuestionWithSubquestions(detail=str(e))
 
 
 @router_question.get("/pagination-questions",

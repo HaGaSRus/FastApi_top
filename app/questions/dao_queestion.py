@@ -2,7 +2,8 @@ import traceback
 from typing import List
 from fastapi import HTTPException
 from app.exceptions import CategoryNotFound, ParentQuestionNotFound, ForASubquestionYouMustSpecifyParentQuestionId, \
-    FailedToCreateQuestionDynamic, ParentQuestionIDNotFound
+    FailedToCreateQuestionDynamic, ParentQuestionIDNotFound, IncorrectParentSubquestionIdValueNumberExpected, \
+    ErrorCreatingSubquestion
 from app.logger.logger import logger
 from app.questions.models import Question, SubQuestion
 from app.questions.schemas import QuestionCreate, SubQuestionCreate, SubQuestionResponse, QuestionResponse
@@ -14,9 +15,9 @@ from app.questions.utils import get_category_by_id
 class QuestionService:
     @staticmethod
     async def create_question(
-        question: QuestionCreate,
-        category_id: int,
-        db: AsyncSession
+            question: QuestionCreate,
+            category_id: int,
+            db: AsyncSession
     ) -> Question:
         try:
             # Получаем категорию по ID
@@ -27,7 +28,8 @@ class QuestionService:
             # Проверяем, подвопрос ли это
             if question.is_subquestion:
                 if not question.parent_question_id:
-                    raise ForASubquestionYouMustSpecifyParentQuestionId(detail="Для подвопроса необходимо указать parent_question_id.")
+                    raise ForASubquestionYouMustSpecifyParentQuestionId(
+                        detail="Для подвопроса необходимо указать parent_question_id.")
 
                 # Логируем попытку создания подвопроса
                 logger.info(f"Попытка создания подвопроса с parent_question_id: {question.parent_question_id}")
@@ -90,7 +92,7 @@ class QuestionService:
             if question.parent_subquestion_id is not None and not isinstance(question.parent_subquestion_id, int):
                 error_message = "Некорректное значение parent_subquestion_id, ожидается число."
                 logger.error(error_message)
-                raise HTTPException(status_code=400, detail=error_message)
+                raise IncorrectParentSubquestionIdValueNumberExpected(detail=error_message)
 
             # Создание нового подвопроса
             new_sub_question = SubQuestion(
@@ -124,8 +126,7 @@ class QuestionService:
         except Exception as e:
             logger.error(f"Ошибка при создании подвопроса: {e}")
             logger.error(traceback.format_exc())
-            raise HTTPException(status_code=500, detail=f"Не удалось создать подвопрос: {str(e)}")
-
+            raise ErrorCreatingSubquestion(detail=f"Не удалось создать подвопрос: {str(e)}")
 
 
 async def build_question_response(question: Question) -> QuestionResponse:
@@ -204,5 +205,3 @@ def build_subquestions_hierarchy(sub_questions, parent_question_id=None):
             sub_question.sub_questions = build_subquestions_hierarchy(sub_questions, sub_question.id)
             hierarchy.append(sub_question)
     return hierarchy
-
-
