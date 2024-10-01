@@ -1,7 +1,8 @@
 import traceback
 from typing import List
 from fastapi import HTTPException
-from app.exceptions import CategoryNotFound, ParentQuestionNotFound
+from app.exceptions import CategoryNotFound, ParentQuestionNotFound, ForASubquestionYouMustSpecifyParentQuestionId, \
+    FailedToCreateQuestionDynamic, ParentQuestionIDNotFound
 from app.logger.logger import logger
 from app.questions.models import Question, SubQuestion
 from app.questions.schemas import QuestionCreate, SubQuestionCreate, SubQuestionResponse, QuestionResponse
@@ -13,9 +14,9 @@ from app.questions.utils import get_category_by_id
 class QuestionService:
     @staticmethod
     async def create_question(
-            question: QuestionCreate,
-            category_id: int,
-            db: AsyncSession
+        question: QuestionCreate,
+        category_id: int,
+        db: AsyncSession
     ) -> Question:
         try:
             # Получаем категорию по ID
@@ -23,12 +24,12 @@ class QuestionService:
             if not category:
                 raise CategoryNotFound
 
-            # Если это подвопрос
+            # Проверяем, подвопрос ли это
             if question.is_subquestion:
-                if not question.parent_question_id:  # Проверяем наличие parent_question_id
-                    raise HTTPException(status_code=400, detail="Для подвопроса нужно указать parent_question_id")
+                if not question.parent_question_id:
+                    raise ForASubquestionYouMustSpecifyParentQuestionId(detail="Для подвопроса необходимо указать parent_question_id.")
 
-                # Логирование попытки создания подвопроса
+                # Логируем попытку создания подвопроса
                 logger.info(f"Попытка создания подвопроса с parent_question_id: {question.parent_question_id}")
                 # Передаём управление на функцию создания подвопроса
                 return await QuestionService.create_subquestion(
@@ -52,18 +53,15 @@ class QuestionService:
             await db.refresh(new_question)  # Обновляем объект
 
             # Устанавливаем поле number равным id и коммитим изменения
-            new_question.number = new_question.id  # Установка number равного id
-            await db.commit()  # Коммитим изменения после установки number
+            new_question.number = new_question.id
+            await db.commit()
 
             return new_question
-
-        except CategoryNotFound:
-            raise HTTPException(status_code=404, detail="Категория не найдена")
 
         except Exception as e:
             logger.error(f"Ошибка при создании вопроса: {e}")
             logger.error(traceback.format_exc())  # Логирование полного стека вызовов
-            raise HTTPException(status_code=500, detail="Не удалось создать вопрос")
+            raise FailedToCreateQuestionDynamic(detail=f"Не удалось создать вопрос: {str(e)}")
 
     @staticmethod
     async def create_subquestion(question: SubQuestionCreate, db: AsyncSession) -> SubQuestion:
@@ -71,15 +69,28 @@ class QuestionService:
             # Проверка наличия родительского вопроса
             parent_question = await db.get(Question, question.parent_question_id)
             if not parent_question:
-                logger.error(f"Родительский вопрос с ID {question.parent_question_id} не найден.")
-                raise ParentQuestionNotFound
+                error_message = f"Родительский вопрос с ID {question.parent_question_id} не найден."
+                logger.error(error_message)
+                raise ParentQuestionIDNotFound(detail=error_message)
 
-            # Устанавливаем значение depth
+            # Устанавливаем значение depth для вложенности
             depth = parent_question.depth + 1
-            if question.parent_subquestion_id:  # Если есть родительский подвопрос
+
+            # Если есть родительский подвопрос
+            if question.parent_subquestion_id:
                 parent_subquestion = await db.get(SubQuestion, question.parent_subquestion_id)
                 if parent_subquestion:
-                    depth = parent_subquestion.depth + 1  # Увеличиваем на 1
+                    depth = parent_subquestion.depth + 1
+                else:
+                    error_message = f"Родительский подвопрос с ID {question.parent_subquestion_id} не найден."
+                    logger.error(error_message)
+                    raise ParentQuestionIDNotFound(detail=error_message)
+
+            # Проверка на корректность parent_subquestion_id
+            if question.parent_subquestion_id is not None and not isinstance(question.parent_subquestion_id, int):
+                error_message = "Некорректное значение parent_subquestion_id, ожидается число."
+                logger.error(error_message)
+                raise HTTPException(status_code=400, detail=error_message)
 
             # Создание нового подвопроса
             new_sub_question = SubQuestion(
@@ -90,7 +101,7 @@ class QuestionService:
                 number=0,  # Временно устанавливаем number на 0
                 category_id=question.category_id,
                 subcategory_id=question.subcategory_id,
-                parent_subquestion_id=question.parent_subquestion_id if question.parent_subquestion_id > 0 else None
+                parent_subquestion_id=question.parent_subquestion_id if question.parent_subquestion_id and question.parent_subquestion_id > 0 else None
             )
 
             # Добавление нового подвопроса в сессию
@@ -105,10 +116,16 @@ class QuestionService:
             logger.info(f"Создан новый подвопрос с ID: {new_sub_question.id}")
             return new_sub_question
 
+        except HTTPException as e:
+            # Ловим HTTP ошибки, чтобы их передать без изменений
+            logger.error(f"HTTP ошибка: {e.detail}")
+            raise e
+
         except Exception as e:
             logger.error(f"Ошибка при создании подвопроса: {e}")
             logger.error(traceback.format_exc())
-            raise HTTPException(status_code=500, detail="Не удалось создать подвопрос")
+            raise HTTPException(status_code=500, detail=f"Не удалось создать подвопрос: {str(e)}")
+
 
 
 async def build_question_response(question: Question) -> QuestionResponse:

@@ -15,7 +15,7 @@ from app.exceptions import DataIntegrityErrorPerhapsQuestionWithThisTextAlreadyE
 from app.logger.logger import logger
 from app.questions.dao_queestion import build_question_response, QuestionService, get_sub_questions, \
     build_subquestions_hierarchy, build_subquestion_response
-from app.questions.models import Question
+from app.questions.models import Question, SubQuestion
 from app.questions.schemas import QuestionResponse, QuestionCreate, DynamicAnswerResponse, \
     SimilarQuestionResponse, DynamicSubAnswerResponse
 from pydantic import ValidationError
@@ -70,7 +70,7 @@ async def get_questions(db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router_question.get("/questions/{question_id}", response_model=QuestionResponse)
+@router_question.get("/{question_id}", response_model=QuestionResponse)
 @version(1)
 async def get_question_with_subquestions(
     question_id: int,
@@ -108,7 +108,7 @@ async def get_question_with_subquestions(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router_question.get("pagination-questions",
+@router_question.get("/pagination-questions",
                      status_code=status.HTTP_200_OK,
                      response_model=Page[QuestionResponse],
                      summary="Отображение всех вопросов верхнего уровня с пагинацией")
@@ -314,17 +314,40 @@ async def update_question(
         db: AsyncSession = Depends(get_db),
         current_user=Depends(get_current_user)
 ):
-    """Обновление вопроса по ID"""
+    """Обновление вопроса и его под-вопросов по ID"""
     try:
+        # Получаем основной вопрос
         question = await db.get(Question, question_id)
         if not question:
             raise HTTPException(status_code=404, detail="Вопрос не найден")
 
-        # Обновляем поля вопроса
+        # Обновляем поля основного вопроса
         for key, value in question_data.dict(exclude_unset=True).items():
             setattr(question, key, value)
 
+        # Обрабатываем вложенные вопросы, если они есть
+        if 'subquestions' in question_data.dict(exclude_unset=True):
+            subquestions_data = question_data.dict()['subquestions']
+            for subquestion_data in subquestions_data:
+                subquestion_id = subquestion_data.get('id')
+                if subquestion_id:
+                    # Получаем под-вопрос по ID
+                    subquestion = await db.get(SubQuestion, subquestion_id)
+                    if not subquestion:
+                        raise HTTPException(status_code=404, detail=f"Под-вопрос с ID {subquestion_id} не найден")
+
+                    # Обновляем поля под-вопроса
+                    for key, value in subquestion_data.items():
+                        setattr(subquestion, key, value)
+                else:
+                    # Если ID нет, можно создать новый под-вопрос
+                    new_subquestion = SubQuestion(**subquestion_data)
+                    db.add(new_subquestion)
+
+        # Сохраняем изменения
         await db.commit()
+
+        # Возвращаем обновленный вопрос
         return QuestionResponse.model_validate(question)
     except Exception as e:
         await db.rollback()
