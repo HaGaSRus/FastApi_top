@@ -54,6 +54,7 @@ async def get_questions(db: AsyncSession = Depends(get_db)):
                 subcategory_id=question.subcategory_id,
                 answer=question.answer,
                 number=question.number,
+                depth=question.depth,
                 count=question.count,
                 parent_question_id=question.parent_question_id,
                 sub_questions=hierarchical_sub_questions
@@ -91,6 +92,7 @@ async def get_question_with_subquestions(
             category_id=question.category_id,
             subcategory_id=question.subcategory_id,
             answer=question.answer,
+            depth=question.depth,
             number=question.number,
             count=question.count,
             parent_question_id=question.parent_question_id,
