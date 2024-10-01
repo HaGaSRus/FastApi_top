@@ -80,6 +80,7 @@ class QuestionResponse(BaseModel):
     category_id: int
     answer: Optional[str] = None  # Сделать ответ необязательным, если требуется
     number: int
+    # depth: int
     count: Optional[int] = None
     parent_question_id: Optional[int] = None  # Это поле должно оставаться, если есть родительский вопрос
     sub_questions: List[SubQuestionResponse] = []

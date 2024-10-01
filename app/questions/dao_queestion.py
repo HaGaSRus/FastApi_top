@@ -41,7 +41,8 @@ class QuestionService:
                 text=question.text,
                 answer=question.answer,
                 category_id=category_id,
-                parent_question_id=None  # Это родительский вопрос
+                parent_question_id=None,  # Это родительский вопрос
+                depth=0
             )
 
             # Добавляем новый вопрос в сессию
@@ -50,9 +51,8 @@ class QuestionService:
             await db.refresh(new_question)  # Обновляем объект
 
             # Устанавливаем поле number равным id и коммитим изменения
-            new_question.number = new_question.id
-            db.add(new_question)
-            await db.commit()
+            new_question.number = new_question.id  # Установка number равного id
+            await db.commit()  # Коммитим изменения после установки number
 
             return new_question
 
@@ -73,8 +73,12 @@ class QuestionService:
                 logger.error(f"Родительский вопрос с ID {question.parent_question_id} не найден.")
                 raise ParentQuestionNotFound
 
-            # Определение глубины для нового подвопроса
+            # Устанавливаем значение depth
             depth = parent_question.depth + 1
+            if question.parent_subquestion_id:  # Если есть родительский подвопрос
+                parent_subquestion = await db.get(SubQuestion, question.parent_subquestion_id)
+                if parent_subquestion:
+                    depth = parent_subquestion.depth + 1  # Увеличиваем на 1
 
             # Создание нового подвопроса
             new_sub_question = SubQuestion(
@@ -82,15 +86,18 @@ class QuestionService:
                 answer=question.answer,
                 parent_question_id=parent_question.id,
                 depth=depth,
-                number=question.number,
-                # Убедитесь, что parent_subquestion_id указывает на существующий подвопрос
+                number=0,  # Временно устанавливаем number на 0
                 parent_subquestion_id=question.parent_subquestion_id if question.parent_subquestion_id > 0 else None
             )
 
-            # Добавление нового подвопроса в сессию и коммит
+            # Добавление нового подвопроса в сессию
             db.add(new_sub_question)
             await db.commit()
             await db.refresh(new_sub_question)
+
+            # Устанавливаем поле number равным id
+            new_sub_question.number = new_sub_question.id
+            await db.commit()  # Коммитим изменения после установки number
 
             logger.info(f"Создан новый подвопрос с ID: {new_sub_question.id}")
             return new_sub_question
@@ -108,6 +115,7 @@ async def build_question_response(question: Question) -> QuestionResponse:
         answer=question.answer,
         number=question.number,
         count=question.count,
+        depth=question.depth,
         parent_question_id=question.parent_question_id,  # Убедитесь, что это поле заполнено
         category_id=question.category_id if question.parent_question_id is None else None,  # Добавляем category_id только для родительского вопроса
         sub_questions=[]
@@ -120,7 +128,7 @@ async def build_question_response(question: Question) -> QuestionResponse:
             answer=sub_question.answer,
             number=sub_question.number,
             count=sub_question.count,
-            parent_question_id=sub_question.question_id,  # Это ID родительского вопроса
+            parent_question_id=sub_question.parent_question_id,  # Это ID родительского вопроса
             depth=sub_question.depth,
             sub_questions=[]  # Убираем parent_subquestion_id
         )
