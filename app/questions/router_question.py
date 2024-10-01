@@ -16,6 +16,7 @@ from app.logger.logger import logger
 from app.questions.dao_queestion import build_question_response, QuestionService, get_sub_questions, \
     build_subquestions_hierarchy, build_subquestion_response
 from app.questions.models import Question, SubQuestion
+
 from app.questions.schemas import QuestionResponse, QuestionCreate, DynamicAnswerResponse, \
     SimilarQuestionResponse, DynamicSubAnswerResponse
 from pydantic import ValidationError
@@ -48,7 +49,9 @@ async def get_questions(db: AsyncSession = Depends(get_db)):
 
         question_responses = []
         for question, sub_questions in zip(questions, sub_questions_list):
+
             hierarchical_sub_questions = build_subquestions_hierarchy(sub_questions)
+
 
             question_response = QuestionResponse(
                 id=question.id,
@@ -61,7 +64,7 @@ async def get_questions(db: AsyncSession = Depends(get_db)):
                 count=question.count,
                 parent_question_id=question.parent_question_id,
                 sub_questions=hierarchical_sub_questions
-            )
+
             question_responses.append(question_response)
 
         return question_responses
