@@ -88,7 +88,7 @@ class QuestionService:
                 parent_question_id=parent_question.id,
                 depth=depth,
                 number=0,  # Временно устанавливаем number на 0
-                category_id = question.category_id,
+                category_id=question.category_id,
                 subcategory_id=question.subcategory_id,
                 parent_subquestion_id=question.parent_subquestion_id if question.parent_subquestion_id > 0 else None
             )
@@ -180,7 +180,6 @@ async def get_sub_questions(db: AsyncSession, parent_question_id: int) -> List[S
         raise
 
 
-
 def build_subquestions_hierarchy(sub_questions, parent_question_id=None):
     hierarchy = []
     for sub_question in sub_questions:
@@ -188,6 +187,5 @@ def build_subquestions_hierarchy(sub_questions, parent_question_id=None):
             sub_question.sub_questions = build_subquestions_hierarchy(sub_questions, sub_question.id)
             hierarchy.append(sub_question)
     return hierarchy
-
 
 

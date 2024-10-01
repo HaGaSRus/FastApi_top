@@ -1,12 +1,15 @@
 import traceback
 from typing import List
 from fastapi_versioning import version
-from fastapi import APIRouter, Depends, Path, Query, HTTPException
+from fastapi import APIRouter, Depends, Path, Query, HTTPException, status
+from fastapi_pagination import Page, paginate, Params, add_pagination
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import selectinload
+from app.admin.pagination_and_filtration import CustomParams
 from app.dao.dependencies import get_current_user
-from app.database import get_db
+from app.database import get_db, async_session_maker
 from app.exceptions import DataIntegrityErrorPerhapsQuestionWithThisTextAlreadyExists, \
     CouldNotGetAnswerToQuestion
 from app.logger.logger import logger
@@ -105,6 +108,43 @@ async def get_question_with_subquestions(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router_question.get("pagination-questions",
+                     status_code=status.HTTP_200_OK,
+                     response_model=Page[QuestionResponse],
+                     summary="Отображение всех вопросов верхнего уровня с пагинацией")
+@version(1)
+async def get_all_questions(params: CustomParams = Depends()):
+    """Получение всех вопросов верхнего уровня. С пагинацией"""
+    try:
+        async with async_session_maker() as session:
+            # Получаем только вопросы верхнего уровня (где parent_question_id = None)
+            stmt = select(Question).filter(Question.parent_question_id.is_(None)).options(selectinload(Question.sub_questions))
+            result = await session.execute(stmt)
+            question_all = result.scalars().all()
+
+        # Преобразуем вопросы в нужный формат ответа
+        question_responses = [
+            QuestionResponse(
+                id=question.id,
+                text=question.text,
+                category_id=question.category_id,
+                subcategory_id=question.subcategory_id,
+                answer=question.answer,
+                number=question.number,
+                depth=question.depth,
+                count=question.count,
+                parent_question_id=question.parent_question_id,
+                sub_questions=[],
+            )
+            for question in question_all
+        ]
+
+        # Применение кастомных параметров пагинации
+        return paginate(question_responses, params=params)
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
 # Роут для создания вопроса или под вопроса
 @router_question.post("/create", summary="Создание вопроса или подвопроса")
 @version(1)
@@ -152,7 +192,6 @@ async def create_question(
         logger.error("Ошибка при создании вопроса: %s", e)
         logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail="Не удалось создать вопрос")
-
 
 
 @router_question.get("/answer",
