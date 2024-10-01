@@ -31,6 +31,7 @@ class Question(Base):
     id = Column(Integer, primary_key=True, index=True)
     text = Column(String, index=True)
     category_id = Column(Integer, ForeignKey('categories.id', name='fk_questions_category_id'))
+
     number = Column(Integer, nullable=True)
     answer = Column(String, nullable=True)
     count = Column(Integer, nullable=True)

@@ -104,6 +104,7 @@ async def get_question_with_subquestions(
 @version(1)
 async def create_question(
     question: QuestionCreate,
+
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user)
 ):

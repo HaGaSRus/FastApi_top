@@ -117,9 +117,10 @@ async def build_question_response(question: Question) -> QuestionResponse:
         count=question.count,
         depth=question.depth,
         parent_question_id=question.parent_question_id,  # Убедитесь, что это поле заполнено
-        category_id=question.category_id if question.parent_question_id is None else None,  # Добавляем category_id только для родительского вопроса
+        category_id=question.category_id if question.parent_question_id is not None else 0,  # Добавляем category_id только для родительского вопроса
         sub_questions=[]
     )
+    # [если истина] if [выражение] else [если ложь]
 
     for sub_question in question.sub_questions:
         sub_response = SubQuestionResponse(

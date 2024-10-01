@@ -47,7 +47,7 @@ class QuestionCreate(BaseModel):
     text: str
     answer: Optional[str] = None
     number: int
-    category_id: int
+    category_id: Optional[int]
     count: Optional[int]
     parent_question_id: Optional[int] = None  # Поле для указания родительского вопроса
     is_subquestion: bool = False  # Поле для указания поиска в под-вопросах
