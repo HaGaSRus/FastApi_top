@@ -19,8 +19,11 @@ class Category(Base):
     )
 
     # Отношение к вопросам
-    questions = relationship("Question", back_populates="category", lazy='selectin')
-
+    questions = relationship(
+        "Question",
+        back_populates="category",
+        foreign_keys="[Question.category_id]"  # Указываем, что это поле относится к category_id в модели Question
+    )
     def __repr__(self):
         return f"<Category(id={self.id}, name={self.name}, number={self.number})>"
 
@@ -31,7 +34,7 @@ class Question(Base):
     id = Column(Integer, primary_key=True, index=True)
     text = Column(String, index=True)
     category_id = Column(Integer, ForeignKey('categories.id', name='fk_questions_category_id'))
-
+    subcategory_id = Column(Integer, ForeignKey('categories.id', name='fk_questions_subcategory_id'), nullable=True)  # Новое поле
     number = Column(Integer, nullable=True)
     answer = Column(String, nullable=True)
     count = Column(Integer, nullable=True)
@@ -42,7 +45,7 @@ class Question(Base):
     parent = relationship("Question", remote_side=[id], backref="children")  # Оставляем как есть
 
     # Отношение к категории
-    category = relationship("Category", back_populates="questions")
+    category = relationship("Category", back_populates="questions", foreign_keys=[category_id])  # Явно указываем foreign_keys
 
     # Отношение к под-вопросам
     sub_questions = relationship("SubQuestion", back_populates="question", lazy='selectin')
@@ -56,6 +59,8 @@ class SubQuestion(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     parent_question_id = Column(Integer, ForeignKey('questions.id', name='fk_subquestions_question_id'))
+    category_id = Column(Integer, ForeignKey('categories.id', name='fk_subquestions_category_id'), nullable=True)  # Новое поле
+    subcategory_id = Column(Integer, ForeignKey('categories.id', name='fk_subquestions_subcategory_id'), nullable=True)  # Новое поле
     text = Column(String, index=True)
     answer = Column(String, nullable=False)
     count = Column(Integer, nullable=True)

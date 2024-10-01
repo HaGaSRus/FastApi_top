@@ -11,7 +11,7 @@ from app.exceptions import DataIntegrityErrorPerhapsQuestionWithThisTextAlreadyE
     CouldNotGetAnswerToQuestion
 from app.logger.logger import logger
 from app.questions.dao_queestion import build_question_response, QuestionService, get_sub_questions, \
-    build_subquestions_hierarchy
+    build_subquestions_hierarchy, build_subquestion_response
 from app.questions.models import Question
 from app.questions.schemas import QuestionResponse, QuestionCreate, DynamicAnswerResponse, \
     SimilarQuestionResponse, DynamicSubAnswerResponse
@@ -49,6 +49,7 @@ async def get_questions(db: AsyncSession = Depends(get_db)):
                 id=question.id,
                 text=question.text,
                 category_id=question.category_id,
+                subcategory_id=question.subcategory_id,  # Новое поле
                 answer=question.answer,
                 number=question.number,
                 count=question.count,
@@ -86,6 +87,7 @@ async def get_question_with_subquestions(
             id=question.id,
             text=question.text,
             category_id=question.category_id,
+            subcategory_id=question.subcategory_id,  # Новое поле
             answer=question.answer,
             number=question.number,
             count=question.count,
@@ -104,7 +106,6 @@ async def get_question_with_subquestions(
 @version(1)
 async def create_question(
     question: QuestionCreate,
-
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
@@ -120,18 +121,19 @@ async def create_question(
                 question=question,
                 db=db
             )
+            response = await build_subquestion_response(new_question)  # Изменение здесь
             logger.info(f"Создание подвопроса для родительского вопроса с ID: {question.parent_question_id}")
         else:
             # Создаем родительский вопрос
             new_question = await QuestionService.create_question(
                 question=question,
-                category_id=question.category_id,  # Это поле передается только для родительских вопросов
+                category_id=question.category_id,
                 db=db
             )
+            response = await build_question_response(new_question)  # Оставляем как есть
             logger.info("Создание родительского вопроса")
 
-        # Формируем ответ
-        response = await build_question_response(new_question)
+        # Возвращаем ответ
         logger.info("Вопрос успешно создан: %s", response)
         return response
 
@@ -146,7 +148,6 @@ async def create_question(
         logger.error("Ошибка при создании вопроса: %s", e)
         logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail="Не удалось создать вопрос")
-
 
 
 

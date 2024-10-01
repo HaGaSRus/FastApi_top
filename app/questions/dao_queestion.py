@@ -41,6 +41,7 @@ class QuestionService:
                 text=question.text,
                 answer=question.answer,
                 category_id=category_id,
+                subcategory_id=question.subcategory_id,
                 parent_question_id=None,  # Это родительский вопрос
                 depth=0
             )
@@ -87,6 +88,8 @@ class QuestionService:
                 parent_question_id=parent_question.id,
                 depth=depth,
                 number=0,  # Временно устанавливаем number на 0
+                category_id = question.category_id,
+                subcategory_id=question.subcategory_id,
                 parent_subquestion_id=question.parent_subquestion_id if question.parent_subquestion_id > 0 else None
             )
 
@@ -116,26 +119,33 @@ async def build_question_response(question: Question) -> QuestionResponse:
         number=question.number,
         count=question.count,
         depth=question.depth,
-        parent_question_id=question.parent_question_id,  # Убедитесь, что это поле заполнено
-        category_id=question.category_id if question.parent_question_id is not None else 0,  # Добавляем category_id только для родительского вопроса
-        sub_questions=[]
+        parent_question_id=question.parent_question_id,
+        category_id=question.category_id,
+        subcategory_id=question.subcategory_id,
+        sub_questions=[]  # Здесь мы начинаем с пустого списка
     )
-    # [если истина] if [выражение] else [если ложь]
 
     for sub_question in question.sub_questions:
-        sub_response = SubQuestionResponse(
-            id=sub_question.id,
-            text=sub_question.text,
-            answer=sub_question.answer,
-            number=sub_question.number,
-            count=sub_question.count,
-            parent_question_id=sub_question.parent_question_id,  # Это ID родительского вопроса
-            depth=sub_question.depth,
-            sub_questions=[]  # Убираем parent_subquestion_id
-        )
+        sub_response = await build_subquestion_response(sub_question)
         response.sub_questions.append(sub_response)
 
     return response
+
+
+async def build_subquestion_response(sub_question: SubQuestion) -> SubQuestionResponse:
+    return SubQuestionResponse(
+        id=sub_question.id,
+        text=sub_question.text,
+        answer=sub_question.answer,
+        number=sub_question.number,
+        count=sub_question.count,
+        parent_question_id=sub_question.parent_question_id,
+        depth=sub_question.depth,
+        category_id=sub_question.category_id,
+        subcategory_id=sub_question.subcategory_id,
+        sub_questions=[]  # Пустой список, т.к. иерархию мы построим позже
+    )
+
 
 
 # Функция для построения вложенных под-вопросов
@@ -153,7 +163,8 @@ async def get_sub_questions(db: AsyncSession, question_id: int) -> List[SubQuest
                 count=sub_question.count,
                 parent_question_id=sub_question.parent_question_id,
                 depth=sub_question.depth,
-                parent_subquestion_id=sub_question.parent_subquestion_id,
+                category_id=sub_question.category_id,  # Добавляем category_id
+                subcategory_id=sub_question.subcategory_id,  # Добавляем subcategory_id
                 sub_questions=[]  # Пустой список, т.к. иерархию мы построим позже
             )
             for sub_question in sub_questions
