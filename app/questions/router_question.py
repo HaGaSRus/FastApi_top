@@ -1,6 +1,6 @@
 import traceback
 import html
-from typing import List, Optional
+from typing import List, Optional, Dict
 from fastapi_versioning import version
 from fastapi import APIRouter, Depends, Path, Query, HTTPException, status
 from fastapi_pagination import Page, paginate
@@ -19,7 +19,8 @@ from app.logger.logger import logger
 from app.questions.dao_queestion import build_question_response, QuestionService, get_sub_questions, \
     build_subquestions_hierarchy, build_subquestion_response, update_main_question, update_sub_question
 from app.questions.models import Question, SubQuestion
-from app.questions.schemas import QuestionResponse, QuestionCreate, DeleteQuestionRequest, UpdateQuestionRequest
+from app.questions.schemas import QuestionResponse, QuestionCreate, DeleteQuestionRequest, UpdateQuestionRequest, \
+    QuestionIDRequest
 from pydantic import ValidationError
 import asyncio
 from sqlalchemy import func
@@ -124,14 +125,20 @@ async def get_all_questions(params: CustomParams = Depends(),
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
-@router_question.get("/search/{question_id}", response_model=QuestionResponse)
+@router_question.post("/question_by_id", response_model=QuestionResponse)
 @version(1)
 async def get_question_with_subquestions(
-        question_id: int,
+        request_body: QuestionIDRequest,  # Принимаем тело запроса как один объект
         db: AsyncSession = Depends(get_db),
         current_user=Depends(get_current_user)
 ):
     try:
+        question_id = request_body.question_id  # Получаем question_id из тела запроса
+
+        # Проверка наличия question_id
+        if question_id is None:
+            raise HTTPException(status_code=400, detail="Отсутствует 'question_id' в запросе")
+
         # Получаем вопрос по ID
         question = await db.get(Question, question_id)
         if not question:
@@ -158,9 +165,11 @@ async def get_question_with_subquestions(
         )
 
         return question_response
+
     except Exception as e:
         logger.error(f"Ошибка в get_question_with_subquestions: {e}")
         raise ErrorInGetQuestionWithSubquestions(detail=str(e))
+
 
 
 # Роут для создания вопроса или под вопроса

@@ -60,7 +60,7 @@ class SubQuestion(Base):
     id = Column(Integer, primary_key=True, index=True)
     parent_question_id = Column(Integer, ForeignKey('questions.id', name='fk_subquestions_question_id'))
     category_id = Column(Integer, ForeignKey('categories.id', name='fk_subquestions_category_id'), nullable=True)  # Новое поле
-    subcategory_id = Column(Integer, ForeignKey('categories.id', name='fk_subquestions_subcategory_id'), nullable=True)  # Новое поле
+    subcategory_id = Column(Integer, ForeignKey('categories.id', name='fk_subquestions_subcategory_id'), nullable=True)   # Новое поле
     text = Column(String, index=True)
     answer = Column(String, nullable=False)
     count = Column(Integer, nullable=True)
@@ -68,7 +68,7 @@ class SubQuestion(Base):
     number = Column(Integer, nullable=True)
 
     # Связь с родительским подвопросом (если есть)
-    # parent_subquestion_id = Column(Integer, ForeignKey('sub_questions.id', name='fk_subquestions_parent_subquestion_id'), nullable=True)
+    parent_subquestion_id = Column(Integer, ForeignKey('sub_questions.id', name='fk_subquestions_parent_subquestion_id'), nullable=True)
 
     # Обратная связь к вопросу
     question = relationship("Question", back_populates="sub_questions")

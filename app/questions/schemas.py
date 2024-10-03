@@ -136,3 +136,6 @@ class UpdateQuestionRequest(BaseModel):
 class DeleteQuestionRequest(BaseModel):
     question_id: int = Field(..., description="ID основного вопроса")
     sub_question_id: Optional[int] = Field(None, description="ID под-вопроса (если указан)")
+
+class QuestionIDRequest(BaseModel):
+    question_id: int
