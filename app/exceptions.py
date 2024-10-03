@@ -204,6 +204,11 @@ class QuestionNotFound(HootLineException):
     detail = "Вопрос не найден"
 
 
+class SubQuestionNotFound(HootLineException):
+    status_code = status.HTTP_404_NOT_FOUND
+    detail = "Под-вопрос не найден"
+
+
 class CouldNotGetAnswerToQuestion(HootLineException):
     status_code = status.HTTP_404_NOT_FOUND
     detail = "Не удалось получить ответ на вопрос"
@@ -285,3 +290,23 @@ class ErrorInGetQuestions(HootLineExceptionDynamic):
 class ErrorInGetQuestionWithSubquestions(HootLineExceptionDynamic):
     def __init__(self, detail="Ошибка в get_question_with_subquestions"):
         super().__init__(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
+
+
+class TheSubQuestionDoesNotBelongToTheSpecifiedMainQuestion(HootLineException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    detail = "Под-вопрос не принадлежит указанному основному вопросу"
+
+
+class CannotDeleteSubQuestionWithNestedSubQuestions(HootLineException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    detail = "Невозможно удалить под-вопрос с вложенными под-вопросами"
+
+
+class QuestionOrSubQuestionSuccessfullyDeleted(HootLineException):
+    status_code = status.HTTP_202_ACCEPTED
+    detail = "Вопрос или под-вопрос успешно удалены"
+
+
+class ErrorWhenDeletingQuestion(HootLineException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    detail = "Ошибка при удалении вопроса"
