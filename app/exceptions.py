@@ -310,3 +310,18 @@ class QuestionOrSubQuestionSuccessfullyDeleted(HootLineException):
 class ErrorWhenDeletingQuestion(HootLineException):
     status_code = status.HTTP_400_BAD_REQUEST
     detail = "Ошибка при удалении вопроса"
+
+
+class SubQuestionSuccessfullyUpdated(HootLineException):
+    status_code = status.HTTP_202_ACCEPTED
+    detail = "Под-вопрос успешно обновлен"
+
+
+class QuestionSuccessfullyUpdated(HootLineException):
+    status_code = status.HTTP_202_ACCEPTED
+    detail = "Вопрос успешно обновлен"
+
+
+class ErrorWhenUpdatingQuestion(HootLineException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    detail = "Ошибка при обновлении вопроса"

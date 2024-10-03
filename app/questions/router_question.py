@@ -9,16 +9,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 from app.admin.pagination_and_filtration import CustomParams
-from app.dao.dependencies import get_current_admin_or_moderator_user
+from app.dao.dependencies import get_current_admin_or_moderator_user, get_current_user
 from app.database import get_db, async_session_maker
 from app.exceptions import QuestionNotFound, ErrorInGetQuestions, \
     ErrorInGetQuestionWithSubquestions, SubQuestionNotFound, TheSubQuestionDoesNotBelongToTheSpecifiedMainQuestion, \
-    CannotDeleteSubQuestionWithNestedSubQuestions, QuestionOrSubQuestionSuccessfullyDeleted, ErrorWhenDeletingQuestion
+    CannotDeleteSubQuestionWithNestedSubQuestions, QuestionOrSubQuestionSuccessfullyDeleted, ErrorWhenDeletingQuestion, \
+    SubQuestionSuccessfullyUpdated, QuestionSuccessfullyUpdated, ErrorWhenUpdatingQuestion
 from app.logger.logger import logger
 from app.questions.dao_queestion import build_question_response, QuestionService, get_sub_questions, \
-    build_subquestions_hierarchy, build_subquestion_response
+    build_subquestions_hierarchy, build_subquestion_response, update_main_question, update_sub_question
 from app.questions.models import Question, SubQuestion
-from app.questions.schemas import QuestionResponse, QuestionCreate, DeleteQuestionRequest
+from app.questions.schemas import QuestionResponse, QuestionCreate, DeleteQuestionRequest, UpdateQuestionRequest
 from pydantic import ValidationError
 import asyncio
 from sqlalchemy import func
@@ -35,7 +36,8 @@ router_question = APIRouter(
 
 @router_question.get("/all-questions", response_model=List[QuestionResponse])
 @version(1)
-async def get_questions(db: AsyncSession = Depends(get_db)):
+async def get_questions(db: AsyncSession = Depends(get_db),
+                        current_user=Depends(get_current_user)):
     try:
         result = await db.execute(select(Question))
         questions = result.scalars().all()
@@ -76,13 +78,26 @@ async def get_questions(db: AsyncSession = Depends(get_db)):
                      response_model=Page[QuestionResponse],
                      summary="Отображение всех вопросов верхнего уровня с пагинацией")
 @version(1)
-async def get_all_questions(params: CustomParams = Depends()):
+async def get_all_questions(params: CustomParams = Depends(),
+                            category_id: Optional[int] = None,
+                            subcategory_id: Optional[int] = None,
+                            current_user=Depends(get_current_user)):
     """Получение всех вопросов верхнего уровня. С пагинацией"""
     try:
         async with async_session_maker() as session:
             # Получаем только вопросы верхнего уровня (где parent_question_id = None)
-            stmt = select(Question).filter(Question.parent_question_id.is_(None)).options(
-                selectinload(Question.sub_questions))
+            stmt = select(Question).filter(Question.parent_question_id.is_(None))
+
+            # Добавляем фильтрацию по category_id, если он указан
+            if category_id is not None:
+                stmt = stmt.filter(Question.category_id == category_id)
+
+            # Добавляем фильтрацию по subcategory_id, если он указан
+            if subcategory_id is not None:
+                stmt = stmt.filter(Question.subcategory_id == subcategory_id)
+
+            stmt = stmt.options(selectinload(Question.sub_questions))
+
             result = await session.execute(stmt)
             question_all = result.scalars().all()
 
@@ -113,7 +128,8 @@ async def get_all_questions(params: CustomParams = Depends()):
 @version(1)
 async def get_question_with_subquestions(
         question_id: int,
-        db: AsyncSession = Depends(get_db)
+        db: AsyncSession = Depends(get_db),
+        current_user=Depends(get_current_user)
 ):
     try:
         # Получаем вопрос по ID
@@ -245,53 +261,27 @@ async def delete_question(
         raise ErrorWhenDeletingQuestion
 
 
-@router_question.post("/update/{question_id}", response_model=QuestionResponse, summary="Обновление вопроса")
+@router_question.post("/update", summary="Обновление вопроса или под-вопроса")
 @version(1)
 async def update_question(
-        question_data: QuestionCreate,
-        question_id: int = Path(..., ge=1),
+        update_request: UpdateQuestionRequest,
         db: AsyncSession = Depends(get_db),
         current_user=Depends(get_current_admin_or_moderator_user)
 ):
-    """Обновление вопроса и его под-вопросов по ID"""
+    """Обновление текста и ответа вопроса или под-вопроса"""
     try:
-        # Получаем основной вопрос
-        question = await db.get(Question, question_id)
-        if not question:
-            raise HTTPException(status_code=404, detail="Вопрос не найден")
+        # Определяем, обновляем основной вопрос или под-вопрос
+        if update_request.sub_question_id and update_request.sub_question_id > 0:
+            await update_sub_question(update_request, db)
+            return SubQuestionSuccessfullyUpdated
+        else:
+            await update_main_question(update_request, db)
+            return QuestionSuccessfullyUpdated
 
-        # Обновляем поля основного вопроса
-        for key, value in question_data.dict(exclude_unset=True).items():
-            setattr(question, key, value)
-
-        # Обрабатываем вложенные вопросы, если они есть
-        if 'subquestions' in question_data.dict(exclude_unset=True):
-            subquestions_data = question_data.dict()['subquestions']
-            for subquestion_data in subquestions_data:
-                subquestion_id = subquestion_data.get('id')
-                if subquestion_id:
-                    # Получаем под-вопрос по ID
-                    subquestion = await db.get(SubQuestion, subquestion_id)
-                    if not subquestion:
-                        raise HTTPException(status_code=404, detail=f"Под-вопрос с ID {subquestion_id} не найден")
-
-                    # Обновляем поля под-вопроса
-                    for key, value in subquestion_data.items():
-                        setattr(subquestion, key, value)
-                else:
-                    # Если ID нет, можно создать новый под-вопрос
-                    new_subquestion = SubQuestion(**subquestion_data)
-                    db.add(new_subquestion)
-
-        # Сохраняем изменения
-        await db.commit()
-
-        # Возвращаем обновленный вопрос
-        return QuestionResponse.model_validate(question)
     except Exception as e:
         await db.rollback()
         logger.error(f"Ошибка при обновлении вопроса: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+        raise ErrorWhenUpdatingQuestion
 
 
 @router_question.get("/search", response_model=List[QuestionResponse])
@@ -321,4 +311,3 @@ async def search_questions(
     except Exception as e:
         logger.error(f"Ошибка при поиске вопросов: {e}")
         raise HTTPException(status_code=500, detail="Ошибка поиска вопросов")
-

@@ -126,38 +126,13 @@ class UpdateCategoryData(BaseModel):
     number: int
 
 
+class UpdateQuestionRequest(BaseModel):
+    question_id: int = Field(..., description="ID основного вопроса")
+    sub_question_id: Optional[int] = Field(None, description="ID под-вопроса (если указан) ")
+    text: Optional[str] = Field(None, description="Новый текст вопроса или под-вопроса")
+    answer: Optional[str] = Field(None, description="Новый ответ вопроса или под-вопроса")
+
+
 class DeleteQuestionRequest(BaseModel):
     question_id: int = Field(..., description="ID основного вопроса")
     sub_question_id: Optional[int] = Field(None, description="ID под-вопроса (если указан)")
-
-
-# class SimilarQuestionResponse(BaseModel):
-#     id: int
-#     question_text: str
-#     similarity_score: float  # оценить схожесть
-
-
-# class DynamicAnswerResponse(BaseModel):
-#     id: int
-#     text: str
-#     has_answer: bool
-#     answer: Optional[str] = None
-#     category_id: int
-#     # subcategory_id: Optional[int]
-#     number: int
-#     sub_questions: Optional[List[SimilarQuestionResponse]] = None
-#
-#
-# class DynamicSubAnswerResponse(BaseModel):
-#     id: Optional[int]
-#     text: str
-#     has_answer: bool
-#     answer: Optional[str]
-#     category_id: Optional[int]
-#     # subcategory_id: Optional[int]
-#     number: Optional[int]
-#     sub_questions: List[SimilarQuestionResponse]
-
-
-
-
