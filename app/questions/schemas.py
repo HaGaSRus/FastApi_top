@@ -37,7 +37,7 @@ class CategoryCreateResponse(CategoryBase):
 
 class SubQuestionCreate(BaseModel):
     text: str
-    answer: Optional[str] = 0
+    answer: Optional[str] = None
     number: Optional[int] = 0
     count: Optional[int] = 0
     depth: int
@@ -51,7 +51,7 @@ class SubQuestionCreate(BaseModel):
 
 class QuestionCreate(BaseModel):
     text: str
-    answer: Optional[str] = 0
+    answer: Optional[str] = None
     number: Optional[int] = 0
     category_id: Optional[int]
     subcategory_id: Optional[int] = 0
@@ -70,7 +70,7 @@ class QuestionCreate(BaseModel):
 class SubQuestionResponse(BaseModel):
     id: int
     text: str
-    answer: Optional[str] = 0  # Сделать ответ необязательным, если требуется
+    answer: Optional[str] = None  # Сделать ответ необязательным, если требуется
     number: int
 
     count: Optional[int] = 0
@@ -90,7 +90,7 @@ class QuestionResponse(BaseModel):
     text: str
     category_id: int
     subcategory_id: Optional[int] = 0
-    answer: Optional[str] = 0  # Сделать ответ необязательным, если требуется
+    answer: Optional[str] = None  # Сделать ответ необязательным, если требуется
     number: int
     depth: int
     count: Optional[int] = 0
