@@ -13,7 +13,7 @@ from app.dao.dependencies import get_current_user, get_current_admin_or_moderato
 from app.database import get_db, async_session_maker
 from app.exceptions import CouldNotGetAnswerToQuestion, QuestionNotFound, ErrorInGetQuestions, ErrorInGetQuestionWithSubquestions
 from app.logger.logger import logger
-from app.questions.ML import get_similar_questions_cosine
+from app.questions.ML import get_similar_questions_cosine, clean_html
 from app.questions.dao_queestion import build_question_response, QuestionService, get_sub_questions, \
     build_subquestions_hierarchy, build_subquestion_response
 from app.questions.models import Question, SubQuestion
@@ -38,10 +38,9 @@ async def get_question_answer(
         db: AsyncSession = Depends(get_db),
         current_user=Depends(get_current_user)
 ):
-    """Получение ответа на вопрос по тексту."""
     logger.info(f"Получен запрос на ответ на вопрос: {question_text}")
 
-    clean_question_text = html.unescape(question_text).strip()
+    clean_question_text = clean_html(html.unescape(question_text)).strip()  # Удаление HTML-тегов
 
     # Проверка на пустой текст вопроса
     if not clean_question_text:
@@ -52,7 +51,7 @@ async def get_question_answer(
         # Получаем похожие вопросы
         similar_questions = await get_similar_questions_cosine(clean_question_text, db, min_similarity=0.1)
 
-        # Поиск точного совпадения
+        # Поиск точного совпадения с нормализованным текстом
         question_result = await db.execute(select(Question).where(Question.text == clean_question_text))
         question = question_result.scalars().first()
 
@@ -105,8 +104,7 @@ async def get_question_answer(
     except Exception as e:
         logger.error(f"Ошибка при обработке запроса: {str(e)}")
         logger.error(traceback.format_exc())
-        raise HTTPException(status_code=400, detail="Ошибочка.")
-
+        raise HTTPException(status_code=500, detail="Ошибка при обработке запроса.")
 
 @router_question.get("/all-questions", response_model=List[QuestionResponse])
 @version(1)

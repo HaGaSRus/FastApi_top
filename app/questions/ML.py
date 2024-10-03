@@ -48,14 +48,18 @@ async def get_similar_questions_cosine(query: str, db: AsyncSession, min_similar
         return []
 
     try:
-        query_embedding = get_embedding(query)
+        # Очищаем текст запроса от HTML-тегов
+        cleaned_query = clean_html(query)
+        query_embedding = get_embedding(cleaned_query)
         similar_questions = []
 
         for question in all_questions:
             if question.text:
-                question_embedding = get_embedding(question.text)
+                # Очищаем текст вопроса от HTML-тегов
+                cleaned_question_text = clean_html(question.text)
+                question_embedding = get_embedding(cleaned_question_text)
                 similarity = cosine_similarity(query_embedding, question_embedding)[0][0]
-                logger.info(f"Сходство с вопросом '{question.text}': {similarity}")
+                logger.info(f"Сходство с вопросом '{cleaned_question_text}': {similarity}")
 
                 if similarity >= min_similarity:
                     similar_questions.append({
