@@ -88,3 +88,21 @@ async def get_current_admin_user(current_user: Users = Depends(get_current_user)
     logger.info(f"Администратор авторизован: {current_user.username}")
     return current_user
 
+
+async def get_current_admin_or_moderator_user(current_user: Users = Depends(get_current_user)) -> tuple[Users, str]:
+    """Проверяем, является ли текущий пользователь администратором или модератором и возвращает его роль."""
+    if not current_user:
+        logger.error("Пользователь не авторизован.")
+        raise PermissionDeniedException
+
+    roles = {role.name for role in current_user.roles}
+    if "admin" in roles:
+        logger.info(f"Администратор авторизирован: {current_user.username}")
+        return current_user, "admin"
+    elif "moderator" in roles:
+        logger.info(f"Модератор авторизирован: {current_user.username}")
+        return current_user, "moderator"
+    else:
+        logger.error("Пользователь не имеет прав администратора или модератора.")
+        raise PermissionDeniedException
+

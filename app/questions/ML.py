@@ -1,69 +1,72 @@
 import re
-from typing import List
-
-from sqlalchemy.ext.asyncio import AsyncSession
+import torch
 from sqlalchemy import select
-from sklearn.feature_extraction.text import TfidfVectorizer
+from sqlalchemy.ext.asyncio import AsyncSession
+from transformers import AutoTokenizer, AutoModel
 from sklearn.metrics.pairwise import cosine_similarity
-
+from bs4 import BeautifulSoup
+from fastapi import HTTPException, Query, Depends
+import numpy as np
+import traceback
 from app.logger.logger import logger
 from app.questions.models import Question
 
+# Загружаем модель и токенайзер
+tokenizer = AutoTokenizer.from_pretrained("sentence-transformers/all-MiniLM-L6-v2")
+model = AutoModel.from_pretrained("sentence-transformers/all-MiniLM-L6-v2")
 
-# Функция для нормализации текста
+
+def clean_html(raw_html: str) -> str:
+    """Удаляет HTML-теги и возвращает чистый текст."""
+    return BeautifulSoup(raw_html, "html.parser").get_text()
+
+
+def get_embedding(text: str) -> np.ndarray:
+    """Получает эмбеддинг для заданного текста."""
+    inputs = tokenizer(text, return_tensors="pt", padding=True, truncation=True)
+    with torch.no_grad():
+        embedding = model(**inputs).last_hidden_state.mean(dim=1).cpu().numpy()
+    return embedding
+
+
 def normalize_text(text: str) -> str:
+    """Нормализует текст: приводит к нижнему регистру и удаляет лишние пробелы."""
     text = text.lower()  # Приведение к нижнему регистру
-    text = re.sub(r'\s+', ' ', text)  # Удаление лишних пробелов
-    return text.strip()
+    return re.sub(r'\s+', ' ', text).strip()  # Удаление лишних пробелов
 
 
-async def get_similar_questions_cosine(question_text: str, db: AsyncSession, min_similarity: float = 0.2) -> List[
-    Question]:
-    # Нормализуем текст вопроса
-    normalized_question_text = normalize_text(question_text)
+async def get_similar_questions_cosine(query: str, db: AsyncSession, min_similarity: float = 0.2):
+    """Находит схожие вопросы на основе косинусного сходства."""
+    logger.info(f"Поиск схожих вопросов для запроса: {query}")
 
-    # Получаем вопросы из базы с ограничением по количеству
-    questions = await db.execute(select(Question).limit(1000))
-    questions_list = questions.scalars().all()
+    questions_result = await db.execute(select(Question))
+    all_questions = questions_result.scalars().all()
+    logger.info(f"Найдено вопросов в базе данных: {len(all_questions)}")
 
-    if not questions_list:
-        logger.warning("Не удалось получить список вопросов из базы данных")
+    if not all_questions:
+        logger.warning("В базе данных нет вопросов.")
         return []
 
-    # Нормализуем текст всех вопросов
-    all_texts = [normalize_text(q.text) for q in questions_list] + [normalized_question_text]
-
-    # Векторизация вопросов
-    vectorizer = TfidfVectorizer()
-    tfidf_matrix = vectorizer.fit_transform(all_texts)
-
-    # Вычисляем косинусное сходство
-    cosine_similarities = cosine_similarity(tfidf_matrix[-1], tfidf_matrix[:-1])
-
-    # Логируем результаты косинусного сходства
-    logger.debug(f"Косинусные сходства: {cosine_similarities}")
-
-    # Фильтруем вопросы с учетом минимального порога сходства
-    similar_questions = [
-        questions_list[i] for i in range(len(questions_list))
-        if cosine_similarities[0][i] >= min_similarity
-    ]
-
-    # Логируем отфильтрованные вопросы
-    logger.debug(f"Похожие вопросы: {[q.text for q in similar_questions]}")
-    return similar_questions
-
-
-def calculate_similarity(text1: str, text2: str) -> float:
     try:
-        # Нормализуем текст
-        normalized_text1 = normalize_text(text1)
-        normalized_text2 = normalize_text(text2)
+        query_embedding = get_embedding(query)
+        similar_questions = []
 
-        vectorizer = TfidfVectorizer().fit_transform([normalized_text1, normalized_text2])
-        vectors = vectorizer.toarray()
-        cosine_sim = cosine_similarity(vectors)
-        return float(cosine_sim[0][1])
+        for question in all_questions:
+            if question.text:
+                question_embedding = get_embedding(question.text)
+                similarity = cosine_similarity(query_embedding, question_embedding)[0][0]
+                logger.info(f"Сходство с вопросом '{question.text}': {similarity}")
+
+                if similarity >= min_similarity:
+                    similar_questions.append({
+                        'question': question,
+                        'similarity': similarity
+                    })
+
+        logger.info(f"Найдено похожих вопросов: {len(similar_questions)}")
+        return sorted(similar_questions, key=lambda x: x['similarity'], reverse=True)
+
     except Exception as e:
-        logger.error(f"Ошибка при расчете сходства между '{text1}' и '{text2}': {e}")
-        return 0.0
+        logger.error(f"Ошибка при нахождении похожих вопросов: {str(e)}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail="Ошибка при поиске похожих вопросов.")

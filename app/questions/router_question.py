@@ -1,18 +1,19 @@
 import traceback
+import html
 from typing import List
 from fastapi_versioning import version
 from fastapi import APIRouter, Depends, Path, Query, HTTPException, status
-from fastapi_pagination import Page, paginate, Params, add_pagination
+from fastapi_pagination import Page, paginate
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 from app.admin.pagination_and_filtration import CustomParams
-from app.dao.dependencies import get_current_user
+from app.dao.dependencies import get_current_user, get_current_admin_or_moderator_user
 from app.database import get_db, async_session_maker
-from app.exceptions import DataIntegrityErrorPerhapsQuestionWithThisTextAlreadyExists, \
-    CouldNotGetAnswerToQuestion, QuestionNotFound, ErrorInGetQuestions, ErrorInGetQuestionWithSubquestions
+from app.exceptions import CouldNotGetAnswerToQuestion, QuestionNotFound, ErrorInGetQuestions, ErrorInGetQuestionWithSubquestions
 from app.logger.logger import logger
+from app.questions.ML import get_similar_questions_cosine
 from app.questions.dao_queestion import build_question_response, QuestionService, get_sub_questions, \
     build_subquestions_hierarchy, build_subquestion_response
 from app.questions.models import Question, SubQuestion
@@ -28,8 +29,83 @@ router_question = APIRouter(
 )
 
 
-# Создание вопроса верхнего уровня
 # Эндпоинт для получения всех вопросов с вложенными под-вопросами
+
+@router_question.get("/answer", response_model=DynamicAnswerResponse, summary="Получение ответа на вопрос по тексту")
+@version(1)
+async def get_question_answer(
+        question_text: str = Query(..., description="Текст вопроса"),
+        db: AsyncSession = Depends(get_db),
+        current_user=Depends(get_current_user)
+):
+    """Получение ответа на вопрос по тексту."""
+    logger.info(f"Получен запрос на ответ на вопрос: {question_text}")
+
+    clean_question_text = html.unescape(question_text).strip()
+
+    # Проверка на пустой текст вопроса
+    if not clean_question_text:
+        logger.warning("Получен пустой текст вопроса.")
+        raise HTTPException(status_code=400, detail="Текст вопроса не может быть пустым.")
+
+    try:
+        # Получаем похожие вопросы
+        similar_questions = await get_similar_questions_cosine(clean_question_text, db, min_similarity=0.1)
+
+        # Поиск точного совпадения
+        question_result = await db.execute(select(Question).where(Question.text == clean_question_text))
+        question = question_result.scalars().first()
+
+        if question:
+            logger.info(f"Найден вопрос: {clean_question_text}")
+            has_answer = question.answer is not None
+            response_sub_questions = [
+                SimilarQuestionResponse(id=question.id, question_text=question.text,
+                                        similarity_score=1.0)
+            ] + [
+                SimilarQuestionResponse(id=q['question'].id, question_text=q['question'].text,
+                                        similarity_score=q['similarity'])
+                for q in similar_questions
+            ]
+
+            response = DynamicAnswerResponse(
+                id=question.id,
+                text=question.text,
+                has_answer=has_answer,
+                answer=question.answer if has_answer else None,
+                category_id=question.category_id,
+                number=question.number,
+                sub_questions=response_sub_questions
+            )
+            logger.info(f"Ответ на вопрос '{clean_question_text}' успешно сформирован.")
+            return response
+        else:
+            logger.warning(f"Вопрос '{clean_question_text}' не найден.")
+            if not similar_questions:
+                logger.warning(f"Нет похожих вопросов для '{clean_question_text}'.")
+                raise HTTPException(status_code=404, detail="Нет ответа на такой вопрос.")
+
+            response_sub_questions = [
+                SimilarQuestionResponse(id=q['question'].id, question_text=q['question'].text,
+                                        similarity_score=q['similarity'])
+                for q in similar_questions
+            ]
+
+            response = DynamicSubAnswerResponse(
+                id=None,
+                text=f"Вопрос '{clean_question_text}' не найден, но вот похожие вопросы:",
+                has_answer=False,
+                answer=None,
+                category_id=None,
+                number=None,
+                sub_questions=response_sub_questions
+            )
+            logger.info(f"Ответ на вопрос '{clean_question_text}' с похожими вопросами успешно сформирован.")
+            return response
+    except Exception as e:
+        logger.error(f"Ошибка при обработке запроса: {str(e)}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=400, detail="Ошибочка.")
 
 
 @router_question.get("/all-questions", response_model=List[QuestionResponse])
@@ -151,7 +227,7 @@ async def get_all_questions(params: CustomParams = Depends()):
 async def create_question(
     question: QuestionCreate,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user)
+    current_user=Depends(get_current_admin_or_moderator_user)
 ):
     try:
         logger.info("Создание нового вопроса с текстом: %s", question.text)
@@ -194,96 +270,13 @@ async def create_question(
         raise HTTPException(status_code=500, detail="Не удалось создать вопрос")
 
 
-@router_question.get("/answer",
-                     response_model=DynamicAnswerResponse,
-                     summary="Получение ответа на вопрос по тексту")
-@version(1)
-async def get_question_answer(
-        question_text: str = Query(..., description="Текст вопроса"),
-        db: AsyncSession = Depends(get_db),
-        current_user=Depends(get_current_user)
-):
-    """Форма получения ответа на вопрос по тексту"""
-
-    try:
-        logger.debug(f"Получение ответа на вопрос: {question_text}")
-
-        # Получаем похожие вопросы с порогом 0.2
-        similar_questions = await get_similar_questions_cosine(question_text, db, min_similarity=0.2)
-
-        # Получаем вопрос по тексту
-        question_result = await db.execute(select(Question).where(Question.text == question_text))
-        question = question_result.scalars().first()
-
-        response_sub_questions = []
-
-        # Формируем базовый список похожих вопросов
-        if similar_questions:
-            response_sub_questions = [
-                SimilarQuestionResponse(
-                    id=q.id,
-                    question_text=q.text,
-                    similarity_score=calculate_similarity(q.text, question_text),
-                ) for q in similar_questions
-            ]
-
-        if question:
-            has_answer = question.answer is not None
-
-            # Если найден вопрос, добавляем его в начало списка
-            response_sub_questions.insert(0, SimilarQuestionResponse(
-                id=question.id,
-                question_text=question.text,
-                similarity_score=1.0  # 100% совпадение
-            ))
-
-            # Сортируем sub_questions от максимального совпадения к наименьшему
-            response_sub_questions = sorted(response_sub_questions, key=lambda x: x.similarity_score, reverse=True)
-
-            response = DynamicAnswerResponse(
-                id=question.id,
-                text=question.text,
-                has_answer=has_answer,
-                answer=question.answer if has_answer else None,
-                category_id=question.category_id,
-                number=question.number,
-                sub_questions=response_sub_questions
-            )
-
-            logger.info(f"Ответ на вопрос '{question_text}' успешно получен")
-            return response
-        else:
-            logger.warning(f"Вопрос с текстом '{question_text}' не найден")
-
-            if not response_sub_questions:
-                raise HTTPException(status_code=404, detail="Нет ответа на такой вопрос.")
-
-            # Сортируем sub_questions от максимального совпадения к наименьшему
-            response_sub_questions = sorted(response_sub_questions, key=lambda x: x.similarity_score, reverse=True)
-
-            response = DynamicSubAnswerResponse(
-                id=None,
-                text=f"Вопрос '{question_text}' не найден, но вот похожие вопросы:",
-                has_answer=False,
-                answer=None,
-                category_id=None,
-                number=None,
-                sub_questions=response_sub_questions
-            )
-
-            return response
-
-    except Exception as e:
-        logger.error(f"Ошибка при получении ответа на вопрос: {e}")
-        logger.error(traceback.format_exc())
-        raise CouldNotGetAnswerToQuestion
 
 
 @router_question.post("/delete/{question_id}", summary="Удаление вопроса")
 async def delete_question(
         question_id: int = Path(..., ge=1),
         db: AsyncSession = Depends(get_db),
-        current_user=Depends(get_current_user)
+        current_user=Depends(get_current_admin_or_moderator_user)
 ):
     """Удаление вопроса по ID с каскадным удалением под-вопросов"""
     try:
@@ -312,7 +305,7 @@ async def update_question(
         question_data: QuestionCreate,
         question_id: int = Path(..., ge=1),
         db: AsyncSession = Depends(get_db),
-        current_user=Depends(get_current_user)
+        current_user=Depends(get_current_admin_or_moderator_user)
 ):
     """Обновление вопроса и его под-вопросов по ID"""
     try:

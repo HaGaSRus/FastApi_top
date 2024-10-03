@@ -1,7 +1,7 @@
 import traceback
 from typing import List
 from fastapi import HTTPException
-from app.exceptions import CategoryNotFound, ParentQuestionNotFound, ForASubquestionYouMustSpecifyParentQuestionId, \
+from app.exceptions import CategoryNotFound, ForASubquestionYouMustSpecifyParentQuestionId, \
     FailedToCreateQuestionDynamic, ParentQuestionIDNotFound, IncorrectParentSubquestionIdValueNumberExpected, \
     ErrorCreatingSubquestion
 from app.logger.logger import logger

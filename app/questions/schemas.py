@@ -96,24 +96,8 @@ class QuestionResponse(BaseModel):
         from_attributes = True
 
 
-
-# Упрощённый ответ для под-вопросов
-class QuestionResponseRef(BaseModel):
-    id: int
-    text: str
-    number: int
-
-    class Config:
-        from_attributes = True
-
-
 class DeleteCategoryRequest(BaseModel):
     category_id: int
-
-
-class UpdateCategoryRequest(BaseModel):
-    category_id: int
-    category_data: CategoryCreate
 
 
 class UpdateCategoryData(BaseModel):
@@ -134,13 +118,6 @@ class UpdateCategoryData(BaseModel):
     number: int
 
 
-class UpdateSubcategoryData(BaseModel):
-    id: int
-    name: str
-    parent_id: Optional[int]  # Поле для связи с родительской категорией
-    number: Optional[int]
-
-
 class SimilarQuestionResponse(BaseModel):
     id: int
     question_text: str
@@ -153,6 +130,7 @@ class DynamicAnswerResponse(BaseModel):
     has_answer: bool
     answer: Optional[str] = None
     category_id: int
+    # subcategory_id: Optional[int]
     number: int
     sub_questions: Optional[List[SimilarQuestionResponse]] = None
 
@@ -163,31 +141,10 @@ class DynamicSubAnswerResponse(BaseModel):
     has_answer: bool
     answer: Optional[str]
     category_id: Optional[int]
+    # subcategory_id: Optional[int]
     number: Optional[int]
     sub_questions: List[SimilarQuestionResponse]
 
 
-class DetailedQuestion(BaseModel):
-    id: int
-    text: str
-    category: str
-    similarity: Optional[float] = None
-    created_at: str
-    additional_data: Optional[dict] = None
 
 
-class DetailedQuestionResponse(BaseModel):
-    questions: List[DetailedQuestion]
-
-
-class QuestionAllResponse(BaseModel):
-    id: int
-    text: str
-    number: int
-    answer: Optional[str] = None
-    category_id: Optional[int] = None
-    count: Optional[int] = None
-    sub_questions: List[SubQuestionResponse] = []
-
-    class Config:
-        from_attributes = True
