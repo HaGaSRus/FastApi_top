@@ -98,8 +98,6 @@ class QuestionResponse(BaseModel):
 
     sub_questions: List[SubQuestionResponse] = []
 
-
-
     class Config:
         from_attributes = True
 
@@ -139,3 +137,20 @@ class DeleteQuestionRequest(BaseModel):
 
 class QuestionIDRequest(BaseModel):
     question_id: int
+
+
+class QuestionResponseForPagination(BaseModel):
+    id: int
+    text: str
+    category_id: int
+    subcategory_id: Optional[int] = None
+    answer: Optional[str] = None
+    number: int
+    depth: int
+    count: Optional[int] = None
+    parent_question_id: Optional[int] = None
+    sub_questions: List['QuestionResponse'] = []
+    is_depth: bool  # Новое поле для отображения глубины
+
+    class Config:
+        from_attributes = True

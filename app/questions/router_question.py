@@ -20,12 +20,13 @@ from app.questions.dao_queestion import build_question_response, QuestionService
     build_subquestions_hierarchy, build_subquestion_response, update_main_question, update_sub_question
 from app.questions.models import Question, SubQuestion
 from app.questions.schemas import QuestionResponse, QuestionCreate, DeleteQuestionRequest, UpdateQuestionRequest, \
-    QuestionIDRequest
+    QuestionIDRequest, QuestionResponseForPagination
 from pydantic import ValidationError
 import asyncio
 from sqlalchemy import func
 
-from app.questions.search_questions import SearchQuestionRequest, QuestionSearchService
+from app.questions.search_questions import SearchQuestionRequest, QuestionSearchService, \
+    build_question_response_from_search
 
 router_question = APIRouter(
     prefix="/question",
@@ -76,7 +77,7 @@ async def get_questions(db: AsyncSession = Depends(get_db),
 
 @router_question.get("/pagination-questions",
                      status_code=status.HTTP_200_OK,
-                     response_model=Page[QuestionResponse],
+                     response_model=Page[QuestionResponseForPagination],
                      summary="Отображение всех вопросов верхнего уровня с пагинацией")
 @version(1)
 async def get_all_questions(params: CustomParams = Depends(),
@@ -104,7 +105,7 @@ async def get_all_questions(params: CustomParams = Depends(),
 
         # Преобразуем вопросы в нужный формат ответа
         question_responses = [
-            QuestionResponse(
+            QuestionResponseForPagination(
                 id=question.id,
                 text=question.text,
                 category_id=question.category_id,
@@ -115,6 +116,7 @@ async def get_all_questions(params: CustomParams = Depends(),
                 count=question.count,
                 parent_question_id=question.parent_question_id,
                 sub_questions=[],
+                is_depth=True if question.depth > 0 or question.sub_questions else False  # Новое поле
             )
             for question in question_all
         ]
@@ -123,6 +125,7 @@ async def get_all_questions(params: CustomParams = Depends(),
         return paginate(question_responses, params=params)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
 
 
 @router_question.post("/question_by_id", response_model=QuestionResponse)
@@ -297,7 +300,6 @@ async def update_question(
 @version(1)
 async def search_questions(
         query: str,
-        category_id: Optional[int] = None,
         db: AsyncSession = Depends(get_db)
 ):
     """Поиск вопросов по тексту и категории"""
@@ -305,18 +307,22 @@ async def search_questions(
         questions = await QuestionSearchService.search_questions(
             db,
             query,
-            category_id
         )
 
         if not questions:
             logger.info("Вопросы не найдены")
             return []
 
+        # Словарь для вопросов по id
+        question_dict = {question.id: question for question in questions}
+
+        # Создание иерархии под-вопросов для каждого основного вопроса
         question_responses = [
-            await build_question_response(question) for question in questions
+            await build_question_response_from_search(question, db) for question in questions if question.parent_question_id is None
         ]
 
         return question_responses
     except Exception as e:
         logger.error(f"Ошибка при поиске вопросов: {e}")
         raise HTTPException(status_code=500, detail="Ошибка поиска вопросов")
+
