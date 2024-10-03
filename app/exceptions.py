@@ -325,3 +325,15 @@ class QuestionSuccessfullyUpdated(HootLineException):
 class ErrorWhenUpdatingQuestion(HootLineException):
     status_code = status.HTTP_400_BAD_REQUEST
     detail = "Ошибка при обновлении вопроса"
+
+
+class InvalidRefreshToken(HootLineException):
+    status_code = status.HTTP_403_FORBIDDEN
+    detail = "Неверный Refresh токен "
+
+
+class RefreshTokenHasExpired(HootLineException):
+    status_code = status.HTTP_403_FORBIDDEN
+    detail = "Срок действия токена обновления истек"
+
+
