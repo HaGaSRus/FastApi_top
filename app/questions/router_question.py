@@ -78,17 +78,21 @@ async def get_questions(db: AsyncSession = Depends(get_db),
 @router_question.get("/pagination-questions",
                      status_code=status.HTTP_200_OK,
                      response_model=Page[QuestionResponseForPagination],
-                     summary="Отображение всех вопросов верхнего уровня с пагинацией")
+                     summary="Отображение всех вопросов верхнего уровня с пагинацией и поиском")
 @version(1)
-async def get_all_questions(params: CustomParams = Depends(),
-                            category_id: Optional[int] = None,
-                            subcategory_id: Optional[int] = None,
-                            current_user=Depends(get_current_user)):
-    """Получение всех вопросов верхнего уровня. С пагинацией"""
+async def get_all_questions_or_search(params: CustomParams = Depends(),
+                                      query: Optional[str] = None,  # Параметр для поиска
+                                      category_id: Optional[int] = None,
+                                      subcategory_id: Optional[int] = None,
+                                      current_user=Depends(get_current_user)):
+    """Получение всех вопросов верхнего уровня с пагинацией и поиском"""
     try:
         async with async_session_maker() as session:
-            # Получаем только вопросы верхнего уровня (где parent_question_id = None)
-            stmt = select(Question).filter(Question.parent_question_id.is_(None))
+            stmt = select(Question).filter(Question.parent_question_id.is_(None))  # Базовый запрос
+
+            # Если передан query, выполняем поиск по тексту
+            if query:
+                stmt = stmt.filter(Question.text.ilike(f"%{query}%"))
 
             # Добавляем фильтрацию по category_id, если он указан
             if category_id is not None:
@@ -125,7 +129,6 @@ async def get_all_questions(params: CustomParams = Depends(),
         return paginate(question_responses, params=params)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-
 
 
 @router_question.post("/question_by_id", response_model=QuestionResponse)
@@ -172,7 +175,6 @@ async def get_question_with_subquestions(
     except Exception as e:
         logger.error(f"Ошибка в get_question_with_subquestions: {e}")
         raise ErrorInGetQuestionWithSubquestions(detail=str(e))
-
 
 
 # Роут для создания вопроса или под вопроса
@@ -302,7 +304,7 @@ async def search_questions(
         query: str,
         db: AsyncSession = Depends(get_db)
 ):
-    """Поиск вопросов по тексту и категории"""
+    """Поиск вопросов по тексту"""
     try:
         questions = await QuestionSearchService.search_questions(
             db,
