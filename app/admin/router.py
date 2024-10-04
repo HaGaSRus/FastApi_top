@@ -7,7 +7,6 @@ from app.dao.dependencies import get_current_admin_user
 from app.exceptions import UserEmailAlreadyExistsException, UserNameAlreadyExistsException, UserCreated, \
     DeleteUser, UserNotFoundException, ErrorUpdatingUser
 from app.logger.logger import logger
-from app.users.models import Users
 from app.admin.schemas import SUserAuth, UserIdRequest
 
 router_admin = APIRouter(

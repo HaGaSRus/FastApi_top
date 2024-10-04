@@ -11,6 +11,7 @@ role_user_association = Table(
     Column('role_id', Integer, ForeignKey('roles.id', ondelete='CASCADE'), primary_key=True)
 )
 
+
 class Users(Base):
     __tablename__ = "users"
 
@@ -26,6 +27,7 @@ class Users(Base):
         back_populates='users'
     )
 
+
 class Roles(Base):
     __tablename__ = "roles"
 
@@ -40,6 +42,7 @@ class Roles(Base):
 
     # Связь one-to-many с правами
     permissions: Mapped[List['Permissions']] = relationship('Permissions', back_populates='role')
+
 
 class Permissions(Base):
     __tablename__ = "permissions"

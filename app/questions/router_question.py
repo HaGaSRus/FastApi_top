@@ -1,8 +1,8 @@
+import asyncio
 import traceback
-import html
-from typing import List, Optional, Dict
+from typing import List, Optional
 from fastapi_versioning import version
-from fastapi import APIRouter, Depends, Path, Query, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi_pagination import Page, paginate
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,11 +22,8 @@ from app.questions.models import Question, SubQuestion
 from app.questions.schemas import QuestionResponse, QuestionCreate, DeleteQuestionRequest, UpdateQuestionRequest, \
     QuestionIDRequest, QuestionResponseForPagination
 from pydantic import ValidationError
-import asyncio
 from sqlalchemy import func
-
-from app.questions.search_questions import SearchQuestionRequest, QuestionSearchService, \
-    build_question_response_from_search
+from app.questions.search_questions import QuestionSearchService, build_question_response_from_search
 
 router_question = APIRouter(
     prefix="/question",
@@ -327,4 +324,3 @@ async def search_questions(
     except Exception as e:
         logger.error(f"Ошибка при поиске вопросов: {e}")
         raise HTTPException(status_code=500, detail="Ошибка поиска вопросов")
-

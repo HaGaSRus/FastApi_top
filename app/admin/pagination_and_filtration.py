@@ -2,7 +2,6 @@ from fastapi import APIRouter, Depends, status, Query, HTTPException
 from fastapi_pagination import paginate, Page, Params, add_pagination
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
-
 from app.admin.schemas import UserFilter
 from app.dao.dependencies import get_current_admin_user
 from app.database import async_session_maker

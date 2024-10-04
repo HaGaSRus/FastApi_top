@@ -61,8 +61,8 @@ async def login_user(response: Response, user_data: SUserSignUp):
             httponly=False,
             samesite='lax',
             secure=False,
-            max_age=32_400,
-            expires=32_401,
+            max_age=30,
+            expires=30,
         )
 
         response.set_cookie(
@@ -71,15 +71,14 @@ async def login_user(response: Response, user_data: SUserSignUp):
             httponly=False,
             samesite='lax',
             secure=False,
-            max_age=2_592_000,  # 30 дней
-            expires=2_592_001,
+            max_age=32,  # 30 дней
+            expires=32,
         )
 
         return {"access_token": access_token, "refresh_token": refresh_token}
     except Exception as e:
         logger.error(f"Ошибка при авторизации: {e}")
         return ErrorGettingUser
-
 
 
 @router_auth.post("/forgot-password",

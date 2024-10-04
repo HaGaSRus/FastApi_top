@@ -57,11 +57,6 @@ class UserCreated(HootLineException):
     detail = "Пользователь успешно создан"
 
 
-class UserChangeRole(HootLineException):
-    status_code = status.HTTP_200_OK
-    detail = "Роли успешно обновлены"
-
-
 class DeleteUser(HootLineException):
     status_code = status.HTTP_202_ACCEPTED
     detail = "Пользователь успешно удален"
@@ -138,26 +133,6 @@ class CategoryNotFound(HootLineException):
     detail = "Категория не найдена"
 
 
-class DataIntegrityErrorPerhapsQuestionWithThisTextAlreadyExists(HootLineException):
-    status_code = status.HTTP_400_BAD_REQUEST
-    detail = "Ошибка целостности данных. Возможно, вопрос с таким текстом уже существует"
-
-
-class FailedToCreateQuestion(HootLineException):
-    status_code = status.HTTP_400_BAD_REQUEST
-    detail = "Не удалось создать вопрос"
-
-
-class ParentQuestionNotFound(HootLineException):
-    status_code = status.HTTP_404_NOT_FOUND
-    detail = "Родительский вопрос не найден"
-
-
-class FailedToCreateSubQuestion(HootLineException):
-    status_code = status.HTTP_400_BAD_REQUEST
-    detail = "Не удалось создать под-вопрос"
-
-
 class CategoryContainsSubcategoriesDeletionIsNotPossible(HootLineException):
     status_code = status.HTTP_400_BAD_REQUEST
     detail = "Категория содержит подкатегории, удаление невозможно"
@@ -225,18 +200,6 @@ class CategoryWithSameNameAlreadyExists(HootLineExceptionDynamic):
         super().__init__(status_code=400, detail=detail)
 
 
-class ParentCategoryNotFoundException(HootLineExceptionDynamic):
-    def __init__(self, parent_question_id: int):
-        self.parent_question_id = parent_question_id
-        self.message = f"Родительская категория с id {self.parent_question_id} не найдена"
-        super().__init__(self.message)
-
-
-class ErrorUpdatingSubcategories(HootLineException):
-    status_code = status.HTTP_400_BAD_REQUEST
-    detail = "Ошибка при обновлении подкатегорий"
-
-
 class FailedToUpdateSubcategories(HootLineException):
     status_code = status.HTTP_400_BAD_REQUEST
     detail = "Не удалось обновить подкатегории"
@@ -250,11 +213,6 @@ class ErrorGettingUser(HootLineException):
 class MissingTokenException(HootLineExceptionDynamic):
     def __init__(self, detail="Токен отсутствует или недействителен"):
         super().__init__(status_code=status.HTTP_401_UNAUTHORIZED, detail=detail)
-
-
-class FailedToRetrieveQuestions(HootLineException):
-    status_code = status.HTTP_400_BAD_REQUEST
-    detail = "Не удалось получить вопросы"
 
 
 class ForASubquestionYouMustSpecifyParentQuestionId(HootLineExceptionDynamic):
@@ -335,5 +293,3 @@ class InvalidRefreshToken(HootLineException):
 class RefreshTokenHasExpired(HootLineException):
     status_code = status.HTTP_403_FORBIDDEN
     detail = "Срок действия токена обновления истек"
-
-

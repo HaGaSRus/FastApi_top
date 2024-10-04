@@ -24,6 +24,7 @@ class Category(Base):
         back_populates="category",
         foreign_keys="[Question.category_id]"  # Указываем, что это поле относится к category_id в модели Question
     )
+
     def __repr__(self):
         return f"<Category(id={self.id}, name={self.name}, number={self.number})>"
 

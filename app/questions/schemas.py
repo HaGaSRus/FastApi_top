@@ -48,7 +48,6 @@ class SubQuestionCreate(BaseModel):
     subcategory_id: Optional[int] = 0
 
 
-
 class QuestionCreate(BaseModel):
     text: str
     answer: Optional[str] = None
@@ -59,8 +58,6 @@ class QuestionCreate(BaseModel):
     parent_question_id: Optional[int] = 0  # Поле для указания родительского вопроса
     is_subquestion: bool = False  # Поле для указания поиска в под-вопросах
     parent_subquestion_id: Optional[int] = 0
-    # depth: Optional[int] = 0
-
 
     class Config:
         from_attributes = True
@@ -134,6 +131,7 @@ class UpdateQuestionRequest(BaseModel):
 class DeleteQuestionRequest(BaseModel):
     question_id: int = Field(..., description="ID основного вопроса")
     sub_question_id: Optional[int] = Field(None, description="ID под-вопроса (если указан)")
+
 
 class QuestionIDRequest(BaseModel):
     question_id: int

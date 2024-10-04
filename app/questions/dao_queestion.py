@@ -242,6 +242,3 @@ def update_fields(question_obj, update_request: UpdateQuestionRequest):
 
     if update_request.answer is not None:
         question_obj.answer = update_request.answer
-
-
-

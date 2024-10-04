@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from transformers import AutoTokenizer, AutoModel
 from sklearn.metrics.pairwise import cosine_similarity
 from bs4 import BeautifulSoup
-from fastapi import HTTPException, Query, Depends
+from fastapi import HTTPException
 import numpy as np
 import traceback
 from app.logger.logger import logger

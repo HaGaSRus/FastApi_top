@@ -23,6 +23,7 @@ class CustomJsonFormatter(jsonlogger.JsonFormatter):
         else:
             log_record["level"] = record.levelname
 
+
 # Настройте форматировщик для ведения журнала с помощью json_ensure_ascii=False
 formatter = CustomJsonFormatter(
     "%(timestamp)s %(level)s %(message)s %(module)s %(funcName)s"
