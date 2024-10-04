@@ -1,76 +1,134 @@
-import re
-import torch
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 from transformers import AutoTokenizer, AutoModel
+import torch
 from sklearn.metrics.pairwise import cosine_similarity
-from bs4 import BeautifulSoup
-from fastapi import HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 import numpy as np
-import traceback
-from app.logger.logger import logger
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from app.questions.models import Question
 
-# Загружаем модель и токенайзер
-tokenizer = AutoTokenizer.from_pretrained("sentence-transformers/all-MiniLM-L6-v2")
-model = AutoModel.from_pretrained("sentence-transformers/all-MiniLM-L6-v2")
+# Загрузка модели RUBERT
+tokenizer = AutoTokenizer.from_pretrained("DeepPavlov/rubert-base-cased")
+model = AutoModel.from_pretrained("DeepPavlov/rubert-base-cased")
 
 
-def clean_html(raw_html: str) -> str:
-    """Удаляет HTML-теги и возвращает чистый текст."""
-    return BeautifulSoup(raw_html, "html.parser").get_text()
+# Функция для создания эмбеддингов и сохранения их в БД
+async def save_question_embeddings(db: AsyncSession, model, tokenizer):
+    questions = await db.execute(select(Question))
+    questions = questions.scalars().all()
+
+    for question in questions:
+        # Получение эмбеддинга вопроса
+        embedding = get_embedding(question.text, model, tokenizer)
+
+        # Сохранение эмбеддинга в базу данных (например, в отдельное поле или таблицу)
+        question.embedding = np.array(embedding).tolist()  # Преобразование в список для сохранения
+
+        # Сохранение обновленного вопроса с эмбеддингом
+        db.add(question)
+    await db.commit()
 
 
-def get_embedding(text: str) -> np.ndarray:
-    """Получает эмбеддинг для заданного текста."""
-    inputs = tokenizer(text, return_tensors="pt", padding=True, truncation=True)
+# Функция для генерации эмбеддингов
+def get_embedding(text, model, tokenizer):
+    inputs = tokenizer(text, return_tensors="pt", padding=True, truncation=True, max_length=512)
     with torch.no_grad():
-        embedding = model(**inputs).last_hidden_state.mean(dim=1).cpu().numpy()
-    return embedding
+        outputs = model(**inputs)
+    return outputs.last_hidden_state.mean(dim=1).squeeze().numpy()
 
 
-def normalize_text(text: str) -> str:
-    """Нормализует текст: приводит к нижнему регистру и удаляет лишние пробелы."""
-    text = text.lower()  # Приведение к нижнему регистру
-    return re.sub(r'\s+', ' ', text).strip()  # Удаление лишних пробелов
+# Функция поиска схожих вопросов
+def find_similar_questions(query, questions, top_n=5):
+    query_embedding = get_embedding(query)
+    question_embeddings = [get_embedding(question.text) for question in questions]
+
+    similarities = cosine_similarity([query_embedding], question_embeddings).flatten()
+
+    # Сортировка по схожести и возврат топ-N вопросов
+    top_indices = similarities.argsort()[-top_n:][::-1]
+    return [questions[i] for i in top_indices]
 
 
-async def get_similar_questions_cosine(query: str, db: AsyncSession, min_similarity: float = 0.2):
-    """Находит схожие вопросы на основе косинусного сходства."""
-    logger.info(f"Поиск схожих вопросов для запроса: {query}")
+# Использование функции
+# similar_questions = find_similar_questions("Как создать таблицу в SQL?", all_questions)
 
-    questions_result = await db.execute(select(Question))
-    all_questions = questions_result.scalars().all()
-    logger.info(f"Найдено вопросов в базе данных: {len(all_questions)}")
 
-    if not all_questions:
-        logger.warning("В базе данных нет вопросов.")
+# Функция для создания эмбеддингов и сохранения их в БД
+async def save_question_embeddings(db: AsyncSession, model, tokenizer):
+    questions = await db.execute(select(Question))
+    questions = questions.scalars().all()
+
+    for question in questions:
+        # Получение эмбеддинга вопроса
+        embedding = get_embedding(question.text, model, tokenizer)
+
+        # Сохранение эмбеддинга в базу данных (например, в отдельное поле или таблицу)
+        question.embedding = np.array(embedding).tolist()  # Преобразование в список для сохранения
+
+        # Сохранение обновленного вопроса с эмбеддингом
+        db.add(question)
+    await db.commit()
+
+
+# Функция для генерации эмбеддингов
+def get_embedding(text, model, tokenizer):
+    inputs = tokenizer(text, return_tensors="pt", padding=True, truncation=True, max_length=512)
+    with torch.no_grad():
+        outputs = model(**inputs)
+    return outputs.last_hidden_state.mean(dim=1).squeeze().numpy()
+
+
+async def search_similar_questions(query: str, db: AsyncSession, model, tokenizer, top_n: int = 5):
+    # Получение эмбеддинга для запроса
+    query_embedding = get_embedding(query, model, tokenizer)
+
+    # Загрузка всех вопросов с эмбеддингами
+    questions = await db.execute(select(Question))
+    questions = questions.scalars().all()
+
+    # Если нет сохраненных эмбеддингов, вернуть пустой результат
+    if not questions:
         return []
 
-    try:
-        # Очищаем текст запроса от HTML-тегов
-        cleaned_query = clean_html(query)
-        query_embedding = get_embedding(cleaned_query)
-        similar_questions = []
+    # Вычисление схожести запроса с эмбеддингами вопросов
+    question_embeddings = [np.array(question.embedding) for question in questions]
+    similarities = cosine_similarity([query_embedding], question_embeddings).flatten()
 
-        for question in all_questions:
-            if question.text:
-                # Очищаем текст вопроса от HTML-тегов
-                cleaned_question_text = clean_html(question.text)
-                question_embedding = get_embedding(cleaned_question_text)
-                similarity = cosine_similarity(query_embedding, question_embedding)[0][0]
-                logger.info(f"Сходство с вопросом '{cleaned_question_text}': {similarity}")
+    # Сортировка по схожести и возврат топ-N вопросов
+    top_indices = similarities.argsort()[-top_n:][::-1]
+    return [questions[i] for i in top_indices]
 
-                if similarity >= min_similarity:
-                    similar_questions.append({
-                        'question': question,
-                        'similarity': similarity
-                    })
 
-        logger.info(f"Найдено похожих вопросов: {len(similar_questions)}")
-        return sorted(similar_questions, key=lambda x: x['similarity'], reverse=True)
+# Функция поиска схожих вопросов по эмбеддингам
+async def search_similar_questions(query: str, db: AsyncSession, model, tokenizer, top_n: int = 5):
+    # Получение эмбеддинга для запроса
+    query_embedding = get_embedding(query, model, tokenizer)
 
-    except Exception as e:
-        logger.error(f"Ошибка при нахождении похожих вопросов: {str(e)}")
-        logger.error(traceback.format_exc())
-        raise HTTPException(status_code=500, detail="Ошибка при поиске похожих вопросов.")
+    # Загрузка всех вопросов с эмбеддингами
+    questions = await db.execute(select(Question))
+    questions = questions.scalars().all()
+
+    # Если нет сохраненных эмбеддингов, вернуть пустой результат
+    if not questions:
+        return []
+
+    # Вычисление схожести запроса с эмбеддингами вопросов
+    question_embeddings = [np.array(question.embedding) for question in questions]
+    similarities = cosine_similarity([query_embedding], question_embeddings).flatten()
+
+    # Сортировка по схожести и возврат топ-N вопросов
+    top_indices = similarities.argsort()[-top_n:][::-1]
+    return [questions[i] for i in top_indices]
+
+
+# Создаем планировщик
+scheduler = AsyncIOScheduler()
+
+# Функция для обновления эмбеддингов всех вопросов
+async def update_question_embeddings():
+    async with get_db() as db:
+        await save_question_embeddings(db, model, tokenizer)
+
+# Добавляем задачу в планировщик (например, каждые 24 часа)
+scheduler.add_job(update_question_embeddings, "interval", hours=24)
+scheduler.start()

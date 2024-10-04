@@ -1,6 +1,5 @@
 from datetime import datetime
 from fastapi import Request, Depends, Response, HTTPException
-from starlette.responses import RedirectResponse
 from jose import jwt, JWTError
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
