@@ -61,8 +61,8 @@ async def login_user(response: Response, user_data: SUserSignUp):
             httponly=False,
             samesite='lax',
             secure=False,
-            max_age=30,
-            expires=30,
+            max_age=86400,
+            expires=86401,
         )
 
         response.set_cookie(
@@ -71,8 +71,8 @@ async def login_user(response: Response, user_data: SUserSignUp):
             httponly=False,
             samesite='lax',
             secure=False,
-            max_age=32,  # 30 дней
-            expires=32,
+            max_age=604800,  # 30 дней
+            expires=604801,
         )
 
         return {"access_token": access_token, "refresh_token": refresh_token}

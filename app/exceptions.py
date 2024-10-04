@@ -293,3 +293,10 @@ class InvalidRefreshToken(HootLineException):
 class RefreshTokenHasExpired(HootLineException):
     status_code = status.HTTP_403_FORBIDDEN
     detail = "Срок действия токена обновления истек"
+
+
+class TokenRedirectException(Exception):
+    def __init__(self, message: str, redirect_url: str):
+        super().__init__(message)
+        self.redirect_url = redirect_url
+

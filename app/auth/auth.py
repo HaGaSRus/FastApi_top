@@ -28,7 +28,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
 
-def create_access_token(data: dict, expires_delta: timedelta = timedelta(seconds=10)):
+def create_access_token(data: dict, expires_delta: timedelta = timedelta(hours=24)):
     # Создает JWT токен с заданным временем жизни
     to_encode = data.copy()  # Убедитесь, что data — это словарь
     expire = get_current_time_yekaterinburg() + expires_delta
@@ -58,7 +58,7 @@ def create_reset_token(email: str) -> str:
     return encoded_jwt
 
 
-def create_refresh_token(data: dict, expires_delta: timedelta = timedelta(days=30)):
+def create_refresh_token(data: dict, expires_delta: timedelta = timedelta(days=7)):
     # Создаем рефреш токен с заданным временем жизни
     to_encode = data.copy()
     expire = get_current_time_yekaterinburg() + expires_delta
