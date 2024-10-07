@@ -11,13 +11,21 @@ class SearchQuestionRequest(BaseModel):
     category_id: Optional[int] = Field(None, description="ID категории для фильтрации")
 
 
+from sqlalchemy import or_
+
 class QuestionSearchService:
     @staticmethod
     async def search_questions(
             db: AsyncSession,
             query: str,
     ) -> List[Question]:
-        stmt = select(Question).where(Question.text.ilike(f"%{query}%"))  # Поиск по тексту
+        # Поиск по тексту вопроса или по ответу
+        stmt = select(Question).where(
+            or_(
+                Question.text.ilike(f"%{query}%"),  # Поиск по тексту вопроса
+                Question.answer.ilike(f"%{query}%")  # Поиск по тексту ответа
+            )
+        )
 
         result = await db.execute(stmt)
         return result.scalars().all()
@@ -75,3 +83,4 @@ def build_subquestions_hierarchy_from_search(sub_questions, parent_question_id=N
             sub_question.sub_questions = build_subquestions_hierarchy_from_search(sub_questions, sub_question.id)
             hierarchy.append(sub_question)
     return hierarchy
+

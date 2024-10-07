@@ -148,6 +148,14 @@ async def get_question_with_subquestions(
         if not question:
             raise QuestionNotFound
 
+        # Увеличиваеем значение поля count на 1
+        if question.count is None:
+            question.count = 1
+        else:
+            question.count += 1
+
+        await db.commit()
+
         # Получаем все подвопросы
         sub_questions = await get_sub_questions(db, question_id)
 
