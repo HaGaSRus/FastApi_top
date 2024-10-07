@@ -4,14 +4,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.questions.models import Question, SubQuestion
 from app.questions.schemas import QuestionResponse, SubQuestionResponse
+from sqlalchemy import or_
 
 
 class SearchQuestionRequest(BaseModel):
     query: str = Field(..., description="Текст для поиска")
     category_id: Optional[int] = Field(None, description="ID категории для фильтрации")
 
-
-from sqlalchemy import or_
 
 class QuestionSearchService:
     @staticmethod
