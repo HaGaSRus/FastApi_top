@@ -16,7 +16,7 @@ from app.exceptions import QuestionNotFound, ErrorInGetQuestions, \
     CannotDeleteSubQuestionWithNestedSubQuestions, QuestionOrSubQuestionSuccessfullyDeleted, ErrorWhenDeletingQuestion, \
     SubQuestionSuccessfullyUpdated, QuestionSuccessfullyUpdated, ErrorWhenUpdatingQuestion
 from app.logger.logger import logger
-from app.questions.ML import search_similar_questions, model, tokenizer
+# from app.questions.ML import search_similar_questions, model, tokenizer
 from app.questions.dao_queestion import build_question_response, QuestionService, get_sub_questions, \
     build_subquestions_hierarchy, build_subquestion_response, update_main_question, update_sub_question
 from app.questions.models import Question, SubQuestion
@@ -335,17 +335,58 @@ async def search_questions(
         raise HTTPException(status_code=500, detail="Ошибка поиска вопросов")
 
 
-@router_question.get("/similar", response_model=List[QuestionResponse])
-async def get_similar_questions(query: str, db: AsyncSession = Depends(get_db)):
-    """Поиск похожих вопросов по тексту запроса"""
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import func, select
+from app.database import get_db
+from app.questions.models import Question
+from app.logger.logger import logger
+from fastapi_versioning import version
+
+
+@router_question.get("/top_question_count", summary="Получить count верхнеуровневых вопросов с количеством запросов")
+async def get_top_questions_count(
+        db: AsyncSession = Depends(get_db),
+):
+    """Возвращает количество верхнеуровневых вопросов и количество их запросов"""
     try:
-        similar_questions = await search_similar_questions(query, db, model, tokenizer)
+        # Запрос для получения верхнеуровневых вопросов без родительского вопроса
+        result = await db.execute(
+            select(Question.id, Question.text, Question.count)
+            .where(Question.parent_question_id.is_(None))
+        )
 
-        if not similar_questions:
-            return []
+        top_questions = result.fetchall()
 
-        # Преобразование результатов поиска в формат ответа
-        response = [QuestionResponse.model_validate(question) for question in similar_questions]
-        return response
+        if not top_questions:
+            return {"top_questions_count": 0, "questions": []}
+
+        # Формируем ответ с количеством вопросов и их count
+        questions_data = [
+            {"id": question.id, "text": question.text, "count": question.count}
+            for question in top_questions
+        ]
+
+        return {
+            "top_questions_count": len(questions_data),
+            "questions": questions_data
+        }
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Ошибка при получении count верхнеуровневых вопросов: {e}")
+        raise HTTPException(status_code=500, detail="Ошибка получения данных для дашборта")
+
+# @router_question.get("/similar", response_model=List[QuestionResponse])
+# async def get_similar_questions(query: str, db: AsyncSession = Depends(get_db)):
+#     """Поиск похожих вопросов по тексту запроса"""
+#     try:
+#         similar_questions = await search_similar_questions(query, db, model, tokenizer)
+#
+#         if not similar_questions:
+#             return []
+#
+#         # Преобразование результатов поиска в формат ответа
+#         response = [QuestionResponse.model_validate(question) for question in similar_questions]
+#         return response
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
