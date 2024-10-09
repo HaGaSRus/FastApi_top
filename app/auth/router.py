@@ -84,31 +84,23 @@ async def login_user(response: Response, user_data: SUserSignUp):
 @router_auth.post("/forgot-password",
                   status_code=status.HTTP_200_OK,
                   summary="Форма-восстановления пароля для пользователя")
-@version(1)
 async def forgot_password(request: ForgotPasswordRequest):
     """ Восстановление пароля для пользователя, логика отправки формы на почту"""
-    users_dao = UsersDAO()
-
     logger.info(f"Запрос на восстановление пароля для email: {request.email}")
 
-    try:
-        user = await users_dao.find_one_or_none(email=request.email)
-        if not user:
-            logger.warning(f"Пользователь с email {request.email} не найден.")
-            raise UserInCorrectEmailOrUsername
+    # Здесь предполагается, что вы уже реализовали UsersDAO
+    user = await UsersDAO().find_one_or_none(email=request.email)
+    if not user:
+        logger.warning(f"Пользователь с email {request.email} не найден.")
+        raise HTTPException(status_code=404, detail="Пользователь не найден.")
 
-        reset_token = create_reset_token(request.email)
-        logger.info(f"Токен для восстановления пароля создан для email: {request.email}")
+    reset_token = create_reset_token(request.email)
+    logger.info(f"Токен для восстановления пароля создан для email: {request.email}")
 
-        # Попытка отправки email
-        await send_reset_password_email(request.email, reset_token)
-        logger.info(f"Письмо с инструкциями по восстановлению пароля успешно отправлено на email: {request.email}")
+    # Попытка отправки email
+    send_reset_password_email(request.email, reset_token)
 
-        return PasswordRecoveryInstructions
-
-    except Exception as e:
-        logger.error(f"Ошибка при отправке письма для восстановления пароля на email: {request.email} - {str(e)}")
-        raise HTTPException(status_code=500, detail="Ошибка при отправке письма на почту.")
+    return {"message": "Инструкции по восстановлению пароля отправлены на указанный email."}
 
 
 @router_auth.post("/reset-password", status_code=status.HTTP_200_OK, summary="Форма ввода нового пароля")

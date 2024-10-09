@@ -308,7 +308,8 @@ async def update_question(
 @version(1)
 async def search_questions(
         query: str,
-        db: AsyncSession = Depends(get_db)
+        db: AsyncSession = Depends(get_db),
+        current_user=Depends(get_current_user)
 ):
     """Поиск вопросов по тексту"""
     try:
@@ -326,7 +327,8 @@ async def search_questions(
 
         # Создание иерархии под-вопросов для каждого основного вопроса
         question_responses = [
-            await build_question_response_from_search(question, db) for question in questions if question.parent_question_id is None
+            await build_question_response_from_search(question, db) for question in questions if
+            question.parent_question_id is None
         ]
 
         return question_responses
@@ -335,18 +337,10 @@ async def search_questions(
         raise HTTPException(status_code=500, detail="Ошибка поиска вопросов")
 
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import func, select
-from app.database import get_db
-from app.questions.models import Question
-from app.logger.logger import logger
-from fastapi_versioning import version
-
-
 @router_question.get("/top_question_count", summary="Получить count верхнеуровневых вопросов с количеством запросов")
 async def get_top_questions_count(
         db: AsyncSession = Depends(get_db),
+        current_user=Depends(get_current_admin_or_moderator_user)
 ):
     """Возвращает количество верхнеуровневых вопросов и количество их запросов"""
     try:

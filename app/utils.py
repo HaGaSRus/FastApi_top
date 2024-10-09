@@ -90,16 +90,18 @@ async def init_permissions():
 #     logger.info(f"Время выполнения: {time.time() - start_time} секунд")
 
 
-# Конфигурация SMTP-сервера
-SMTP_SERVER = "192.168.0.77:8888"
-SMTP_PORT = 25
-SMTP_FROM = settings.MAIL_FROM
-SMTP_FROM_NAME = settings.MAIL_FROM_NAME
-SMTP_USERNAME = settings.MAIL_USERNAME
-SMTP_PASSWORD = settings.MAIL_PASSWORD
+SMTP_SERVER = "mail.dz72.ru"
+SMTP_PORT = 25  # Использовать 587 для TLS или 465 для SSL
+SMTP_FROM = "hotline@dz72.ru"
+SMTP_FROM_NAME = "Hot_Line"
+SMTP_USERNAME = "test@dz72.ru"
+SMTP_PASSWORD = "test"
+MAIL_TLS = False  # Изменить на True, если ваш сервер поддерживает TLS
+MAIL_SSL = False  # Изменить на True, если ваш сервер поддерживает SSL
+USE_CREDENTIALS = False  # Использовать ли учетные данные
+VALIDATE_CERTS = True  # Проверять ли сертификаты (если используете SSL/TLS)
 
 
-# Функция для отправки письма с использованием сокета
 def send_reset_password_email(email: str, token: str):
     start_time = time.time()
     logger.info(f"Отправка письма для сброса пароля на адрес: {email}")
@@ -108,39 +110,37 @@ def send_reset_password_email(email: str, token: str):
     body_content = f"Нажмите ссылку, чтобы сбросить пароль: http://192.168.188.53:8080/reset-password?token={token}"
     logger.info(f"Тело письма: {body_content}")
 
-    # Формируем заголовки письма (subject, from, to, etc.)
+    # Формируем заголовки письма
     msg = MIMEMultipart()
     msg['From'] = f"{SMTP_FROM_NAME} <{SMTP_FROM}>"
     msg['To'] = email
     msg['Subject'] = "Запрос на сброс пароля"
-
-    # Добавляем текст письма
     msg.attach(MIMEText(body_content, 'html'))
 
     try:
         # Подключаемся через сокет
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.connect((SMTP_SERVER, SMTP_PORT))
+        with socket.create_connection((SMTP_SERVER, SMTP_PORT)) as sock:
+            smtp_conn = smtplib.SMTP()
+            smtp_conn.sock = sock
+            smtp_conn.set_debuglevel(1)
 
-        # Устанавливаем SMTP-соединение через сокет
-        smtp_conn = smtplib.SMTP()
-        smtp_conn.sock = sock  # Привязываем сокет к SMTP соединению
-        smtp_conn.set_debuglevel(1)  # Включаем режим отладки (если нужно)
+            # Переход на защищённое соединение, если требуется
+            if MAIL_TLS:
+                smtp_conn.starttls()  # Начинаем TLS-соединение
+            elif MAIL_SSL:
+                smtp_conn = smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT)  # Используем SSL-соединение
 
-        # Логинимся на SMTP-сервере, если требуются учетные данные
-        if SMTP_USERNAME and SMTP_PASSWORD:
-            smtp_conn.login(SMTP_USERNAME, SMTP_PASSWORD)
+            # Логинимся на SMTP-сервере, если указаны учетные данные
+            if USE_CREDENTIALS and SMTP_USERNAME and SMTP_PASSWORD:
+                smtp_conn.login(SMTP_USERNAME, SMTP_PASSWORD)
 
-        # Отправляем письмо
-        smtp_conn.sendmail(SMTP_FROM, [email], msg.as_string())
+            # Отправляем письмо
+            smtp_conn.sendmail(SMTP_FROM, [email], msg.as_string())
+            logger.info(f"Письмо для сброса пароля успешно отправлено на адрес: {email}")
 
-        # Закрываем соединение
-        smtp_conn.quit()
-        logger.info(f"Письмо для сброса пароля успешно отправлено на адрес: {email}")
     except Exception as e:
         logger.error(f"Ошибка при отправке письма для восстановления пароля на email: {email} - {str(e)}")
     finally:
-        # Закрываем сокет
-        sock.close()
+        smtp_conn.quit()
 
     logger.info(f"Время выполнения: {time.time() - start_time} секунд")
