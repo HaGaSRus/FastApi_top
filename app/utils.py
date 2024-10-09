@@ -14,6 +14,8 @@ from app.users.models import Roles, Permissions
 from pydantic import BaseModel, EmailStr
 from starlette.responses import JSONResponse
 from fastapi_versioning import version
+from aiosmtplib.errors import SMTPException
+from fastapi import HTTPException
 
 
 async def init_roles():
@@ -31,26 +33,26 @@ async def init_roles():
         await session.commit()
 
 
-async def init_permissions():
-    async with async_session_maker() as session:
-        async with session.begin():
-            permissions = [
-                {"name": "create_user", "role_id": 1},
-                {"name": "delete_user", "role_id": 2},
-                {"name": "view_reports", "role_id": 1},
-                {"name": "view_content", "role_id": 1}
-            ]
-
-            existing_permissions = await session.execute(select(Permissions.name, Permissions.role_id))
-            existing_permissions = {(perm[0], perm[1]) for perm in existing_permissions.fetchall()}
-
-            new_permissions = [perm for perm in permissions if
-                               (perm["name"], perm["role_id"]) not in existing_permissions]
-
-            if new_permissions:
-                stmt = insert(Permissions).values(new_permissions)
-                await session.execute(stmt)
-                await session.commit()
+# async def init_permissions():
+#     async with async_session_maker() as session:
+#         async with session.begin():
+#             permissions = [
+#                 {"name": "create_user", "role_id": 1},
+#                 {"name": "delete_user", "role_id": 2},
+#                 {"name": "view_reports", "role_id": 1},
+#                 {"name": "view_content", "role_id": 1}
+#             ]
+#
+#             existing_permissions = await session.execute(select(Permissions.name, Permissions.role_id))
+#             existing_permissions = {(perm[0], perm[1]) for perm in existing_permissions.fetchall()}
+#
+#             new_permissions = [perm for perm in permissions if
+#                                (perm["name"], perm["role_id"]) not in existing_permissions]
+#
+#             if new_permissions:
+#                 stmt = insert(Permissions).values(new_permissions)
+#                 await session.execute(stmt)
+#                 await session.commit()
 
 
 conf = ConnectionConfig(
@@ -81,12 +83,20 @@ async def send_reset_password_email(email: str, token: str):
         subject="Запрос на сброс пароля",
         recipients=[email],
         body=body_content,
-        subtype="html"
+        subtype="plain"
     )
 
     fm = FastMail(conf)
-    await fm.send_message(message)
-    logger.info(f"Письмо для сброса пароля отправлено на адрес: {email}")
+    try:
+        await fm.send_message(message)
+        logger.info(f"Письмо для сброса пароля отправлено на адрес: {email}")
+    except SMTPException as smtp_err:
+        logger.error(f"Ошибка SMTP при отправке письма на адрес {email}: {str(smtp_err)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Ошибка при отправке письма. Пожалуйста, попробуйте позже.")
+    except Exception as e:
+        logger.error(f"Ошибка при отправке письма на адрес {email}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Произошла ошибка при отправке письма: {str(e)}")
+
     logger.info(f"Время выполнения: {time.time() - start_time} секунд")
 
 #
