@@ -98,7 +98,7 @@ async def forgot_password(request: ForgotPasswordRequest):
     logger.info(f"Токен для восстановления пароля создан для email: {request.email}")
 
     # Попытка отправки email
-    send_reset_password_email(request.email, reset_token)
+    await send_reset_password_email(request.email, reset_token)
 
     return {"message": "Инструкции по восстановлению пароля отправлены на указанный email."}
 
