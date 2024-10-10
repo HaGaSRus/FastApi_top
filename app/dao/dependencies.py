@@ -6,9 +6,7 @@ from sqlalchemy.orm import selectinload
 from app.config import settings
 from app.database import async_session_maker
 from app.exceptions import (
-    TokenExpiredException,
     TokenAbsentException,
-    IncorrectTokenFormatException,
     UserIsNotPresentException, PermissionDeniedException, ErrorGettingUser,
 )
 from app.logger.logger import logger

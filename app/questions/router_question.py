@@ -16,7 +16,6 @@ from app.exceptions import QuestionNotFound, ErrorInGetQuestions, \
     CannotDeleteSubQuestionWithNestedSubQuestions, QuestionOrSubQuestionSuccessfullyDeleted, ErrorWhenDeletingQuestion, \
     SubQuestionSuccessfullyUpdated, QuestionSuccessfullyUpdated, ErrorWhenUpdatingQuestion
 from app.logger.logger import logger
-# from app.questions.ML import search_similar_questions, model, tokenizer
 from app.questions.dao_queestion import build_question_response, QuestionService, get_sub_questions, \
     build_subquestions_hierarchy, build_subquestion_response, update_main_question, update_sub_question
 from app.questions.models import Question, SubQuestion
@@ -369,18 +368,3 @@ async def get_top_questions_count(
     except Exception as e:
         logger.error(f"Ошибка при получении count верхнеуровневых вопросов: {e}")
         raise HTTPException(status_code=500, detail="Ошибка получения данных для дашборта")
-
-# @router_question.get("/similar", response_model=List[QuestionResponse])
-# async def get_similar_questions(query: str, db: AsyncSession = Depends(get_db)):
-#     """Поиск похожих вопросов по тексту запроса"""
-#     try:
-#         similar_questions = await search_similar_questions(query, db, model, tokenizer)
-#
-#         if not similar_questions:
-#             return []
-#
-#         # Преобразование результатов поиска в формат ответа
-#         response = [QuestionResponse.model_validate(question) for question in similar_questions]
-#         return response
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=str(e))

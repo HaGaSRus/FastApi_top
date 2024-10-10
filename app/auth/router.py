@@ -5,9 +5,9 @@ from app.auth.auth import get_password_hash, create_access_token, create_reset_t
     create_refresh_token, refresh_access_token
 from app.config import settings
 from app.dao.dao import UsersDAO
-from app.exceptions import UserInCorrectEmailOrUsername, PasswordRecoveryInstructions, IncorrectTokenFormatException, \
+from app.exceptions import IncorrectTokenFormatException, \
     TokenExpiredException, UserIsNotPresentException, PasswordUpdatedSuccessfully, EmailOrUsernameWasNotFound, \
-    InvalidPassword, FailedToGetUserRoles, HootLineException, ErrorGettingUser
+    InvalidPassword, FailedToGetUserRoles, ErrorGettingUser
 from app.logger.logger import logger
 from app.auth.schemas import SUserSignUp, ForgotPasswordRequest, ResetPasswordRequest, RefreshTokenRequest
 

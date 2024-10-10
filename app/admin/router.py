@@ -123,6 +123,3 @@ async def delete_user(user_request: UserIdRequest):
     users_dao = UsersDAO()
     await users_dao.delete(user_request.user_id)
     return DeleteUser
-
-
-

@@ -73,6 +73,3 @@ class UserFilter(Filter):
                 query = query.where(Users.firstname.ilike(f"%{self.firstname}%"))
 
         return query
-
-
-
