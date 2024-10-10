@@ -1,12 +1,14 @@
 import traceback
 from typing import List
 from fastapi import HTTPException
-from app.exceptions import CategoryNotFound, ParentQuestionNotFound, ForASubquestionYouMustSpecifyParentQuestionId, \
+from app.exceptions import CategoryNotFound, ForASubquestionYouMustSpecifyParentQuestionId, \
     FailedToCreateQuestionDynamic, ParentQuestionIDNotFound, IncorrectParentSubquestionIdValueNumberExpected, \
-    ErrorCreatingSubquestion
+    ErrorCreatingSubquestion, SubQuestionNotFound, TheSubQuestionDoesNotBelongToTheSpecifiedMainQuestion, \
+    QuestionNotFound
 from app.logger.logger import logger
 from app.questions.models import Question, SubQuestion
-from app.questions.schemas import QuestionCreate, SubQuestionCreate, SubQuestionResponse, QuestionResponse
+from app.questions.schemas import QuestionCreate, SubQuestionCreate, SubQuestionResponse, QuestionResponse, \
+    UpdateQuestionRequest
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.questions.utils import get_category_by_id
@@ -205,3 +207,38 @@ def build_subquestions_hierarchy(sub_questions, parent_question_id=None):
             sub_question.sub_questions = build_subquestions_hierarchy(sub_questions, sub_question.id)
             hierarchy.append(sub_question)
     return hierarchy
+
+
+async def update_sub_question(update_request: UpdateQuestionRequest, db: AsyncSession):
+    """Обновление под-вопроса"""
+    sub_question = await db.get(SubQuestion, update_request.sub_question_id)
+    if not sub_question:
+        raise SubQuestionNotFound
+
+    if sub_question.parent_question_id != update_request.question_id:
+        raise TheSubQuestionDoesNotBelongToTheSpecifiedMainQuestion
+
+    update_fields(sub_question, update_request)
+
+    await db.commit()
+
+
+async def update_main_question(update_request: UpdateQuestionRequest, db: AsyncSession):
+    """Обновление вопроса"""
+    question = await db.get(Question, update_request.question_id)
+    if not question:
+        raise QuestionNotFound
+
+    update_fields(question, update_request)
+
+    await db.commit()
+
+
+def update_fields(question_obj, update_request: UpdateQuestionRequest):
+    """Обновление полей text и answer"""
+
+    if update_request.text is not None:
+        question_obj.text = update_request.text
+
+    if update_request.answer is not None:
+        question_obj.answer = update_request.answer

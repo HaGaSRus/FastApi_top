@@ -2,9 +2,8 @@ from fastapi import APIRouter, Depends, status, Query, HTTPException
 from fastapi_pagination import paginate, Page, Params, add_pagination
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
-
 from app.admin.schemas import UserFilter
-from app.dao.dependencies import get_current_admin_user
+from app.dao.dependencies import get_current_admin_user, get_current_user
 from app.database import async_session_maker
 from fastapi_versioning import version
 from fastapi_filter import FilterDepends
@@ -43,8 +42,8 @@ add_pagination(router_pagination)
                        summary="Отображение все пользователей с пагинацией")
 @version(1)
 async def get_all_users(
-    current_user: Users = Depends(get_current_admin_user),
-    params: CustomParams = Depends()  # Используем кастомные параметры пагинации
+        current_user: Users = Depends(get_current_admin_user),
+        params: CustomParams = Depends()  # Используем кастомные параметры пагинации
 ):
     """Получение всех пользователей. С пагинацией. Доступно только администраторам."""
     try:
@@ -73,9 +72,10 @@ async def get_all_users(
 @router_filter.get("/users", response_model=Page[AllUserResponse], summary="Фильтрация пользователей")
 @version(1)
 async def get_filtered_users(
-    user_filter: UserFilter = FilterDepends(UserFilter),
-    page: int = Query(default=1, alias="page"),
-    size: int = Query(default=10, alias="size")
+        user_filter: UserFilter = FilterDepends(UserFilter),
+        current_user=Depends(get_current_user),
+        page: int = Query(default=1, alias="page"),
+        size: int = Query(default=10, alias="size")
 ):
     """Получение пользователей с применением фильтров и пагинации."""
     async with async_session_maker() as session:

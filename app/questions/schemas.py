@@ -37,7 +37,7 @@ class CategoryCreateResponse(CategoryBase):
 
 class SubQuestionCreate(BaseModel):
     text: str
-    answer: Optional[str] = 0
+    answer: Optional[str] = None
     number: Optional[int] = 0
     count: Optional[int] = 0
     depth: int
@@ -48,10 +48,9 @@ class SubQuestionCreate(BaseModel):
     subcategory_id: Optional[int] = 0
 
 
-
 class QuestionCreate(BaseModel):
     text: str
-    answer: Optional[str] = 0
+    answer: Optional[str] = None
     number: Optional[int] = 0
     category_id: Optional[int]
     subcategory_id: Optional[int] = 0
@@ -59,8 +58,6 @@ class QuestionCreate(BaseModel):
     parent_question_id: Optional[int] = 0  # Поле для указания родительского вопроса
     is_subquestion: bool = False  # Поле для указания поиска в под-вопросах
     parent_subquestion_id: Optional[int] = 0
-    # depth: Optional[int] = 0
-
 
     class Config:
         from_attributes = True
@@ -70,7 +67,7 @@ class QuestionCreate(BaseModel):
 class SubQuestionResponse(BaseModel):
     id: int
     text: str
-    answer: Optional[str] = 0  # Сделать ответ необязательным, если требуется
+    answer: Optional[str] = None  # Сделать ответ необязательным, если требуется
     number: int
 
     count: Optional[int] = 0
@@ -90,7 +87,7 @@ class QuestionResponse(BaseModel):
     text: str
     category_id: int
     subcategory_id: Optional[int] = 0
-    answer: Optional[str] = 0  # Сделать ответ необязательным, если требуется
+    answer: Optional[str] = None  # Сделать ответ необязательным, если требуется
     number: int
     depth: int
     count: Optional[int] = 0
@@ -98,30 +95,12 @@ class QuestionResponse(BaseModel):
 
     sub_questions: List[SubQuestionResponse] = []
 
-
-
-    class Config:
-        from_attributes = True
-
-
-
-# Упрощённый ответ для под-вопросов
-class QuestionResponseRef(BaseModel):
-    id: int
-    text: str
-    number: int
-
     class Config:
         from_attributes = True
 
 
 class DeleteCategoryRequest(BaseModel):
     category_id: int
-
-
-class UpdateCategoryRequest(BaseModel):
-    category_id: int
-    category_data: CategoryCreate
 
 
 class UpdateCategoryData(BaseModel):
@@ -142,60 +121,34 @@ class UpdateCategoryData(BaseModel):
     number: int
 
 
-class UpdateSubcategoryData(BaseModel):
-    id: int
-    name: str
-    parent_id: Optional[int]  # Поле для связи с родительской категорией
-    number: Optional[int]
+class UpdateQuestionRequest(BaseModel):
+    question_id: int = Field(..., description="ID основного вопроса")
+    sub_question_id: Optional[int] = Field(None, description="ID под-вопроса (если указан) ")
+    text: Optional[str] = Field(None, description="Новый текст вопроса или под-вопроса")
+    answer: Optional[str] = Field(None, description="Новый ответ вопроса или под-вопроса")
 
 
-class SimilarQuestionResponse(BaseModel):
-    id: int
-    question_text: str
-    similarity_score: float  # оценить схожесть
+class DeleteQuestionRequest(BaseModel):
+    question_id: int = Field(..., description="ID основного вопроса")
+    sub_question_id: Optional[int] = Field(None, description="ID под-вопроса (если указан)")
 
 
-class DynamicAnswerResponse(BaseModel):
+class QuestionIDRequest(BaseModel):
+    question_id: int
+
+
+class QuestionResponseForPagination(BaseModel):
     id: int
     text: str
-    has_answer: bool
-    answer: Optional[str] = None
     category_id: int
-    number: int
-    sub_questions: Optional[List[SimilarQuestionResponse]] = None
-
-
-class DynamicSubAnswerResponse(BaseModel):
-    id: Optional[int]
-    text: str
-    has_answer: bool
-    answer: Optional[str]
-    category_id: Optional[int]
-    number: Optional[int]
-    sub_questions: List[SimilarQuestionResponse]
-
-
-class DetailedQuestion(BaseModel):
-    id: int
-    text: str
-    category: str
-    similarity: Optional[float] = None
-    created_at: str
-    additional_data: Optional[dict] = None
-
-
-class DetailedQuestionResponse(BaseModel):
-    questions: List[DetailedQuestion]
-
-
-class QuestionAllResponse(BaseModel):
-    id: int
-    text: str
-    number: int
+    subcategory_id: Optional[int] = None
     answer: Optional[str] = None
-    category_id: Optional[int] = None
+    number: int
+    depth: int
     count: Optional[int] = None
-    sub_questions: List[SubQuestionResponse] = []
+    parent_question_id: Optional[int] = None
+    sub_questions: List['QuestionResponse'] = []
+    is_depth: bool  # Новое поле для отображения глубины
 
     class Config:
         from_attributes = True

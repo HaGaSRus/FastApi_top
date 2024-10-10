@@ -1,6 +1,4 @@
 from datetime import datetime
-from typing import Optional
-
 from fastapi import Request, Depends, Response, HTTPException
 from jose import jwt, JWTError
 from sqlalchemy.future import select
@@ -11,7 +9,7 @@ from app.exceptions import (
     TokenExpiredException,
     TokenAbsentException,
     IncorrectTokenFormatException,
-    UserIsNotPresentException, PermissionDeniedException, HootLineException, ErrorGettingUser,
+    UserIsNotPresentException, PermissionDeniedException, ErrorGettingUser,
 )
 from app.logger.logger import logger
 
@@ -43,24 +41,18 @@ async def get_current_user(response: Response, token: str = Depends(get_token)):
         logger.info(f"Токен успешно декодирован: {payload}")
     except JWTError as e:
         logger.error(f"Ошибка декодирования токена: {str(e)}")
-        raise IncorrectTokenFormatException
+        raise HTTPException(status_code=401, detail="Invalid token", headers={"WWW-Authenticate": "Bearer"})
 
     expire = payload.get("exp")
-    if not expire:
-        logger.error("Срок действия токена не указан.")
-        raise TokenExpiredException
-
-    # Проверяем, не истек ли срок действия токена
-    if int(expire) < datetime.now().timestamp():
+    if not expire or int(expire) < datetime.now().timestamp():
         logger.error("Срок действия токена истек.")
-        raise TokenExpiredException
+        raise HTTPException(status_code=401, detail="Token expired", headers={"WWW-Authenticate": "Bearer"})
 
     user_id = payload.get("sub")
     if not user_id:
         logger.error("Идентификатор пользователя не найден в токене.")
         raise UserIsNotPresentException
 
-    # Запрос в базу данных для получения пользователя
     async with async_session_maker() as session:
         try:
             result = await session.execute(
@@ -88,3 +80,20 @@ async def get_current_admin_user(current_user: Users = Depends(get_current_user)
     logger.info(f"Администратор авторизован: {current_user.username}")
     return current_user
 
+
+async def get_current_admin_or_moderator_user(current_user: Users = Depends(get_current_user)) -> tuple[Users, str]:
+    """Проверяем, является ли текущий пользователь администратором или модератором и возвращает его роль."""
+    if not current_user:
+        logger.error("Пользователь не авторизован.")
+        raise PermissionDeniedException
+
+    roles = {role.name for role in current_user.roles}
+    if "admin" in roles:
+        logger.info(f"Администратор авторизирован: {current_user.username}")
+        return current_user, "admin"
+    elif "moderator" in roles:
+        logger.info(f"Модератор авторизирован: {current_user.username}")
+        return current_user, "moderator"
+    else:
+        logger.error("Пользователь не имеет прав администратора или модератора.")
+        raise PermissionDeniedException

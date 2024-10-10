@@ -5,7 +5,8 @@ from fastapi_versioning import VersionedFastAPI
 import uvicorn
 import time
 from typing import AsyncIterator
-
+from fastapi.responses import RedirectResponse
+from app.exceptions import TokenRedirectException
 from app.logger.middleware import LoggingMiddleware
 from app.admin.pagination_and_filtration import router_pagination, router_filter
 from app.users.router import router_users
@@ -13,7 +14,7 @@ from app.auth.router import router_auth
 from app.admin.router import router_admin
 from app.questions.router_question import router_question
 from app.questions.router_categories import router_categories
-from app.utils import init_permissions, init_roles
+from app.utils import init_roles
 from app.logger.logger import logger
 
 
@@ -21,7 +22,7 @@ from app.logger.logger import logger
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await init_roles()
-    await init_permissions()
+    # await init_permissions()
     yield
 
 app = FastAPI(lifespan=lifespan)
@@ -69,3 +70,8 @@ async def add_process_time_header(request: Request, call_next):
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)
+
+
+@app.exception_handler(TokenRedirectException)
+async def token_redirect_exception_handler(request: Request, exc: TokenRedirectException):
+    return RedirectResponse(url=exc.redirect_url, status_code=302)

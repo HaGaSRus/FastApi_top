@@ -1,10 +1,16 @@
 from typing import Optional, List
-
+from enum import Enum
 from pydantic import BaseModel, EmailStr, Field, model_validator
 from sqlalchemy import or_
 from app.users.models import Users
 from app.users.schemas import UpdateUserRequest
 from fastapi_filter.contrib.sqlalchemy import Filter
+
+
+class UserRole(str, Enum):
+    ADMIN = "admin"
+    USER = "user"
+    MODERATOR = "moderator"
 
 
 class SUserAuth(BaseModel):

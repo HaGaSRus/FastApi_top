@@ -57,11 +57,6 @@ class UserCreated(HootLineException):
     detail = "Пользователь успешно создан"
 
 
-class UserChangeRole(HootLineException):
-    status_code = status.HTTP_200_OK
-    detail = "Роли успешно обновлены"
-
-
 class DeleteUser(HootLineException):
     status_code = status.HTTP_202_ACCEPTED
     detail = "Пользователь успешно удален"
@@ -138,26 +133,6 @@ class CategoryNotFound(HootLineException):
     detail = "Категория не найдена"
 
 
-class DataIntegrityErrorPerhapsQuestionWithThisTextAlreadyExists(HootLineException):
-    status_code = status.HTTP_400_BAD_REQUEST
-    detail = "Ошибка целостности данных. Возможно, вопрос с таким текстом уже существует"
-
-
-class FailedToCreateQuestion(HootLineException):
-    status_code = status.HTTP_400_BAD_REQUEST
-    detail = "Не удалось создать вопрос"
-
-
-class ParentQuestionNotFound(HootLineException):
-    status_code = status.HTTP_404_NOT_FOUND
-    detail = "Родительский вопрос не найден"
-
-
-class FailedToCreateSubQuestion(HootLineException):
-    status_code = status.HTTP_400_BAD_REQUEST
-    detail = "Не удалось создать под-вопрос"
-
-
 class CategoryContainsSubcategoriesDeletionIsNotPossible(HootLineException):
     status_code = status.HTTP_400_BAD_REQUEST
     detail = "Категория содержит подкатегории, удаление невозможно"
@@ -204,6 +179,11 @@ class QuestionNotFound(HootLineException):
     detail = "Вопрос не найден"
 
 
+class SubQuestionNotFound(HootLineException):
+    status_code = status.HTTP_404_NOT_FOUND
+    detail = "Под-вопрос не найден"
+
+
 class CouldNotGetAnswerToQuestion(HootLineException):
     status_code = status.HTTP_404_NOT_FOUND
     detail = "Не удалось получить ответ на вопрос"
@@ -220,18 +200,6 @@ class CategoryWithSameNameAlreadyExists(HootLineExceptionDynamic):
         super().__init__(status_code=400, detail=detail)
 
 
-class ParentCategoryNotFoundException(HootLineExceptionDynamic):
-    def __init__(self, parent_question_id: int):
-        self.parent_question_id = parent_question_id
-        self.message = f"Родительская категория с id {self.parent_question_id} не найдена"
-        super().__init__(self.message)
-
-
-class ErrorUpdatingSubcategories(HootLineException):
-    status_code = status.HTTP_400_BAD_REQUEST
-    detail = "Ошибка при обновлении подкатегорий"
-
-
 class FailedToUpdateSubcategories(HootLineException):
     status_code = status.HTTP_400_BAD_REQUEST
     detail = "Не удалось обновить подкатегории"
@@ -245,11 +213,6 @@ class ErrorGettingUser(HootLineException):
 class MissingTokenException(HootLineExceptionDynamic):
     def __init__(self, detail="Токен отсутствует или недействителен"):
         super().__init__(status_code=status.HTTP_401_UNAUTHORIZED, detail=detail)
-
-
-class FailedToRetrieveQuestions(HootLineException):
-    status_code = status.HTTP_400_BAD_REQUEST
-    detail = "Не удалось получить вопросы"
 
 
 class ForASubquestionYouMustSpecifyParentQuestionId(HootLineExceptionDynamic):
@@ -285,3 +248,55 @@ class ErrorInGetQuestions(HootLineExceptionDynamic):
 class ErrorInGetQuestionWithSubquestions(HootLineExceptionDynamic):
     def __init__(self, detail="Ошибка в get_question_with_subquestions"):
         super().__init__(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
+
+
+class TheSubQuestionDoesNotBelongToTheSpecifiedMainQuestion(HootLineException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    detail = "Под-вопрос не принадлежит указанному основному вопросу"
+
+
+class CannotDeleteSubQuestionWithNestedSubQuestions(HootLineException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    detail = "Невозможно удалить под-вопрос с вложенными под-вопросами"
+
+
+class QuestionOrSubQuestionSuccessfullyDeleted(HootLineException):
+    status_code = status.HTTP_202_ACCEPTED
+    detail = "Вопрос или под-вопрос успешно удалены"
+
+
+class ErrorWhenDeletingQuestion(HootLineException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    detail = "Ошибка при удалении вопроса"
+
+
+class SubQuestionSuccessfullyUpdated(HootLineException):
+    status_code = status.HTTP_202_ACCEPTED
+    detail = "Под-вопрос успешно обновлен"
+
+
+class QuestionSuccessfullyUpdated(HootLineException):
+    status_code = status.HTTP_202_ACCEPTED
+    detail = "Вопрос успешно обновлен"
+
+
+class ErrorWhenUpdatingQuestion(HootLineException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    detail = "Ошибка при обновлении вопроса"
+
+
+class InvalidRefreshToken(HootLineException):
+    status_code = status.HTTP_403_FORBIDDEN
+    detail = "Неверный Refresh токен "
+
+
+class RefreshTokenHasExpired(HootLineException):
+    status_code = status.HTTP_403_FORBIDDEN
+    detail = "Срок действия токена обновления истек"
+
+
+class TokenRedirectException(Exception):
+    def __init__(self, message: str, redirect_url: str):
+        super().__init__(message)
+        self.redirect_url = redirect_url
+
