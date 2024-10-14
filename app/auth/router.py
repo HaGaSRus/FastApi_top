@@ -59,20 +59,22 @@ async def login_user(response: Response, user_data: SUserSignUp):
             key="access_token",
             value=access_token,
             httponly=False,
-            samesite='lax',
+            samesite='none',
             secure=False,
             max_age=86400,
             expires=86401,
+            domain=".dz72.ru"
         )
 
         response.set_cookie(
             key="refresh_token",
             value=refresh_token,
             httponly=False,
-            samesite='lax',
+            samesite='none',
             secure=False,
             max_age=604800,  # 30 дней
             expires=604801,
+            domain=".dz72.ru"
         )
 
         return {"access_token": access_token, "refresh_token": refresh_token}
@@ -153,10 +155,10 @@ async def logout_user(response: Response):
     """Удаление токенов и выход пользователя"""
     try:
         # Удалить access_token
-        response.delete_cookie(key="access_token")
+        response.delete_cookie(key="access_token", domain=".dz72.ru")
 
         # Удалить refresh_token
-        response.delete_cookie(key="refresh_token")
+        response.delete_cookie(key="refresh_token", domain=".dz72.ru")
 
         return {"message": "Успешный выход из системы"}
 
