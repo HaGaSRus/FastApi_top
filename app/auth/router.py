@@ -145,3 +145,21 @@ async def refresh_token(request: RefreshTokenRequest):
     """Обновление access токена с использованием рефреш токена"""
     refresh_token = request.refresh_token
     return await refresh_access_token(refresh_token)
+
+
+@router_auth.post("/logout", summary="Выход пользователя")
+@version(1)
+async def logout_user(response: Response):
+    """Удаление токенов и выход пользователя"""
+    try:
+        # Удалить access_token
+        response.delete_cookie(key="access_token")
+
+        # Удалить refresh_token
+        response.delete_cookie(key="refresh_token")
+
+        return {"message": "Успешный выход из системы"}
+
+    except Exception as e:
+        logger.error(f"Ошибка при выходе пользователя: {e}")
+        raise HTTPException(status_code=400, detail="Ошибка при выходе, попробуйте позже")
