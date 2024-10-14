@@ -7,7 +7,7 @@ class Category(Base):
     __tablename__ = "categories"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, index=True)
+    name = Column(String, index=True, nullable=False)
     parent_id = Column(Integer, ForeignKey('categories.id'), nullable=True)
     number = Column(Integer, nullable=True)
 
@@ -19,7 +19,11 @@ class Category(Base):
     )
 
     # Отношение к вопросам
-    questions = relationship("Question", back_populates="category", lazy='selectin')
+    questions = relationship(
+        "Question",
+        back_populates="category",
+        foreign_keys="[Question.category_id]"  # Указываем, что это поле относится к category_id в модели Question
+    )
 
     def __repr__(self):
         return f"<Category(id={self.id}, name={self.name}, number={self.number})>"
@@ -31,16 +35,18 @@ class Question(Base):
     id = Column(Integer, primary_key=True, index=True)
     text = Column(String, index=True)
     category_id = Column(Integer, ForeignKey('categories.id', name='fk_questions_category_id'))
+    subcategory_id = Column(Integer, ForeignKey('categories.id', name='fk_questions_subcategory_id'), nullable=True)  # Новое поле
     number = Column(Integer, nullable=True)
     answer = Column(String, nullable=True)
     count = Column(Integer, nullable=True)
     parent_question_id = Column(Integer, ForeignKey('questions.id', name='fk_questions_parent_id'), nullable=True)  # Изменено на parent_question_id
+    depth = Column(Integer, nullable=False, default=0)
 
     # Отношение к родительскому вопросу
     parent = relationship("Question", remote_side=[id], backref="children")  # Оставляем как есть
 
     # Отношение к категории
-    category = relationship("Category", back_populates="questions")
+    category = relationship("Category", back_populates="questions", foreign_keys=[category_id])  # Явно указываем foreign_keys
 
     # Отношение к под-вопросам
     sub_questions = relationship("SubQuestion", back_populates="question", lazy='selectin')
@@ -53,7 +59,9 @@ class SubQuestion(Base):
     __tablename__ = "sub_questions"
 
     id = Column(Integer, primary_key=True, index=True)
-    question_id = Column(Integer, ForeignKey('questions.id', name='fk_subquestions_question_id'))
+    parent_question_id = Column(Integer, ForeignKey('questions.id', name='fk_subquestions_question_id'))
+    category_id = Column(Integer, ForeignKey('categories.id', name='fk_subquestions_category_id'), nullable=True)  # Новое поле
+    subcategory_id = Column(Integer, ForeignKey('categories.id', name='fk_subquestions_subcategory_id'), nullable=True)   # Новое поле
     text = Column(String, index=True)
     answer = Column(String, nullable=False)
     count = Column(Integer, nullable=True)
@@ -68,4 +76,7 @@ class SubQuestion(Base):
     # parent_subquestion = relationship("SubQuestion", remote_side=[id], backref="children")
 
     def __repr__(self):
-        return f"<SubQuestion(id={self.id}, question_id={self.question_id}, text={self.text}, depth={self.depth})>"
+        return f"<SubQuestion(id={self.id}, parent_question_id={self.parent_question_id}, text={self.text}, depth={self.depth}, parent_subquestion_id={self.parent_subquestion_id})>"
+
+
+

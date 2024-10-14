@@ -1,3 +1,4 @@
+
 import re
 from typing import List
 
@@ -67,3 +68,4 @@ def calculate_similarity(text1: str, text2: str) -> float:
     except Exception as e:
         logger.error(f"Ошибка при расчете сходства между '{text1}' и '{text2}': {e}")
         return 0.0
+

@@ -5,11 +5,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from fastapi import Request
 from app.exceptions import ValidationErrorException, JSONDecodingError, InvalidDataFormat, \
-    CategoryWithSameNameAlreadyExists, CategoryNotFoundException, ParentCategoryNotFoundException
+    CategoryNotFoundException
 from app.logger.logger import logger
 from app.questions.models import Category, Question
-from app.questions.schemas import QuestionCreate, UpdateCategoryData, CategoryResponse, CategoryCreate, \
-    UpdateSubcategoryData
+from app.questions.schemas import QuestionCreate, UpdateCategoryData, CategoryResponse, CategoryCreate
 from fastapi import HTTPException
 
 
@@ -117,19 +116,6 @@ async def find_category_by_id(db: AsyncSession, category_id: int) -> Category:
         logger.warning(f"Категория с id {category_id} не найдена")
         raise CategoryNotFoundException(category_id=category_id)
     return category
-
-
-# async def ensure_unique_category_name(db: AsyncSession, data: UpdateCategoryData):
-#     """Проверка уникальности имени категории"""
-#     existing_category = await db.execute(
-#         select(Category).filter(
-#             Category.name == data.name,
-#             Category.id != data.id
-#         )
-#     )
-#     if existing_category.scalars().first():
-#         logger.error(f"Категория с именем '{data.name}' уже существует")
-#         raise CategoryWithSameNameAlreadyExists(data.name)
 
 
 async def update_category(db: AsyncSession, category: Category, data: UpdateCategoryData) -> CategoryResponse:

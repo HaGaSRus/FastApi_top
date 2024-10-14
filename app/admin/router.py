@@ -7,7 +7,6 @@ from app.dao.dependencies import get_current_admin_user
 from app.exceptions import UserEmailAlreadyExistsException, UserNameAlreadyExistsException, UserCreated, \
     DeleteUser, UserNotFoundException, ErrorUpdatingUser
 from app.logger.logger import logger
-from app.users.models import Users
 from app.admin.schemas import SUserAuth, UserIdRequest
 
 router_admin = APIRouter(
@@ -124,6 +123,3 @@ async def delete_user(user_request: UserIdRequest):
     users_dao = UsersDAO()
     await users_dao.delete(user_request.user_id)
     return DeleteUser
-
-
-

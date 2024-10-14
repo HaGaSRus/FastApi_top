@@ -1,29 +1,30 @@
 import asyncio
 import traceback
-from typing import List
+from typing import List, Optional
 from fastapi_versioning import version
-from fastapi import APIRouter, Depends, Path, Query, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi_pagination import Page, paginate
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.exc import IntegrityError, SQLAlchemyError
-from app.dao.dao import QuestionsDAO
-from app.dao.dependencies import get_current_user
-from app.database import get_db
-from app.exceptions import DataIntegrityErrorPerhapsQuestionWithThisTextAlreadyExists, \
-    FailedToCreateQuestion, CouldNotGetAnswerToQuestion, FailedToRetrieveQuestions
-from app.logger.logger import logger
-from app.questions.FSM import QuestionStateMachine
-from app.questions.ML import calculate_similarity, get_similar_questions_cosine
-from app.questions.dao_queestion import build_question_response, QuestionService, get_sub_questions, \
-    build_subquestions_hierarchy, \
-    build_hierarchical_subquestions
-from app.questions.models import Question, SubQuestion, Category
-from app.questions.schemas import QuestionResponse, QuestionCreate, DynamicAnswerResponse, \
-    SimilarQuestionResponse, DynamicSubAnswerResponse, QuestionAllResponse, SubQuestionResponse
-from sqlalchemy.orm import selectinload
-from pydantic import ValidationError
-import asyncio
+from sqlalchemy.exc import IntegrityError
 
+from sqlalchemy.orm import selectinload
+from app.admin.pagination_and_filtration import CustomParams
+from app.dao.dependencies import get_current_admin_or_moderator_user, get_current_user
+from app.database import get_db, async_session_maker
+from app.exceptions import QuestionNotFound, ErrorInGetQuestions, \
+    ErrorInGetQuestionWithSubquestions, SubQuestionNotFound, TheSubQuestionDoesNotBelongToTheSpecifiedMainQuestion, \
+    CannotDeleteSubQuestionWithNestedSubQuestions, QuestionOrSubQuestionSuccessfullyDeleted, ErrorWhenDeletingQuestion, \
+    SubQuestionSuccessfullyUpdated, QuestionSuccessfullyUpdated, ErrorWhenUpdatingQuestion
+from app.logger.logger import logger
+from app.questions.dao_queestion import build_question_response, QuestionService, get_sub_questions, \
+    build_subquestions_hierarchy, build_subquestion_response, update_main_question, update_sub_question
+from app.questions.models import Question, SubQuestion
+from app.questions.schemas import QuestionResponse, QuestionCreate, DeleteQuestionRequest, UpdateQuestionRequest, \
+    QuestionIDRequest, QuestionResponseForPagination
+from pydantic import ValidationError
+from sqlalchemy import func
+from app.questions.search_questions import QuestionSearchService, build_question_response_from_search
 
 router_question = APIRouter(
     prefix="/question",
@@ -31,17 +32,19 @@ router_question = APIRouter(
 )
 
 
-# Создание вопроса верхнего уровня
 # Эндпоинт для получения всех вопросов с вложенными под-вопросами
-
 
 @router_question.get("/all-questions", response_model=List[QuestionResponse])
 @version(1)
-async def get_questions(db: AsyncSession = Depends(get_db)):
+async def get_questions(db: AsyncSession = Depends(get_db),
+                        current_user=Depends(get_current_user)):
     try:
         # Получаем все вопросы и подвопросы
         result = await db.execute(select(Question))
         questions = result.scalars().all()
+
+
+        logger.info(f"Найденные вопросы: {[q.id for q in questions]}")  # Логируем найденные вопросы
 
         result = await db.execute(select(SubQuestion))
         sub_questions = result.scalars().all()
@@ -49,18 +52,23 @@ async def get_questions(db: AsyncSession = Depends(get_db)):
         # Создаем иерархию под вопросов
         hierarchical_sub_questions = build_subquestions_hierarchy(sub_questions)
 
+        logger.info(f"Найденные под-вопросы: {sub_questions_list}")  # Логируем найденные под-вопросы
+
         question_responses = []
-        for question in questions:
+        for question, sub_questions in zip(questions, sub_questions_list):
+            hierarchical_sub_questions = build_subquestions_hierarchy(sub_questions)
+
             question_response = QuestionResponse(
                 id=question.id,
                 text=question.text,
                 category_id=question.category_id,
+                subcategory_id=question.subcategory_id,
                 answer=question.answer,
                 number=question.number,
+                depth=question.depth,
                 count=question.count,
-                sub_questions=[
-                    sub for sub in hierarchical_sub_questions if sub['question_id'] == question.id
-                ]
+       parent_question_id=question.parent_question_id,
+                sub_questions=hierarchical_sub_questions
             )
             question_responses.append(question_response)
 
@@ -68,16 +76,126 @@ async def get_questions(db: AsyncSession = Depends(get_db)):
 
     except Exception as e:
         logger.error(f"Ошибка в get_questions: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise ErrorInGetQuestions(detail=str(e))
+
+
+@router_question.get("/pagination-questions",
+                     status_code=status.HTTP_200_OK,
+                     response_model=Page[QuestionResponseForPagination],
+                     summary="Отображение всех вопросов верхнего уровня с пагинацией и поиском")
+@version(1)
+async def get_all_questions_or_search(params: CustomParams = Depends(),
+                                      query: Optional[str] = None,  # Параметр для поиска
+                                      category_id: Optional[int] = None,
+                                      subcategory_id: Optional[int] = None,
+                                      current_user=Depends(get_current_user)):
+    """Получение всех вопросов верхнего уровня с пагинацией и поиском"""
+    try:
+        async with async_session_maker() as session:
+            stmt = select(Question).filter(Question.parent_question_id.is_(None))  # Базовый запрос
+
+            # Если передан query, выполняем поиск по тексту
+            if query:
+                stmt = stmt.filter(Question.text.ilike(f"%{query}%"))
+
+            # Добавляем фильтрацию по category_id, если он указан
+            if category_id is not None:
+                stmt = stmt.filter(Question.category_id == category_id)
+
+            # Добавляем фильтрацию по subcategory_id, если он указан
+            if subcategory_id is not None:
+                stmt = stmt.filter(Question.subcategory_id == subcategory_id)
+
+            stmt = stmt.options(selectinload(Question.sub_questions))
+
+            result = await session.execute(stmt)
+            question_all = result.scalars().all()
+
+        # Преобразуем вопросы в нужный формат ответа
+        question_responses = [
+            QuestionResponseForPagination(
+                id=question.id,
+                text=question.text,
+                category_id=question.category_id,
+                subcategory_id=question.subcategory_id,
+                answer=question.answer,
+                number=question.number,
+                depth=question.depth,
+                count=question.count,
+                parent_question_id=question.parent_question_id,
+                sub_questions=[],
+                is_depth=True if question.depth > 0 or question.sub_questions else False  # Новое поле
+            )
+            for question in question_all
+        ]
+
+        # Применение кастомных параметров пагинации
+        return paginate(question_responses, params=params)
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@router_question.post("/question_by_id", response_model=QuestionResponse)
+@version(1)
+async def get_question_with_subquestions(
+        request_body: QuestionIDRequest,  # Принимаем тело запроса как один объект
+        db: AsyncSession = Depends(get_db),
+        current_user=Depends(get_current_user)
+):
+    try:
+        question_id = request_body.question_id  # Получаем question_id из тела запроса
+
+        # Проверка наличия question_id
+        if question_id is None:
+            raise HTTPException(status_code=400, detail="Отсутствует 'question_id' в запросе")
+
+        # Получаем вопрос по ID
+        question = await db.get(Question, question_id)
+        if not question:
+            raise QuestionNotFound
+
+        # Увеличиваеем значение поля count на 1
+        if question.count is None:
+            question.count = 1
+        else:
+            question.count += 1
+
+        await db.commit()
+
+        # Получаем все подвопросы
+        sub_questions = await get_sub_questions(db, question_id)
+
+        # Формируем иерархию под-вопросов
+        hierarchical_sub_questions = build_subquestions_hierarchy(sub_questions)
+
+        # Формируем ответ с иерархией
+        question_response = QuestionResponse(
+            id=question.id,
+            text=question.text,
+            category_id=question.category_id,
+            subcategory_id=question.subcategory_id,
+            answer=question.answer,
+            depth=question.depth,
+            number=question.number,
+            count=question.count,
+            parent_question_id=question.parent_question_id,
+            sub_questions=hierarchical_sub_questions  # Используем уже построенную иерархию
+        )
+
+        return question_response
+
+    except Exception as e:
+        logger.error(f"Ошибка в get_question_with_subquestions: {e}")
+        raise ErrorInGetQuestionWithSubquestions(detail=str(e))
 
 
 # Роут для создания вопроса или под вопроса
 @router_question.post("/create", summary="Создание вопроса или подвопроса")
 @version(1)
 async def create_question(
-    question: QuestionCreate,
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user)
+        question: QuestionCreate,
+        db: AsyncSession = Depends(get_db),
+        current_user=Depends(get_current_admin_or_moderator_user)
 ):
     state_machine = QuestionStateMachine()
 
@@ -92,32 +210,22 @@ async def create_question(
             # Создаем подвопрос
             new_question = await QuestionService.create_subquestion(
                 question=question,
-                parent_question_id=question.parent_question_id,
                 db=db
             )
-            logger.info(f"Создание под-вопроса для родительского вопроса с ID: {question.parent_question_id}")
+            response = await build_subquestion_response(new_question)  # Изменение здесь
+            logger.info(f"Создание подвопроса для родительского вопроса с ID: {question.parent_question_id}")
 
-            # Если нужно добавить несколько под-вопросов
-            if question.additional_subquestions:  # Проверяем, есть ли дополнительные подвопросы
-                state_machine.add_sub_questions()  # Переход к добавлению нескольких подвопросов
-                for sub_question_data in question.additional_subquestions:
-                    await QuestionService.create_subquestion(
-                        question=sub_question_data,
-                        parent_question_id=question.parent_question_id,
-                        db=db
-                    )
-                logger.info(f"Добавлены дополнительные под-впоросы для родительского вопроса с ID: {question.parent_question_id} ")
         else:
             state_machine.create_parent() # Создаем родительский вопрос
             new_question = await QuestionService.create_question(
                 question=question,
-                category_id=question.category_id,  # Используем category_id из тела запроса
+                category_id=question.category_id,
                 db=db
             )
+            response = await build_question_response(new_question)  # Оставляем как есть
             logger.info("Создание родительского вопроса")
 
-        # Формируем ответ
-        response = await build_question_response(new_question)
+        # Возвращаем ответ
         logger.info("Вопрос успешно создан: %s", response)
         return response
 
@@ -127,146 +235,147 @@ async def create_question(
     except IntegrityError as e:
         await db.rollback()
         logger.error("IntegrityError при создании вопроса: %s", e)
-        raise DataIntegrityErrorPerhapsQuestionWithThisTextAlreadyExists
+        raise HTTPException(status_code=409, detail="Ошибка целостности данных: возможно, такой вопрос уже существует.")
     except Exception as e:
         logger.error("Ошибка при создании вопроса: %s", e)
-        logger.error(traceback.format_exc())  # Логирование полного стека вызовов
+        logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail="Не удалось создать вопрос")
 
 
-@router_question.get("/answer",
-                     response_model=DynamicAnswerResponse,
-                     summary="Получение ответа на вопрос по тексту")
+@router_question.post("/delete", summary="Удаление вопроса или под-вопроса")
 @version(1)
-async def get_question_answer(
-        question_text: str = Query(..., description="Текст вопроса"),
-        db: AsyncSession = Depends(get_db),
-        current_user=Depends(get_current_user)
-):
-    """Форма получения ответа на вопрос по тексту"""
-
-    try:
-        logger.debug(f"Получение ответа на вопрос: {question_text}")
-
-        # Получаем похожие вопросы с порогом 0.2
-        similar_questions = await get_similar_questions_cosine(question_text, db, min_similarity=0.2)
-
-        # Получаем вопрос по тексту
-        question_result = await db.execute(select(Question).where(Question.text == question_text))
-        question = question_result.scalars().first()
-
-        response_sub_questions = []
-
-        # Формируем базовый список похожих вопросов
-        if similar_questions:
-            response_sub_questions = [
-                SimilarQuestionResponse(
-                    id=q.id,
-                    question_text=q.text,
-                    similarity_score=calculate_similarity(q.text, question_text),
-                ) for q in similar_questions
-            ]
-
-        if question:
-            has_answer = question.answer is not None
-
-            # Если найден вопрос, добавляем его в начало списка
-            response_sub_questions.insert(0, SimilarQuestionResponse(
-                id=question.id,
-                question_text=question.text,
-                similarity_score=1.0  # 100% совпадение
-            ))
-
-            # Сортируем sub_questions от максимального совпадения к наименьшему
-            response_sub_questions = sorted(response_sub_questions, key=lambda x: x.similarity_score, reverse=True)
-
-            response = DynamicAnswerResponse(
-                id=question.id,
-                text=question.text,
-                has_answer=has_answer,
-                answer=question.answer if has_answer else None,
-                category_id=question.category_id,
-                number=question.number,
-                sub_questions=response_sub_questions
-            )
-
-            logger.info(f"Ответ на вопрос '{question_text}' успешно получен")
-            return response
-        else:
-            logger.warning(f"Вопрос с текстом '{question_text}' не найден")
-
-            if not response_sub_questions:
-                raise HTTPException(status_code=404, detail="Нет ответа на такой вопрос.")
-
-            # Сортируем sub_questions от максимального совпадения к наименьшему
-            response_sub_questions = sorted(response_sub_questions, key=lambda x: x.similarity_score, reverse=True)
-
-            response = DynamicSubAnswerResponse(
-                id=None,
-                text=f"Вопрос '{question_text}' не найден, но вот похожие вопросы:",
-                has_answer=False,
-                answer=None,
-                category_id=None,
-                number=None,
-                sub_questions=response_sub_questions
-            )
-
-            return response
-
-    except Exception as e:
-        logger.error(f"Ошибка при получении ответа на вопрос: {e}")
-        logger.error(traceback.format_exc())
-        raise CouldNotGetAnswerToQuestion
-
-
-@router_question.post("/delete/{question_id}", summary="Удаление вопроса")
 async def delete_question(
-        question_id: int = Path(..., ge=1),
+        delete_request: DeleteQuestionRequest,
         db: AsyncSession = Depends(get_db),
-        current_user=Depends(get_current_user)
+        current_user=Depends(get_current_admin_or_moderator_user)
 ):
-    """Удаление вопроса по ID с каскадным удалением под-вопросов"""
+    """Удаление вопроса или под-вопроса по ID, если у него нет вложенных под-вопросов"""
     try:
-        question = await db.get(Question, question_id)
-        if not question:
-            raise HTTPException(status_code=404, detail="Вопрос не найден")
+        # Извлекаем ID основного вопроса и под-вопроса
+        id_to_delete = delete_request.sub_question_id
+        main_question_id = delete_request.question_id
 
-        # Удаляем все под-вопросы, если они есть
-        if question.sub_questions:
-            for sub_question in question.sub_questions:
-                await db.delete(sub_question)
+        if id_to_delete > 0:  # Удаляем под-вопрос, если он указан
+            # Удаляем под-вопрос
+            sub_question = await db.get(SubQuestion, id_to_delete)
+            if not sub_question:
+                raise SubQuestionNotFound
+            # Проверяем, принадлежит ли под-вопрос основному вопросу
+            if sub_question.parent_question_id != main_question_id:
+                raise TheSubQuestionDoesNotBelongToTheSpecifiedMainQuestion
+            # Проверяем наличие вложенных под-вопросов в базе данных
+            sub_questions_count = await db.execute(
+                select(func.count()).where(SubQuestion.parent_subquestion_id == id_to_delete))
+            if sub_questions_count.scalar() > 0:
+                raise CannotDeleteSubQuestionWithNestedSubQuestions
+            # Удаляем под-вопрос
+            await db.delete(sub_question)
+        else:  # Удаляем основной вопрос, если sub_question_id не указан или равен 0
+            # Удаляем основной вопрос
+            question = await db.get(Question, main_question_id)
+            if not question:
+                raise QuestionNotFound
+            # Проверяем наличие под-вопросов у основного вопроса
+            question_sub_questions_count = await db.execute(
+                select(func.count()).where(SubQuestion.parent_question_id == main_question_id))
+            if question_sub_questions_count.scalar() > 0:
+                raise CannotDeleteSubQuestionWithNestedSubQuestions
+            # Удаляем основной вопрос
+            await db.delete(question)
 
-        # Удаление основного вопроса
-        await db.delete(question)
         await db.commit()
-        return {"detail": "Вопрос и его под-вопросы успешно удалены"}
+        return QuestionOrSubQuestionSuccessfullyDeleted
     except Exception as e:
         await db.rollback()
         logger.error(f"Ошибка при удалении вопроса: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+        raise ErrorWhenDeletingQuestion
 
 
-@router_question.post("/update/{question_id}", response_model=QuestionResponse, summary="Обновление вопроса")
+@router_question.post("/update", summary="Обновление вопроса или под-вопроса")
 @version(1)
 async def update_question(
-        question_data: QuestionCreate,
-        question_id: int = Path(..., ge=1),
+        update_request: UpdateQuestionRequest,
         db: AsyncSession = Depends(get_db),
-        current_user=Depends(get_current_user)
+        current_user=Depends(get_current_admin_or_moderator_user)
 ):
-    """Обновление вопроса по ID"""
+    """Обновление текста и ответа вопроса или под-вопроса"""
     try:
-        question = await db.get(Question, question_id)
-        if not question:
-            raise HTTPException(status_code=404, detail="Вопрос не найден")
+        # Определяем, обновляем основной вопрос или под-вопрос
+        if update_request.sub_question_id and update_request.sub_question_id > 0:
+            await update_sub_question(update_request, db)
+            return SubQuestionSuccessfullyUpdated
+        else:
+            await update_main_question(update_request, db)
+            return QuestionSuccessfullyUpdated
 
-        # Обновляем поля вопроса
-        for key, value in question_data.dict(exclude_unset=True).items():
-            setattr(question, key, value)
-
-        await db.commit()
-        return QuestionResponse.model_validate(question)
     except Exception as e:
         await db.rollback()
         logger.error(f"Ошибка при обновлении вопроса: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+        raise ErrorWhenUpdatingQuestion
+
+
+@router_question.get("/search", response_model=List[QuestionResponse])
+@version(1)
+async def search_questions(
+        query: str,
+        db: AsyncSession = Depends(get_db),
+        current_user=Depends(get_current_user)
+):
+    """Поиск вопросов по тексту"""
+    try:
+        questions = await QuestionSearchService.search_questions(
+            db,
+            query,
+        )
+
+        if not questions:
+            logger.info("Вопросы не найдены")
+            return []
+
+        # Словарь для вопросов по id
+        question_dict = {question.id: question for question in questions}
+
+        # Создание иерархии под-вопросов для каждого основного вопроса
+        question_responses = [
+            await build_question_response_from_search(question, db) for question in questions if
+            question.parent_question_id is None
+        ]
+
+        return question_responses
+    except Exception as e:
+        logger.error(f"Ошибка при поиске вопросов: {e}")
+        raise HTTPException(status_code=500, detail="Ошибка поиска вопросов")
+
+
+@router_question.get("/top_question_count", summary="Получить count верхнеуровневых вопросов с количеством запросов")
+async def get_top_questions_count(
+        db: AsyncSession = Depends(get_db),
+        current_user=Depends(get_current_admin_or_moderator_user)
+):
+    """Возвращает количество верхнеуровневых вопросов и количество их запросов"""
+    try:
+        # Запрос для получения верхнеуровневых вопросов без родительского вопроса
+        result = await db.execute(
+            select(Question.id, Question.text, Question.count)
+            .where(Question.parent_question_id.is_(None))
+        )
+
+        top_questions = result.fetchall()
+
+        if not top_questions:
+            return {"top_questions_count": 0, "questions": []}
+
+        # Формируем ответ с количеством вопросов и их count
+        questions_data = [
+            {"id": question.id, "text": question.text, "count": question.count}
+            for question in top_questions
+        ]
+
+        return {
+            "top_questions_count": len(questions_data),
+            "questions": questions_data
+        }
+
+    except Exception as e:
+        logger.error(f"Ошибка при получении count верхнеуровневых вопросов: {e}")
+        raise HTTPException(status_code=500, detail="Ошибка получения данных для дашборта")

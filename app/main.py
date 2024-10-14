@@ -1,11 +1,10 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi_versioning import VersionedFastAPI
 import uvicorn
 import time
 from typing import AsyncIterator
-
 from app.logger.middleware import LoggingMiddleware
 from app.admin.pagination_and_filtration import router_pagination, router_filter
 from app.users.router import router_users
@@ -13,7 +12,7 @@ from app.auth.router import router_auth
 from app.admin.router import router_admin
 from app.questions.router_question import router_question
 from app.questions.router_categories import router_categories
-from app.utils import init_permissions, init_roles
+from app.utils import init_roles
 from app.logger.logger import logger
 
 
@@ -21,7 +20,6 @@ from app.logger.logger import logger
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await init_roles()
-    await init_permissions()
     yield
 
 app = FastAPI(lifespan=lifespan)
