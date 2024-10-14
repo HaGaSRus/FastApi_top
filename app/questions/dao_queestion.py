@@ -128,10 +128,12 @@ class QuestionService:
         except Exception as e:
             logger.error(f"Ошибка при создании подвопроса: {e}")
             logger.error(traceback.format_exc())
+
             raise ErrorCreatingSubquestion(detail=f"Не удалось создать подвопрос: {str(e)}")
 
 
 async def build_question_response(question: Question) -> QuestionResponse:
+
     response = QuestionResponse(
         id=question.id,
         text=question.text,
@@ -149,11 +151,18 @@ async def build_question_response(question: Question) -> QuestionResponse:
         sub_response = await build_subquestion_response(sub_question)
         response.sub_questions.append(sub_response)
 
+
     return response
 
+async def convert_subquestion_to_response(sub_question: SubQuestionResponse, sub_questions: List[SubQuestionResponse]):
+    # Фильтруем детей текущего подвопроса
+    children = [
+        await convert_subquestion_to_response(child, sub_questions)
+        for child in sub_questions
+        if child.depth == sub_question.depth + 1 and child.question_id == sub_question.question_id
+    ]
 
-async def build_subquestion_response(sub_question: SubQuestion) -> SubQuestionResponse:
-    logger.info(f"Создание ответа для подвопроса: {sub_question}")  # Логируем объект перед возвратом
+
     return SubQuestionResponse(
         id=sub_question.id,
         text=sub_question.text,
@@ -186,19 +195,112 @@ async def get_sub_questions(db: AsyncSession, parent_question_id: int) -> List[S
                 count=sub_question.count,
                 parent_question_id=sub_question.parent_question_id,
                 depth=sub_question.depth,
-                category_id=sub_question.category_id,
-                subcategory_id=sub_question.subcategory_id,
-                parent_subquestion_id=sub_question.parent_subquestion_id,
-                sub_questions=[]
+
             )
             for sub_question in sub_questions
         ]
 
+
+        logger.info(f"Получены под-вопросы для вопроса с ID {question_id}: {sub_question_responses}")
+
+        # Построение иерархии
+        hierarchical_sub_questions = build_subquestions_hierarchy(sub_question_responses)
+        return hierarchical_sub_questions
+
+
         return sub_question_responses
+
     except Exception as e:
         logger.error(f"Ошибка в get_sub_questions: {e}")
-        raise
+        raise HTTPException(status_code=500, detail="Не удалось получить подвопросы")
 
+
+
+# Обновленная функция для создания иерархии подвопросов
+def build_subquestions_hierarchy(sub_questions, parent_id=None):
+    hierarchy = []
+    for sub_question in sub_questions:
+        if sub_question.question_id == parent_id:
+            # Рекурсивно строим иерархию
+            children = build_subquestions_hierarchy(sub_questions, sub_question.id)
+            hierarchy.append({
+                'id': sub_question.id,
+                'text': sub_question.text,
+                'answer': sub_question.answer,
+                'depth': sub_question.depth,
+                'sub_questions': children  # Вложенные подвопросы
+            })
+    return hierarchy
+
+
+
+
+async def get_hierarchical_questions(db: AsyncSession):
+    result = await db.execute(select(Question))
+    questions = result.scalars().all()
+
+    result = await db.execute(select(SubQuestion))
+    sub_questions = result.scalars().all()
+
+    # Преобразуем вопросы в формат ответа
+    question_responses = [
+        QuestionResponse(
+            id=question.id,
+            text=question.text,
+            answer=question.answer,
+            number=question.number,
+            count=question.count,
+            category_id=question.category_id,
+            sub_questions=[]  # Будем добавлять подвопросы позже
+        )
+        for question in questions
+    ]
+
+    # Преобразуем подвопросы в формат ответа
+    sub_question_responses = [
+        SubQuestionResponse(
+            id=sub_question.id,
+            text=sub_question.text,
+            answer=sub_question.answer,
+            number=sub_question.number,
+            count=sub_question.count,
+            question_id=sub_question.question_id,
+            depth=sub_question.depth,
+            sub_questions=[]
+        )
+        for sub_question in sub_questions
+    ]
+
+    # Строим иерархию
+    hierarchical_questions = build_subquestions_hierarchy(sub_question_responses)
+
+    return hierarchical_questions
+
+
+async def create_subquestions(sub_questions_data, parent_question_id, current_depth, db):
+    if current_depth > 10:
+        raise HTTPException(status_code=400, detail="Глубина вложенности не должна превышать 10")
+
+    for sub_question_data in sub_questions_data:
+        # Создаем под вопрос
+        sub_question = SubQuestion(
+            text=sub_question_data['text'],
+            answer=sub_question_data.get('answer'),
+            number=sub_question_data['number'],
+            question_id=parent_question_id,
+            depth=current_depth
+        )
+        db.add(sub_question)
+        await db.commit()  # Сохраняем в базе данных
+
+        # Если есть вложенные подвопросы, вызываем функцию рекурсивно
+        if 'sub_questions' in sub_question_data:
+            await create_subquestions(
+                sub_question_data['sub_questions'],
+                sub_question.id,
+                current_depth + 1,
+                db
+            )
 
 def build_subquestions_hierarchy(sub_questions, parent_question_id=None):
     hierarchy = []
@@ -242,3 +344,4 @@ def update_fields(question_obj, update_request: UpdateQuestionRequest):
 
     if update_request.answer is not None:
         question_obj.answer = update_request.answer
+

@@ -7,6 +7,7 @@ from fastapi_pagination import Page, paginate
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
+
 from sqlalchemy.orm import selectinload
 from app.admin.pagination_and_filtration import CustomParams
 from app.dao.dependencies import get_current_admin_or_moderator_user, get_current_user
@@ -38,13 +39,18 @@ router_question = APIRouter(
 async def get_questions(db: AsyncSession = Depends(get_db),
                         current_user=Depends(get_current_user)):
     try:
+        # Получаем все вопросы и подвопросы
         result = await db.execute(select(Question))
         questions = result.scalars().all()
 
+
         logger.info(f"Найденные вопросы: {[q.id for q in questions]}")  # Логируем найденные вопросы
 
-        tasks = [get_sub_questions(db, question.id) for question in questions]
-        sub_questions_list = await asyncio.gather(*tasks)
+        result = await db.execute(select(SubQuestion))
+        sub_questions = result.scalars().all()
+
+        # Создаем иерархию под вопросов
+        hierarchical_sub_questions = build_subquestions_hierarchy(sub_questions)
 
         logger.info(f"Найденные под-вопросы: {sub_questions_list}")  # Логируем найденные под-вопросы
 
@@ -61,12 +67,13 @@ async def get_questions(db: AsyncSession = Depends(get_db),
                 number=question.number,
                 depth=question.depth,
                 count=question.count,
-                parent_question_id=question.parent_question_id,
+       parent_question_id=question.parent_question_id,
                 sub_questions=hierarchical_sub_questions
             )
             question_responses.append(question_response)
 
         return question_responses
+
     except Exception as e:
         logger.error(f"Ошибка в get_questions: {e}")
         raise ErrorInGetQuestions(detail=str(e))
@@ -190,12 +197,15 @@ async def create_question(
         db: AsyncSession = Depends(get_db),
         current_user=Depends(get_current_admin_or_moderator_user)
 ):
+    state_machine = QuestionStateMachine()
+
     try:
         logger.info("Создание нового вопроса с текстом: %s", question.text)
 
         if question.is_subquestion:
+            state_machine.create_sub()
             if not question.parent_question_id:
-                raise HTTPException(status_code=400, detail="Для подвопроса нужно указать parent_id")
+                raise HTTPException(status_code=400, detail="Для под-вопроса нужно указать родительский id")
 
             # Создаем подвопрос
             new_question = await QuestionService.create_subquestion(
@@ -204,8 +214,9 @@ async def create_question(
             )
             response = await build_subquestion_response(new_question)  # Изменение здесь
             logger.info(f"Создание подвопроса для родительского вопроса с ID: {question.parent_question_id}")
+
         else:
-            # Создаем родительский вопрос
+            state_machine.create_parent() # Создаем родительский вопрос
             new_question = await QuestionService.create_question(
                 question=question,
                 category_id=question.category_id,
