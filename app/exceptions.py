@@ -300,3 +300,25 @@ class TokenRedirectException(Exception):
         super().__init__(message)
         self.redirect_url = redirect_url
 
+
+class EmptyPasswordError(HootLineException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    detail = "Пароль не может быть пустым и должен содержать не менее 6 символов"
+
+
+class EmptyUserNameOrEmailError(HootLineException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    detail = "Имя пользователя или почта не введены"
+
+
+class DatabaseConnectionLost(HootLineException):
+    """Исключение при потере соединения с базой данных."""
+    status_code = status.HTTP_503_SERVICE_UNAVAILABLE  # 503: Сервис недоступен
+    detail = "Соединение с базой данных потеряно."
+
+
+class DatabaseExceptions(HootLineExceptionDynamic):
+    """Обработка общих ошибок базы данных."""
+    def __init__(self, e: str):
+        detail = "Внутренняя ошибка сервера"
+        super().__init__(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=detail)

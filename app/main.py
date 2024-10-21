@@ -1,10 +1,13 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi_versioning import VersionedFastAPI
 import uvicorn
 import time
 from typing import AsyncIterator
+
+from starlette.responses import JSONResponse
+
 from app.logger.middleware import LoggingMiddleware
 from app.admin.pagination_and_filtration import router_pagination, router_filter
 from app.users.router import router_users
@@ -63,6 +66,23 @@ async def add_process_time_header(request: Request, call_next):
         "process_time": round(process_time, 4)
     })
     return response
+
+
+@app.middleware("http")
+async def catch_exceptions_middleware(request: Request, call_next):
+    try:
+        return await call_next(request)
+    except HTTPException as ex:
+        return JSONResponse(
+            status_code=ex.status_code,
+            content={"detail": ex.detail}
+        )
+    except Exception as ex:
+        logger.error(f"Непредвиденная ошибка: {ex}")
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Внутренняя ошибка сервера"}
+        )
 
 
 if __name__ == "__main__":

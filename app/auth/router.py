@@ -1,13 +1,18 @@
 import jwt
-from fastapi import APIRouter, status, Response, HTTPException
+from fastapi import APIRouter, status, Response, HTTPException, Depends
 from jwt.exceptions import ExpiredSignatureError, PyJWTError
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.auth.auth import get_password_hash, create_access_token, create_reset_token, verify_password, \
     create_refresh_token, refresh_access_token
 from app.config import settings
 from app.dao.dao import UsersDAO
+from app.database import get_db
 from app.exceptions import IncorrectTokenFormatException, \
     TokenExpiredException, UserIsNotPresentException, PasswordUpdatedSuccessfully, EmailOrUsernameWasNotFound, \
-    InvalidPassword, FailedToGetUserRoles, ErrorGettingUser
+    InvalidPassword, FailedToGetUserRoles, ErrorGettingUser, EmptyPasswordError, EmptyUserNameOrEmailError, \
+    DatabaseConnectionLost, DatabaseExceptions
 from app.logger.logger import logger
 from app.auth.schemas import SUserSignUp, ForgotPasswordRequest, ResetPasswordRequest, RefreshTokenRequest
 
@@ -23,10 +28,26 @@ router_auth = APIRouter(
 
 @router_auth.post("/login", summary="Авторизация пользователя")
 @version(1)
-async def login_user(response: Response, user_data: SUserSignUp):
+async def login_user(response: Response, user_data: SUserSignUp, db: AsyncSession = Depends(get_db)):
     """Логика авторизации для входа на горячую линию"""
+    # Проверка доступности базы данных
+    try:
+        await db.execute(text("SELECT 1"))
+    except Exception as e:
+        logger.error(f"База данных не доступна:{e}")
+        raise DatabaseExceptions(str(e))
+
     users_dao = UsersDAO()
     try:
+        if not user_data.email and not user_data.username:
+            logger.error("Имя пользователя или почта не введены")
+            raise EmptyUserNameOrEmailError
+
+        # Проверка на пустой пароль
+        if not user_data.password:
+            logger.error("Пароль не может быть пустым")
+            raise EmptyPasswordError()  # Это исключение нужно определить
+
         user = (await users_dao.find_one_or_none(email=user_data.email)
                 or await users_dao.find_one_or_none(username=user_data.username))
 
@@ -36,7 +57,7 @@ async def login_user(response: Response, user_data: SUserSignUp):
 
         if not verify_password(user_data.password, user.hashed_password):
             logger.error("Неверный пароль")
-            raise InvalidPassword()
+            raise InvalidPassword
 
         user_with_roles = await users_dao.get_user_with_roles(user.id)
         if not user_with_roles:
@@ -58,26 +79,29 @@ async def login_user(response: Response, user_data: SUserSignUp):
         response.set_cookie(
             key="access_token",
             value=access_token,
+            domain='.dz72.ru',
             httponly=False,
             samesite='none',
-            secure=False,
+            secure=True,
             max_age=86400,
             expires=86401,
-            domain=".dz72.ru"
         )
 
         response.set_cookie(
             key="refresh_token",
             value=refresh_token,
+            domain='.dz72.ru',
             httponly=False,
             samesite='none',
-            secure=False,
+            secure=True,
             max_age=604800,  # 30 дней
             expires=604801,
-            domain=".dz72.ru"
         )
 
-        return {"access_token": access_token, "refresh_token": refresh_token}
+        return {"access_token": access_token, "refresh_token": refresh_token, "status_code": 200}
+    except ValueError as ve:
+        logger.error(f"Ошибка ввода данных: {ve}")
+        return {"error": str(ve), "status_code": 400}
     except Exception as e:
         logger.error(f"Ошибка при авторизации: {e}")
         return ErrorGettingUser
