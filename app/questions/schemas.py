@@ -86,6 +86,7 @@ class QuestionResponse(BaseModel):
     count: Optional[int] = 0
     parent_question_id: Optional[int] = 0
 
+
     sub_questions: List[SubQuestionResponse] = []
 
     class Config:
