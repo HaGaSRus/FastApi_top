@@ -1,6 +1,11 @@
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime
 from sqlalchemy.orm import relationship, backref
+from datetime import datetime, timezone
 from app.database import Base
+import pytz
+
+
+Yekaterinburg_tz = pytz.timezone('Asia/Yekaterinburg')
 
 
 class Category(Base):
@@ -40,6 +45,10 @@ class Question(Base):
     parent_question_id = Column(Integer, ForeignKey('questions.id', name='fk_questions_parent_id'), nullable=True)
     depth = Column(Integer, nullable=False, default=0)
 
+    author = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(Yekaterinburg_tz), nullable=True)
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(Yekaterinburg_tz), onupdate=lambda: datetime.now(Yekaterinburg_tz), nullable=True)
+
     parent = relationship("Question", remote_side=[id], backref="children")
 
     category = relationship("Category", back_populates="questions", foreign_keys=[category_id])
@@ -62,6 +71,10 @@ class SubQuestion(Base):
     count = Column(Integer, nullable=True)
     depth = Column(Integer, nullable=False)
     number = Column(Integer, nullable=True)
+
+    author = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(Yekaterinburg_tz), nullable=True)
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(Yekaterinburg_tz), onupdate=lambda: datetime.now(Yekaterinburg_tz), nullable=True)
 
     parent_subquestion_id = Column(Integer, ForeignKey('sub_questions.id', name='fk_subquestions_parent_subquestion_id'), nullable=True)
 

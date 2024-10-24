@@ -30,6 +30,7 @@ class CategoryCreateResponse(CategoryBase):
 
 
 class SubQuestionCreate(BaseModel):
+    author: Optional[str] = None
     text: str
     answer: Optional[str] = None
     number: Optional[int] = 0
@@ -43,6 +44,7 @@ class SubQuestionCreate(BaseModel):
 
 
 class QuestionCreate(BaseModel):
+    author: Optional[str] = None
     text: str
     answer: Optional[str] = None
     number: Optional[int] = 0
@@ -62,7 +64,7 @@ class SubQuestionResponse(BaseModel):
     text: str
     answer: Optional[str] = None
     number: int
-
+    author: Optional[str] = None
     count: Optional[int] = 0
     parent_question_id: int
     depth: int
@@ -82,10 +84,10 @@ class QuestionResponse(BaseModel):
     subcategory_id: Optional[int] = 0
     answer: Optional[str] = None
     number: int
+    author: Optional[str] = None
     depth: int
     count: Optional[int] = 0
     parent_question_id: Optional[int] = 0
-
 
     sub_questions: List[SubQuestionResponse] = []
 
@@ -119,6 +121,7 @@ class UpdateQuestionRequest(BaseModel):
     sub_question_id: Optional[int] = Field(None, description="ID под-вопроса (если указан) ")
     text: Optional[str] = Field(None, description="Новый текст вопроса или под-вопроса")
     answer: Optional[str] = Field(None, description="Новый ответ вопроса или под-вопроса")
+    author: Optional[str] = None
 
 
 class DeleteQuestionRequest(BaseModel):

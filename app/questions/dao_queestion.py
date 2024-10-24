@@ -38,6 +38,7 @@ class QuestionService:
 
             new_question = Question(
                 text=question.text,
+                author=question.author,
                 answer=question.answer,
                 category_id=category_id,
                 subcategory_id=question.subcategory_id,
@@ -48,7 +49,6 @@ class QuestionService:
             db.add(new_question)
             await db.commit()
             await db.refresh(new_question)
-
 
             new_question.number = new_question.id
             await db.commit()
@@ -86,6 +86,7 @@ class QuestionService:
                 raise IncorrectParentSubquestionIdValueNumberExpected(detail=error_message)
 
             new_sub_question = SubQuestion(
+                author=question.author,
                 text=question.text,
                 answer=question.answer,
                 parent_question_id=parent_question.id,
@@ -118,6 +119,7 @@ class QuestionService:
 async def build_question_response(question: Question) -> QuestionResponse:
     response = QuestionResponse(
         id=question.id,
+        author=question.author,
         text=question.text,
         answer=question.answer,
         number=question.number,
@@ -139,6 +141,7 @@ async def build_question_response(question: Question) -> QuestionResponse:
 async def build_subquestion_response(sub_question: SubQuestion) -> SubQuestionResponse:
     return SubQuestionResponse(
         id=sub_question.id,
+        author=sub_question.author,
         text=sub_question.text,
         answer=sub_question.answer,
         number=sub_question.number,
@@ -157,10 +160,10 @@ async def get_sub_questions(db: AsyncSession, parent_question_id: int) -> List[S
         result = await db.execute(select(SubQuestion).where(SubQuestion.parent_question_id == parent_question_id))
         sub_questions = result.scalars().all()
 
-
         sub_question_responses = [
             SubQuestionResponse(
                 id=sub_question.id,
+                author=sub_question.author,
                 text=sub_question.text,
                 answer=sub_question.answer,
                 number=sub_question.number,
@@ -216,10 +219,13 @@ async def update_main_question(update_request: UpdateQuestionRequest, db: AsyncS
 
 
 def update_fields(question_obj, update_request: UpdateQuestionRequest):
-    """Обновление полей text и answer"""
+    """Обновление полей text, answer и author"""
 
     if update_request.text is not None:
         question_obj.text = update_request.text
 
     if update_request.answer is not None:
         question_obj.answer = update_request.answer
+
+    if update_request.author is not None:
+        question_obj.author = update_request.author

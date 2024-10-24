@@ -41,6 +41,7 @@ origins = [
     "http://192.168.188.53:8080",
 ]
 
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
