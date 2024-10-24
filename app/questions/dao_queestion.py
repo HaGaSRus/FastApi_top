@@ -1,4 +1,5 @@
 import traceback
+from datetime import datetime
 from typing import List
 from fastapi import HTTPException
 from app.exceptions import CategoryNotFound, ForASubquestionYouMustSpecifyParentQuestionId, \
@@ -128,6 +129,8 @@ async def build_question_response(question: Question) -> QuestionResponse:
         parent_question_id=question.parent_question_id,
         category_id=question.category_id,
         subcategory_id=question.subcategory_id,
+        created_at=question.created_at,
+        updated_at=question.updated_at,
         sub_questions=[]
     )
 
@@ -151,6 +154,8 @@ async def build_subquestion_response(sub_question: SubQuestion) -> SubQuestionRe
         category_id=sub_question.category_id,
         subcategory_id=sub_question.subcategory_id,
         parent_subquestion_id=sub_question.parent_subquestion_id,
+        created_at=sub_question.created_at,
+        updated_at=sub_question.updated_at,
         sub_questions=[]
     )
 
@@ -170,6 +175,8 @@ async def get_sub_questions(db: AsyncSession, parent_question_id: int) -> List[S
                 count=sub_question.count,
                 parent_question_id=sub_question.parent_question_id,
                 depth=sub_question.depth,
+                created_at=sub_question.created_at,
+                updated_at=sub_question.updated_at,
                 category_id=sub_question.category_id,
                 subcategory_id=sub_question.subcategory_id,
                 parent_subquestion_id=sub_question.parent_subquestion_id,
@@ -229,3 +236,10 @@ def update_fields(question_obj, update_request: UpdateQuestionRequest):
 
     if update_request.author is not None:
         question_obj.author = update_request.author
+
+
+def format_datetime(dt: datetime) -> str:
+    if dt:
+        return dt.strftime("%d %B %Y, %H:%M")  # Пример: 24 October 2024, 15:36
+    return None
+
