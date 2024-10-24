@@ -28,7 +28,6 @@ class UsersDAO(BaseDAO):
                 )
                 session.add(new_user)
                 await session.commit()
-                logger.info(f"Новый пользователь добавлен: {username}")
                 return new_user
             except SQLAlchemyError as e:
                 await session.rollback()
@@ -48,7 +47,6 @@ class UsersDAO(BaseDAO):
                     query = query.where(cls.model.email == email)
                 result = await session.execute(query)
                 user = result.scalar()
-                logger.info(f"Пользователь найден: {user.username if user else 'не найден'}")
                 return user
             except SQLAlchemyError as e:
                 logger.error(f"Ошибка при поиске пользователя: {e}")
@@ -68,9 +66,8 @@ class UsersDAO(BaseDAO):
                         username=user.username,
                         email=user.email,
                         firstname=user.firstname,
-                        roles=[role.name for role in user.roles]  # Преобразуем роли в список строк
+                        roles=[role.name for role in user.roles]
                     )
-                    logger.info(f"Пользователь с ролями получен: {user.username}")
                     return user_data
 
                 logger.warning(f"Пользователь с id={user_id} не найден.")
@@ -86,7 +83,6 @@ class UsersDAO(BaseDAO):
                 query = select(cls.model).filter_by(email=email)
                 result = await session.execute(query)
                 user = result.scalar_one_or_none()
-                logger.info(f"Пользователь с email {email} найден: {user.username if user else 'не найден'}")
                 return user
             except SQLAlchemyError as e:
                 logger.error(f"Ошибка при поиске пользователя по email: {e}")
@@ -105,8 +101,6 @@ class UsersDAO(BaseDAO):
                     logger.error(f"Пользователь с id={model_id} не найден.")
                     raise ValueError("Пользователь не найден.")
 
-                logger.info(f"Обновляем пользователя с id={model_id}: username={username}, email={email}")
-
                 if username is not None:
                     user.username = username
                 if email is not None:
@@ -117,7 +111,6 @@ class UsersDAO(BaseDAO):
                     user.firstname = firstname
 
                 await session.commit()
-                logger.info(f"Пользователь с id={model_id} успешно обновлён.")
                 return user
 
             except SQLAlchemyError as e:
@@ -148,13 +141,11 @@ class UsersRolesDAO(BaseDAO):
                     )
                 )
                 if existing_association.fetchone():
-                    logger.info(f"Пользователь уже имеет роль {role_name}")
                     return
 
                 stmt = insert(role_user_association).values(user_id=user_id, role_id=role.id)
                 await session.execute(stmt)
                 await session.commit()
-                logger.info(f"Роль {role_name} добавлена пользователю с id={user_id}")
 
             except SQLAlchemyError as e:
                 await session.rollback()
@@ -171,7 +162,6 @@ class UsersRolesDAO(BaseDAO):
                     )
                 )
                 await session.commit()
-                logger.info(f"Все роли удалены у пользователя с id={user_id}")
 
             except SQLAlchemyError as e:
                 await session.rollback()
@@ -199,14 +189,12 @@ class UsersRolesDAO(BaseDAO):
                         )
                     )
                     if existing_association.fetchone():
-                        logger.info(f"Пользователь уже имеет роль {role_name}")
                         continue
 
                     stmt = insert(role_user_association).values(user_id=user_id, role_id=role.id)
                     await session.execute(stmt)
 
                 await session.commit()
-                logger.info(f"Роли {role_names} успешно добавлены пользователю с id={user_id}")
 
             except SQLAlchemyError as e:
                 await session.rollback()
@@ -228,7 +216,6 @@ class QuestionsDAO(BaseDAO):
                 select(cls.model).options(selectinload(cls.model.sub_questions))
             )
             questions = result.scalars().all()
-            logger.info(f"Получено {len(questions)} вопросов")
             return questions
         except SQLAlchemyError as e:
             logger.error(f"Ошибка при получении вопросов: {e}")

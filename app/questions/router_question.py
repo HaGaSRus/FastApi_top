@@ -1,8 +1,12 @@
 import asyncio
+import io
+import os
+import time
 import traceback
+from PIL import Image
 from typing import List, Optional
 from fastapi_versioning import version
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File ,HTTPException, status, UploadFile
 from fastapi_pagination import Page, paginate
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -31,8 +35,6 @@ router_question = APIRouter(
 )
 
 
-# Эндпоинт для получения всех вопросов с вложенными под-вопросами
-
 @router_question.get("/all-questions", response_model=List[QuestionResponse])
 @version(1)
 async def get_questions(db: AsyncSession = Depends(get_db),
@@ -41,12 +43,8 @@ async def get_questions(db: AsyncSession = Depends(get_db),
         result = await db.execute(select(Question))
         questions = result.scalars().all()
 
-        logger.info(f"Найденные вопросы: {[q.id for q in questions]}")  # Логируем найденные вопросы
-
         tasks = [get_sub_questions(db, question.id) for question in questions]
         sub_questions_list = await asyncio.gather(*tasks)
-
-        logger.info(f"Найденные под-вопросы: {sub_questions_list}")  # Логируем найденные под-вопросы
 
         question_responses = []
         for question, sub_questions in zip(questions, sub_questions_list):
@@ -78,24 +76,20 @@ async def get_questions(db: AsyncSession = Depends(get_db),
                      summary="Отображение всех вопросов верхнего уровня с пагинацией и поиском")
 @version(1)
 async def get_all_questions_or_search(params: CustomParams = Depends(),
-                                      query: Optional[str] = None,  # Параметр для поиска
+                                      query: Optional[str] = None,
                                       category_id: Optional[int] = None,
                                       subcategory_id: Optional[int] = None,
                                       current_user=Depends(get_current_user)):
     """Получение всех вопросов верхнего уровня с пагинацией и поиском"""
     try:
         async with async_session_maker() as session:
-            stmt = select(Question).filter(Question.parent_question_id.is_(None))  # Базовый запрос
-
-            # Если передан query, выполняем поиск по тексту
+            stmt = select(Question).filter(Question.parent_question_id.is_(None))
             if query:
                 stmt = stmt.filter(Question.text.ilike(f"%{query}%"))
 
-            # Добавляем фильтрацию по category_id, если он указан
             if category_id is not None:
                 stmt = stmt.filter(Question.category_id == category_id)
 
-            # Добавляем фильтрацию по subcategory_id, если он указан
             if subcategory_id is not None:
                 stmt = stmt.filter(Question.subcategory_id == subcategory_id)
 
@@ -104,7 +98,6 @@ async def get_all_questions_or_search(params: CustomParams = Depends(),
             result = await session.execute(stmt)
             question_all = result.scalars().all()
 
-        # Преобразуем вопросы в нужный формат ответа
         question_responses = [
             QuestionResponseForPagination(
                 id=question.id,
@@ -117,12 +110,11 @@ async def get_all_questions_or_search(params: CustomParams = Depends(),
                 count=question.count,
                 parent_question_id=question.parent_question_id,
                 sub_questions=[],
-                is_depth=True if question.depth > 0 or question.sub_questions else False  # Новое поле
+                is_depth=True if question.depth > 0 or question.sub_questions else False
             )
             for question in question_all
         ]
 
-        # Применение кастомных параметров пагинации
         return paginate(question_responses, params=params)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
@@ -131,23 +123,20 @@ async def get_all_questions_or_search(params: CustomParams = Depends(),
 @router_question.post("/question_by_id", response_model=QuestionResponse)
 @version(1)
 async def get_question_with_subquestions(
-        request_body: QuestionIDRequest,  # Принимаем тело запроса как один объект
+        request_body: QuestionIDRequest,
         db: AsyncSession = Depends(get_db),
         current_user=Depends(get_current_user)
 ):
     try:
-        question_id = request_body.question_id  # Получаем question_id из тела запроса
+        question_id = request_body.question_id
 
-        # Проверка наличия question_id
         if question_id is None:
             raise HTTPException(status_code=400, detail="Отсутствует 'question_id' в запросе")
 
-        # Получаем вопрос по ID
         question = await db.get(Question, question_id)
         if not question:
             raise QuestionNotFound
 
-        # Увеличиваеем значение поля count на 1
         if question.count is None:
             question.count = 1
         else:
@@ -155,13 +144,10 @@ async def get_question_with_subquestions(
 
         await db.commit()
 
-        # Получаем все подвопросы
         sub_questions = await get_sub_questions(db, question_id)
 
-        # Формируем иерархию под-вопросов
         hierarchical_sub_questions = build_subquestions_hierarchy(sub_questions)
 
-        # Формируем ответ с иерархией
         question_response = QuestionResponse(
             id=question.id,
             text=question.text,
@@ -172,7 +158,7 @@ async def get_question_with_subquestions(
             number=question.number,
             count=question.count,
             parent_question_id=question.parent_question_id,
-            sub_questions=hierarchical_sub_questions  # Используем уже построенную иерархию
+            sub_questions=hierarchical_sub_questions
         )
 
         return question_response
@@ -182,7 +168,6 @@ async def get_question_with_subquestions(
         raise ErrorInGetQuestionWithSubquestions(detail=str(e))
 
 
-# Роут для создания вопроса или под вопроса
 @router_question.post("/create", summary="Создание вопроса или подвопроса")
 @version(1)
 async def create_question(
@@ -191,31 +176,24 @@ async def create_question(
         current_user=Depends(get_current_admin_or_moderator_user)
 ):
     try:
-        logger.info("Создание нового вопроса с текстом: %s", question.text)
 
         if question.is_subquestion:
             if not question.parent_question_id:
                 raise HTTPException(status_code=400, detail="Для подвопроса нужно указать parent_id")
 
-            # Создаем подвопрос
             new_question = await QuestionService.create_subquestion(
                 question=question,
                 db=db
             )
-            response = await build_subquestion_response(new_question)  # Изменение здесь
-            logger.info(f"Создание подвопроса для родительского вопроса с ID: {question.parent_question_id}")
+            response = await build_subquestion_response(new_question)
         else:
-            # Создаем родительский вопрос
             new_question = await QuestionService.create_question(
                 question=question,
                 category_id=question.category_id,
                 db=db
             )
-            response = await build_question_response(new_question)  # Оставляем как есть
-            logger.info("Создание родительского вопроса")
+            response = await build_question_response(new_question)
 
-        # Возвращаем ответ
-        logger.info("Вопрос успешно создан: %s", response)
         return response
 
     except ValidationError as ve:
@@ -240,36 +218,28 @@ async def delete_question(
 ):
     """Удаление вопроса или под-вопроса по ID, если у него нет вложенных под-вопросов"""
     try:
-        # Извлекаем ID основного вопроса и под-вопроса
         id_to_delete = delete_request.sub_question_id
         main_question_id = delete_request.question_id
 
-        if id_to_delete > 0:  # Удаляем под-вопрос, если он указан
-            # Удаляем под-вопрос
+        if id_to_delete > 0:
             sub_question = await db.get(SubQuestion, id_to_delete)
             if not sub_question:
                 raise SubQuestionNotFound
-            # Проверяем, принадлежит ли под-вопрос основному вопросу
             if sub_question.parent_question_id != main_question_id:
                 raise TheSubQuestionDoesNotBelongToTheSpecifiedMainQuestion
-            # Проверяем наличие вложенных под-вопросов в базе данных
             sub_questions_count = await db.execute(
                 select(func.count()).where(SubQuestion.parent_subquestion_id == id_to_delete))
             if sub_questions_count.scalar() > 0:
                 raise CannotDeleteSubQuestionWithNestedSubQuestions
-            # Удаляем под-вопрос
             await db.delete(sub_question)
-        else:  # Удаляем основной вопрос, если sub_question_id не указан или равен 0
-            # Удаляем основной вопрос
+        else:
             question = await db.get(Question, main_question_id)
             if not question:
                 raise QuestionNotFound
-            # Проверяем наличие под-вопросов у основного вопроса
             question_sub_questions_count = await db.execute(
                 select(func.count()).where(SubQuestion.parent_question_id == main_question_id))
             if question_sub_questions_count.scalar() > 0:
                 raise CannotDeleteSubQuestionWithNestedSubQuestions
-            # Удаляем основной вопрос
             await db.delete(question)
 
         await db.commit()
@@ -289,7 +259,6 @@ async def update_question(
 ):
     """Обновление текста и ответа вопроса или под-вопроса"""
     try:
-        # Определяем, обновляем основной вопрос или под-вопрос
         if update_request.sub_question_id and update_request.sub_question_id > 0:
             await update_sub_question(update_request, db)
             return SubQuestionSuccessfullyUpdated
@@ -318,13 +287,10 @@ async def search_questions(
         )
 
         if not questions:
-            logger.info("Вопросы не найдены")
             return []
 
-        # Словарь для вопросов по id
         question_dict = {question.id: question for question in questions}
 
-        # Создание иерархии под-вопросов для каждого основного вопроса
         question_responses = [
             await build_question_response_from_search(question, db) for question in questions if
             question.parent_question_id is None
@@ -343,7 +309,6 @@ async def get_top_questions_count(
 ):
     """Возвращает количество верхнеуровневых вопросов и количество их запросов"""
     try:
-        # Запрос для получения верхнеуровневых вопросов без родительского вопроса
         result = await db.execute(
             select(Question.id, Question.text, Question.count)
             .where(Question.parent_question_id.is_(None))
@@ -354,7 +319,6 @@ async def get_top_questions_count(
         if not top_questions:
             return {"top_questions_count": 0, "questions": []}
 
-        # Формируем ответ с количеством вопросов и их count
         questions_data = [
             {"id": question.id, "text": question.text, "count": question.count}
             for question in top_questions
@@ -368,3 +332,40 @@ async def get_top_questions_count(
     except Exception as e:
         logger.error(f"Ошибка при получении count верхнеуровневых вопросов: {e}")
         raise HTTPException(status_code=500, detail="Ошибка получения данных для дашборта")
+
+
+
+@router_question.post('/upload-binary')
+@version(1)
+async def add_photo_router(file: UploadFile = File(...), current_user=Depends(get_current_user)):
+    os.makedirs("public", exist_ok=True)
+    unix_time = int(time.time())
+
+    try:
+        image = Image.open(io.BytesIO(await file.read()))
+
+        file_extension = file.filename.split(".")[-1].lower()
+
+        if file_extension in ["jpeg", "jpg"]:
+            compressed_image = io.BytesIO()
+            image.save(compressed_image, format="JPEG", quality=70)
+            file_location = f"public/{unix_time}_{file.filename.split('.')[0]}.jpg"
+
+        elif file_extension in ["png"]:
+            compressed_image = io.BytesIO()
+            image.save(compressed_image, format="WebP", quality=80)
+            file_location = f"public/{unix_time}_{file.filename.split('.')[0]}.webp"
+
+        else:
+            compressed_image = io.BytesIO()
+            image.save(compressed_image, format="WebP", quality=80)
+            file_location = f"public/{unix_time}_{file.filename.split('.')[0]}.webp"
+
+        with open(file_location, "wb") as photo_obj:
+            photo_obj.write(compressed_image.getvalue())
+
+        return {"url": f"https://ht-server.dz72.ru/{file_location}"}
+
+    except Exception as e:
+        logger.error(f"Ошибка при сохранении: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Ошибка: {str(e)}")

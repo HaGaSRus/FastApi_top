@@ -16,15 +16,12 @@ from app.users.models import Users
 
 def get_token(request: Request) -> str:
     """Извлекает токен из файлов cookie или заголовков."""
-    logger.info(f"Куки при запросе: {request.cookies}")  # Логируем куки
-
     token = request.cookies.get("access_token")
     if not token:
         token = request.headers.get("access_token")
     if not token:
         logger.error("Токен отсутствует в файлах cookie и заголовках.")
         raise TokenAbsentException
-    logger.info(f"Токен извлечен: {token}")
     return token
 
 
@@ -36,7 +33,6 @@ async def get_current_user(response: Response, token: str = Depends(get_token)):
 
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        logger.info(f"Токен успешно декодирован: {payload}")
     except JWTError as e:
         logger.error(f"Ошибка декодирования токена: {str(e)}")
         raise HTTPException(status_code=401, detail="Invalid token", headers={"WWW-Authenticate": "Bearer"})
@@ -62,7 +58,6 @@ async def get_current_user(response: Response, token: str = Depends(get_token)):
                 logger.error(f"Пользователь с идентификатором {user_id} не найден.")
                 raise UserIsNotPresentException
 
-            logger.info(f"Пользователь получен: {user.username}")
             return user
         except Exception as e:
             logger.error(f"Необработанная ошибка при получении пользователя: {e}")
@@ -75,7 +70,6 @@ async def get_current_admin_user(current_user: Users = Depends(get_current_user)
         logger.error("Пользователь не является администратором.")
         raise PermissionDeniedException
 
-    logger.info(f"Администратор авторизован: {current_user.username}")
     return current_user
 
 
@@ -87,10 +81,8 @@ async def get_current_admin_or_moderator_user(current_user: Users = Depends(get_
 
     roles = {role.name for role in current_user.roles}
     if "admin" in roles:
-        logger.info(f"Администратор авторизирован: {current_user.username}")
         return current_user, "admin"
     elif "moderator" in roles:
-        logger.info(f"Модератор авторизирован: {current_user.username}")
         return current_user, "moderator"
     else:
         logger.error("Пользователь не имеет прав администратора или модератора.")

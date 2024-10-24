@@ -21,7 +21,6 @@ class SUserAuth(BaseModel):
 
     @model_validator(mode="before")
     def check_required_fields(cls, values):
-        # Проверяем, что все обязательные поля заполнены
         required_fields = ["username", "email", "password", "firstname"]
         for field in required_fields:
             if not values.get(field):
@@ -42,11 +41,11 @@ class UserFilter(Filter):
     username: Optional[str] = None
     email: Optional[str] = None
     firstname: Optional[str] = None
-    username__ilike: Optional[str] = None  # Частичное совпадение
-    email__ilike: Optional[str] = None  # Частичное совпадение
-    firstname__ilike: Optional[str] = None  # Частичное совпадение
+    username__ilike: Optional[str] = None
+    email__ilike: Optional[str] = None
+    firstname__ilike: Optional[str] = None
     order_by: List[str] = ["id"]
-    search: Optional[str] = None  # Параметр поиска по всем полям
+    search: Optional[str] = None
 
     class Constants(Filter.Constants):
         model = Users
@@ -73,3 +72,6 @@ class UserFilter(Filter):
                 query = query.where(Users.firstname.ilike(f"%{self.firstname}%"))
 
         return query
+
+
+

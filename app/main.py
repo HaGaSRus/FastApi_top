@@ -5,9 +5,7 @@ from fastapi_versioning import VersionedFastAPI
 import uvicorn
 import time
 from typing import AsyncIterator
-
-from starlette.responses import JSONResponse
-
+from fastapi.responses import JSONResponse
 from app.logger.middleware import LoggingMiddleware
 from app.admin.pagination_and_filtration import router_pagination, router_filter
 from app.users.router import router_users
@@ -19,7 +17,6 @@ from app.utils import init_roles
 from app.logger.logger import logger
 
 
-# Определяем функцию жизненного цикла с использованием asynccontextmanager
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await init_roles()
@@ -39,8 +36,6 @@ app = VersionedFastAPI(app,
                        version_format='{major}',
                        prefix_format='/v{major}')
 
-
-# Конфигурация CORS
 origins = [
     "http://localhost:8080",
     "http://192.168.188.53:8080",
@@ -50,7 +45,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -86,4 +81,5 @@ async def catch_exceptions_middleware(request: Request, call_next):
 
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)
+    uvicorn.run("main:app", host="192.168.1.236", port=6011, reload=False)
+

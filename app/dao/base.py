@@ -56,7 +56,6 @@ class BaseDAO:
                 result = await session.execute(query)
                 await session.commit()
                 instance = result.scalar_one()
-                logger.info(f"Добавлен новый экземпляр: {instance}")
                 return instance
             except SQLAlchemyError as e:
                 await session.rollback()
@@ -67,7 +66,6 @@ class BaseDAO:
     async def delete(cls, model_id: int):
         async with async_session_maker() as session:
             try:
-                # Проверяем, существует ли объект перед удалением
                 query = select(cls.model).filter_by(id=model_id)
                 result = await session.execute(query)
                 instance = result.scalar_one_or_none()
@@ -76,11 +74,9 @@ class BaseDAO:
                     logger.warning(f"Экземпляр с идентификатором {model_id} не найден для удаления.")
                     raise UserNotFoundException
 
-                # Выполняем удаление
                 stmt = delete(cls.model).where(cls.model.id == model_id)
                 await session.execute(stmt)
                 await session.commit()
-                logger.info(f"Удален экземпляр с идентификатором {model_id}")
             except SQLAlchemyError as e:
                 await session.rollback()
                 logger.error(f"Ошибка удаления экземпляра с идентификатором {model_id}: {e}")
@@ -98,7 +94,6 @@ class BaseDAO:
                     raise UserNotFoundException
 
                 await session.commit()
-                logger.info(f"Обновлен экземпляр с идентификатором {model_id} с данными {data}.")
             except SQLAlchemyError as e:
                 await session.rollback()
                 logger.error(f"Ошибка обновления экземпляра с идентификатором {model_id}: {e}")

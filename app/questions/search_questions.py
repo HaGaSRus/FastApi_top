@@ -18,11 +18,11 @@ class QuestionSearchService:
             db: AsyncSession,
             query: str,
     ) -> List[Question]:
-        # Поиск по тексту вопроса или по ответу
+
         stmt = select(Question).where(
             or_(
-                Question.text.ilike(f"%{query}%"),  # Поиск по тексту вопроса
-                Question.answer.ilike(f"%{query}%")  # Поиск по тексту ответа
+                Question.text.ilike(f"%{query}%"),
+                Question.answer.ilike(f"%{query}%")
             )
         )
 
@@ -67,7 +67,7 @@ async def get_sub_questions_for_question_from_search(db: AsyncSession, parent_qu
             category_id=sub_question.category_id,
             subcategory_id=sub_question.subcategory_id,
             parent_subquestion_id=sub_question.parent_subquestion_id,
-            sub_questions=[]  # Пустой список для последующего заполнения
+            sub_questions=[]
         )
         for sub_question in sub_questions
     ]

@@ -1,5 +1,5 @@
 from typing import Optional
-from pydantic import BaseModel, EmailStr, model_validator, Field
+from pydantic import BaseModel, EmailStr, Field
 
 
 class SUserSignUp(BaseModel):

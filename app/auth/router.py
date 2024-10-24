@@ -1,24 +1,21 @@
 import jwt
 from fastapi import APIRouter, status, Response, HTTPException, Depends
 from jwt.exceptions import ExpiredSignatureError, PyJWTError
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.auth.auth import get_password_hash, create_access_token, create_reset_token, verify_password, \
     create_refresh_token, refresh_access_token
 from app.config import settings
 from app.dao.dao import UsersDAO
-from app.database import get_db
 from app.exceptions import IncorrectTokenFormatException, \
     TokenExpiredException, UserIsNotPresentException, PasswordUpdatedSuccessfully, EmailOrUsernameWasNotFound, \
     InvalidPassword, FailedToGetUserRoles, ErrorGettingUser, EmptyPasswordError, EmptyUserNameOrEmailError, \
-    DatabaseConnectionLost, DatabaseExceptions
+    DatabaseExceptions
 from app.logger.logger import logger
+from app.database import get_db
 from app.auth.schemas import SUserSignUp, ForgotPasswordRequest, ResetPasswordRequest, RefreshTokenRequest
-
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import text
 from app.utils import send_reset_password_email
 from fastapi_versioning import version
-
 
 router_auth = APIRouter(
     prefix="/auth",
@@ -30,7 +27,6 @@ router_auth = APIRouter(
 @version(1)
 async def login_user(response: Response, user_data: SUserSignUp, db: AsyncSession = Depends(get_db)):
     """Логика авторизации для входа на горячую линию"""
-    # Проверка доступности базы данных
     try:
         await db.execute(text("SELECT 1"))
     except Exception as e:
@@ -43,10 +39,9 @@ async def login_user(response: Response, user_data: SUserSignUp, db: AsyncSessio
             logger.error("Имя пользователя или почта не введены")
             raise EmptyUserNameOrEmailError
 
-        # Проверка на пустой пароль
         if not user_data.password:
             logger.error("Пароль не может быть пустым")
-            raise EmptyPasswordError()  # Это исключение нужно определить
+            raise EmptyPasswordError()
 
         user = (await users_dao.find_one_or_none(email=user_data.email)
                 or await users_dao.find_one_or_none(username=user_data.username))
@@ -79,7 +74,7 @@ async def login_user(response: Response, user_data: SUserSignUp, db: AsyncSessio
         response.set_cookie(
             key="access_token",
             value=access_token,
-            domain='.dz72.ru',
+            # domain='.dz72.ru',
             httponly=False,
             samesite='none',
             secure=True,
@@ -90,11 +85,11 @@ async def login_user(response: Response, user_data: SUserSignUp, db: AsyncSessio
         response.set_cookie(
             key="refresh_token",
             value=refresh_token,
-            domain='.dz72.ru',
+            # domain='.dz72.ru',
             httponly=False,
             samesite='none',
             secure=True,
-            max_age=604800,  # 30 дней
+            max_age=604800,
             expires=604801,
         )
 
@@ -112,18 +107,14 @@ async def login_user(response: Response, user_data: SUserSignUp, db: AsyncSessio
                   summary="Форма-восстановления пароля для пользователя")
 async def forgot_password(request: ForgotPasswordRequest):
     """ Восстановление пароля для пользователя, логика отправки формы на почту"""
-    logger.info(f"Запрос на восстановление пароля для email: {request.email}")
 
-    # Здесь предполагается, что вы уже реализовали UsersDAO
     user = await UsersDAO().find_one_or_none(email=request.email)
     if not user:
         logger.warning(f"Пользователь с email {request.email} не найден.")
         raise HTTPException(status_code=404, detail="Пользователь не найден.")
 
     reset_token = create_reset_token(request.email)
-    logger.info(f"Токен для восстановления пароля создан для email: {request.email}")
 
-    # Попытка отправки email
     await send_reset_password_email(request.email, reset_token)
 
     return {"message": "Инструкции по восстановлению пароля отправлены на указанный email."}
@@ -137,7 +128,6 @@ async def reset_password(reset_password_request: ResetPasswordRequest):
 
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        logger.info(f"Токен успешно декодирован: {payload}")
 
         email: str = payload.get("sub")
         if email is None:
@@ -161,7 +151,6 @@ async def reset_password(reset_password_request: ResetPasswordRequest):
     hashed_password = get_password_hash(new_password)
     await users_dao.update(user.id, hashed_password=hashed_password)
 
-    logger.info(f"Пароль для пользователя успешно сброшен: {email}")
     return PasswordUpdatedSuccessfully
 
 
@@ -173,19 +162,17 @@ async def refresh_token(request: RefreshTokenRequest):
     return await refresh_access_token(refresh_token)
 
 
-@router_auth.post("/logout", summary="Выход пользователя")
+@router_auth.get("/logout", summary="Выход пользователя")
 @version(1)
 async def logout_user(response: Response):
     """Удаление токенов и выход пользователя"""
     try:
-        # Удалить access_token
         response.delete_cookie(key="access_token", domain=".dz72.ru")
 
-        # Удалить refresh_token
         response.delete_cookie(key="refresh_token", domain=".dz72.ru")
 
         return {"message": "Успешный выход из системы"}
 
     except Exception as e:
         logger.error(f"Ошибка при выходе пользователя: {e}")
-        raise HTTPException(status_code=400, detail="Ошибка при выходе, попробуйте позже")
+        raise HTTPException(status_code=400, detail=f"Ошибка при выходе пользователя {e}")

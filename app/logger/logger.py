@@ -24,19 +24,15 @@ class CustomJsonFormatter(jsonlogger.JsonFormatter):
             log_record["level"] = record.levelname
 
 
-# Настройте форматировщик для ведения журнала с помощью json_ensure_ascii=False
 formatter = CustomJsonFormatter(
     "%(timestamp)s %(level)s %(message)s %(module)s %(funcName)s"
 )
 
-# Настраиваем обработчики и логгер
 logHandler = logging.StreamHandler()
 logHandler.setFormatter(formatter)
 
-# Определяем путь к файлу лога в той же директории, где находится основной скрипт
 log_file_path = os.path.join(os.path.dirname(__file__), 'app_logs.json')
 
-# Настраиваем обработчик для записи в файл
 fileHandler = logging.FileHandler(log_file_path)
 fileHandler.setFormatter(formatter)
 

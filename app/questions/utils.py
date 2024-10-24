@@ -64,9 +64,7 @@ async def process_category_updates(db: AsyncSession, category_data_list: List[Up
         logger.debug(
             f"Обработка данных для категории с id {category_data.id}: {category_data}")
 
-        # Поиск и обновление категории
         category = await find_category_by_id(db, category_data.id)
-        # await ensure_unique_category_name(db, category_data)
 
         updated_category = await update_category(db, category, category_data)
         logger.debug(f"Обновленная категория: {updated_category}")  # Логирование обновленной категории
@@ -80,7 +78,7 @@ async def get_category_data(request: Request) -> List[UpdateCategoryData]:
     """Получение и декодирование данных из запроса"""
     body = await request.body()
     body_str = body.decode('utf-8')
-    headers = dict(request.headers)  # Логирование заголовков запроса
+    headers = dict(request.headers)
     logger.debug(f"Полученные заголовки: {headers}")
     logger.debug(f"Полученные данные: {body_str}")
 
@@ -90,7 +88,6 @@ async def get_category_data(request: Request) -> List[UpdateCategoryData]:
             raise InvalidDataFormat
 
         validated_data = [UpdateCategoryData(**item) for item in category_data_list]
-        logger.debug(f"Преобразованные данные: {validated_data}")
         return validated_data
     except json.JSONDecodeError:
         logger.error(f"Ошибка декодирования JSON: {body_str}")
@@ -133,7 +130,6 @@ async def update_category(db: AsyncSession, category: Category, data: UpdateCate
         db.add(category)
         await db.commit()
         await db.refresh(category)
-        logger.debug(f"Обновленная категория в базе данных: {category}")  # Логирование обновленных данных из БД
 
     category_response = CategoryResponse(
         id=category.id,
@@ -141,9 +137,6 @@ async def update_category(db: AsyncSession, category: Category, data: UpdateCate
         parent_id=category.parent_id,
         number=category.number
     )
-
-    logger.debug(
-        f"Данные, отправляемые на фронт: {category_response}")  # Логирование данных, которые отправляются на фронт
 
     return category_response
 
@@ -155,7 +148,6 @@ async def process_subcategory_updates(db: AsyncSession, subcategory_data_list: L
         try:
             logger.debug(f"Обработка подкатегории: {subcategory_data}")
             category = await find_category_by_id(db, subcategory_data.id)
-            # await ensure_unique_category_name(db, subcategory_data)
             updated_category = await update_category(db, category, subcategory_data)
             updated_subcategories.append(updated_category)
         except Exception as e:

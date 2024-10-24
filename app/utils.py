@@ -1,4 +1,4 @@
-import time
+from fastapi import HTTPException
 from fastapi_mail import ConnectionConfig, MessageSchema, FastMail
 from sqlalchemy import select
 from app.config import settings
@@ -6,7 +6,7 @@ from app.database import async_session_maker
 from app.logger.logger import logger
 from app.users.models import Roles
 from aiosmtplib.errors import SMTPException
-from fastapi import HTTPException
+
 
 
 async def init_roles():
@@ -42,8 +42,6 @@ conf = ConnectionConfig(
 
 
 async def send_reset_password_email(email: str, token: str, user_name: str = None):
-    start_time = time.time()
-    logger.info(f"Отправка письма для сброса пароля на адрес: {email}")
 
     site_name = "Горячая линия Тюменской области"
     # Если user_name не передан, используем email
@@ -57,13 +55,12 @@ async def send_reset_password_email(email: str, token: str, user_name: str = Non
 
 Теперь вы можете войти в систему, щелкнув эту ссылку:
 
-http://192.168.188.53:8080/reset-password?token={token}
+http://hotline.dz72.ru/reset-password?token={token}
 
 Эту ссылку можно использовать только один раз для входа в систему, и она приведет вас на страницу, где вы можете установить свой пароль. Срок ее действия истекает через день, и если она не используется, ничего не произойдет.
 
 -- {site_name}
 """
-    logger.info(f"Тело письма: {body_content}")
 
     message = MessageSchema(
         subject="Запрос на сброс пароля",
@@ -75,12 +72,9 @@ http://192.168.188.53:8080/reset-password?token={token}
     fm = FastMail(conf)
     try:
         await fm.send_message(message)
-        logger.info(f"Письмо для сброса пароля отправлено на адрес: {email}")
     except SMTPException as smtp_err:
         logger.error(f"Ошибка SMTP при отправке письма на адрес {email}: {str(smtp_err)}", exc_info=True)
         raise HTTPException(status_code=500, detail="Ошибка при отправке письма. Пожалуйста, попробуйте позже.")
     except Exception as e:
         logger.error(f"Ошибка при отправке письма на адрес {email}: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Произошла ошибка при отправке письма: {str(e)}")
-
-    logger.info(f"Время выполнения: {time.time() - start_time} секунд")

@@ -11,18 +11,16 @@ class Category(Base):
     parent_id = Column(Integer, ForeignKey('categories.id'), nullable=True)
     number = Column(Integer, nullable=True)
 
-    # Отношение к подкатегориям
     subcategories = relationship(
         "Category",
         backref=backref('parent', remote_side=[id]),
-        lazy='selectin'  # Измените на 'selectin' для более эффективной загрузки
+        lazy='selectin'
     )
 
-    # Отношение к вопросам
     questions = relationship(
         "Question",
         back_populates="category",
-        foreign_keys="[Question.category_id]"  # Указываем, что это поле относится к category_id в модели Question
+        foreign_keys="[Question.category_id]"
     )
 
     def __repr__(self):
@@ -35,20 +33,17 @@ class Question(Base):
     id = Column(Integer, primary_key=True, index=True)
     text = Column(String, index=True)
     category_id = Column(Integer, ForeignKey('categories.id', name='fk_questions_category_id'))
-    subcategory_id = Column(Integer, ForeignKey('categories.id', name='fk_questions_subcategory_id'), nullable=True)  # Новое поле
+    subcategory_id = Column(Integer, ForeignKey('categories.id', name='fk_questions_subcategory_id'), nullable=True)
     number = Column(Integer, nullable=True)
     answer = Column(String, nullable=True)
     count = Column(Integer, nullable=True)
-    parent_question_id = Column(Integer, ForeignKey('questions.id', name='fk_questions_parent_id'), nullable=True)  # Изменено на parent_question_id
+    parent_question_id = Column(Integer, ForeignKey('questions.id', name='fk_questions_parent_id'), nullable=True)
     depth = Column(Integer, nullable=False, default=0)
 
-    # Отношение к родительскому вопросу
-    parent = relationship("Question", remote_side=[id], backref="children")  # Оставляем как есть
+    parent = relationship("Question", remote_side=[id], backref="children")
 
-    # Отношение к категории
-    category = relationship("Category", back_populates="questions", foreign_keys=[category_id])  # Явно указываем foreign_keys
+    category = relationship("Category", back_populates="questions", foreign_keys=[category_id])
 
-    # Отношение к под-вопросам
     sub_questions = relationship("SubQuestion", back_populates="question", lazy='selectin')
 
     def __repr__(self):
@@ -60,18 +55,16 @@ class SubQuestion(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     parent_question_id = Column(Integer, ForeignKey('questions.id', name='fk_subquestions_question_id'))
-    category_id = Column(Integer, ForeignKey('categories.id', name='fk_subquestions_category_id'), nullable=True)  # Новое поле
-    subcategory_id = Column(Integer, ForeignKey('categories.id', name='fk_subquestions_subcategory_id'), nullable=True)   # Новое поле
+    category_id = Column(Integer, ForeignKey('categories.id', name='fk_subquestions_category_id'), nullable=True)
+    subcategory_id = Column(Integer, ForeignKey('categories.id', name='fk_subquestions_subcategory_id'), nullable=True)
     text = Column(String, index=True)
     answer = Column(String, nullable=False)
     count = Column(Integer, nullable=True)
     depth = Column(Integer, nullable=False)
     number = Column(Integer, nullable=True)
 
-    # Связь с родительским подвопросом (если есть)
-    # parent_subquestion_id = Column(Integer, ForeignKey('sub_questions.id', name='fk_subquestions_parent_subquestion_id'), nullable=True)
+    parent_subquestion_id = Column(Integer, ForeignKey('sub_questions.id', name='fk_subquestions_parent_subquestion_id'), nullable=True)
 
-    # Обратная связь к вопросу
     question = relationship("Question", back_populates="sub_questions")
     # parent_subquestion = relationship("SubQuestion", remote_side=[id], backref="children")
 

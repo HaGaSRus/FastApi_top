@@ -10,7 +10,7 @@ from fastapi_filter import FilterDepends
 from app.users.models import Users
 from app.users.schemas import AllUserResponse
 
-# Создаем роутер
+
 router_pagination = APIRouter(
     prefix="/auth",
     tags=["Пагинация"],
@@ -21,18 +21,14 @@ router_filter = APIRouter(
     tags=["Фильтрация"],
 )
 
-# Параметры по умолчанию для пагинации
 DEFAULT_PAGE_SIZE = 10  # Количество элементов на странице по умолчанию
 MAX_PAGE_SIZE = 100  # Максимальное количество элементов на странице
 
 
-# Класс для кастомных параметров пагинации
 class CustomParams(Params):
-    size: int = DEFAULT_PAGE_SIZE  # Устанавливаем значение по умолчанию
-    max_size: int = MAX_PAGE_SIZE  # Максимальное количество элементов
+    size: int = DEFAULT_PAGE_SIZE
+    max_size: int = MAX_PAGE_SIZE
 
-
-# Регистрируем пагинацию в FastAPI
 add_pagination(router_pagination)
 
 
@@ -43,7 +39,7 @@ add_pagination(router_pagination)
 @version(1)
 async def get_all_users(
         current_user: Users = Depends(get_current_admin_user),
-        params: CustomParams = Depends()  # Используем кастомные параметры пагинации
+        params: CustomParams = Depends()
 ):
     """Получение всех пользователей. С пагинацией. Доступно только администраторам."""
     try:
@@ -58,12 +54,11 @@ async def get_all_users(
                 username=user.username,
                 email=user.email,
                 firstname=user.firstname,
-                roles=[role.name for role in user.roles],  # Изменено: список строк вместо объектов Role
+                roles=[role.name for role in user.roles],
             )
             for user in users_all
         ]
 
-        # Применение кастомных параметров пагинации
         return paginate(user_responses, params=params)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
@@ -81,12 +76,9 @@ async def get_filtered_users(
     async with async_session_maker() as session:
         query = select(Users).options(selectinload(Users.roles))
 
-        # Применяем фильтры к запросу
         filtered_query = user_filter.apply_filter(query)
 
-        # Выполняем запрос к базе данных
         result = await session.execute(filtered_query)
         users_all = result.scalars().all()
 
-        # Применяем пагинацию
         return paginate(users_all, Params(page=page, size=size))

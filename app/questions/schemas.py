@@ -2,7 +2,6 @@ from pydantic import BaseModel, Field, RootModel
 from typing import Optional, List
 
 
-# Базовая модель категории
 class CategoryBase(BaseModel):
     id: int
     name: str
@@ -12,7 +11,6 @@ class CategoryBase(BaseModel):
         from_attributes = True
 
 
-# Модель ответа для категории
 class CategoryResponse(CategoryBase):
     subcategories: Optional[List['CategoryResponse']] = Field(default_factory=list)
     edit: bool = Field(default=False)
@@ -22,18 +20,14 @@ class CategoryResponse(CategoryBase):
         from_attributes = True
 
 
-# Модель создания категории
 class CategoryCreate(BaseModel):
     name: str
 
 
-# Модель ответа при создании категории
 class CategoryCreateResponse(CategoryBase):
     class Config:
         from_attributes = True
 
-
-# Модель для создания вопроса
 
 class SubQuestionCreate(BaseModel):
     text: str
@@ -42,7 +36,7 @@ class SubQuestionCreate(BaseModel):
     count: Optional[int] = 0
     depth: int
 
-    parent_question_id: int  # ID родительского вопроса
+    parent_question_id: int
     parent_subquestion_id: Optional[int] = 0
     category_id: Optional[int] = 0
     subcategory_id: Optional[int] = 0
@@ -55,28 +49,27 @@ class QuestionCreate(BaseModel):
     category_id: Optional[int]
     subcategory_id: Optional[int] = 0
     count: Optional[int]
-    parent_question_id: Optional[int] = 0  # Поле для указания родительского вопроса
-    is_subquestion: bool = False  # Поле для указания поиска в под-вопросах
+    parent_question_id: Optional[int] = 0
+    is_subquestion: bool = False
     parent_subquestion_id: Optional[int] = 0
 
     class Config:
         from_attributes = True
 
 
-# Модель ответа на вопрос
 class SubQuestionResponse(BaseModel):
     id: int
     text: str
-    answer: Optional[str] = None  # Сделать ответ необязательным, если требуется
+    answer: Optional[str] = None
     number: int
 
     count: Optional[int] = 0
     parent_question_id: int
-    depth: int  # Обязательно, так как это будет отображать уровень вложенности
+    depth: int
     parent_subquestion_id: Optional[int] = 0
     category_id: Optional[int] = 0
     subcategory_id: Optional[int] = 0
-    sub_questions: List['SubQuestionResponse'] = []  # Рекурсивная структура
+    sub_questions: List['SubQuestionResponse'] = []
 
     class Config:
         from_attributes = True
@@ -87,11 +80,11 @@ class QuestionResponse(BaseModel):
     text: str
     category_id: int
     subcategory_id: Optional[int] = 0
-    answer: Optional[str] = None  # Сделать ответ необязательным, если требуется
+    answer: Optional[str] = None
     number: int
     depth: int
     count: Optional[int] = 0
-    parent_question_id: Optional[int] = 0  # Это поле должно оставаться, если есть родительский вопрос
+    parent_question_id: Optional[int] = 0
 
     sub_questions: List[SubQuestionResponse] = []
 
@@ -105,11 +98,10 @@ class DeleteCategoryRequest(BaseModel):
 
 class UpdateCategoryData(BaseModel):
     id: int
-    number: int  # Предполагаю, что это поле для номера категории
+    number: int
     name: str
 
 
-# Модель для запроса на обновление категорий
 class UpdateCategoriesRequest(RootModel[list[UpdateCategoryData]]):
     pass
 
@@ -117,7 +109,7 @@ class UpdateCategoriesRequest(RootModel[list[UpdateCategoryData]]):
 class UpdateCategoryData(BaseModel):
     id: int
     name: str
-    parent_id: Optional[int] = None  # Optional[int] позволяет значениям быть None
+    parent_id: Optional[int] = None
     number: int
 
 
@@ -148,7 +140,7 @@ class QuestionResponseForPagination(BaseModel):
     count: Optional[int] = None
     parent_question_id: Optional[int] = None
     sub_questions: List['QuestionResponse'] = []
-    is_depth: bool  # Новое поле для отображения глубины
+    is_depth: bool
 
     class Config:
         from_attributes = True

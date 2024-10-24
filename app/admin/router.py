@@ -12,8 +12,8 @@ from app.admin.schemas import SUserAuth, UserIdRequest
 router_admin = APIRouter(
     prefix="/auth",
     tags=["Админка"],
-    dependencies=[Depends(get_current_admin_user)]
-)
+
+    dependencies=[Depends(get_current_admin_user)])
 
 
 @router_admin.post("/register", status_code=status.HTTP_201_CREATED, summary="Форма регистрации нового пользователя ")
@@ -63,12 +63,10 @@ async def update_user(
     users_dao = UsersDAO()
     users_roles_dao = UsersRolesDAO()
 
-    # Проверка, существует ли такой пользователь
     user_to_update = await users_dao.find_one_or_none(id=user_id)
     if not user_to_update:
         raise UserNotFoundException
 
-    # Проверка на уникальность username и email
     if username:
         existing_user = await users_dao.find_one_or_none(username=username)
         if existing_user and existing_user.id != user_to_update.id:
@@ -81,13 +79,6 @@ async def update_user(
 
     hashed_password = pwd_context.hash(password) if password else None
 
-    # Логирование перед обновлением
-    logger.info(
-        f"Обновление пользователя с id={user_to_update.id}: username={username}, email={email},"
-        f" hashed_password={hashed_password is not None}"
-    )
-
-    # Обновляем данные пользователя
     try:
         await users_dao.update(
             model_id=user_to_update.id,
@@ -100,16 +91,12 @@ async def update_user(
         logger.error(f"Ошибка при обновлении пользователя: {e}")
         raise ErrorUpdatingUser
 
-    # Если переданы новые роли, обновляем их
     if update_roles is not None:
-        # Удаление всех null значений из списка ролей
         update_roles = [role for role in update_roles if role]
 
-    # Если список ролей пустой или None, назначаем роль 'user' по умолчанию
     if not update_roles:
         update_roles = ['user']
 
-    # Очистка текущих ролей и добавление новых ролей
     await users_roles_dao.clear_roles(user_id)
     await users_roles_dao.add_roles(user_id, role_names=update_roles)
 
@@ -123,3 +110,6 @@ async def delete_user(user_request: UserIdRequest):
     users_dao = UsersDAO()
     await users_dao.delete(user_request.user_id)
     return DeleteUser
+
+
+
