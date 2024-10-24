@@ -3,8 +3,6 @@ from datetime import datetime
 from pydantic import BaseModel, Field, RootModel
 from typing import Optional, List
 
-from sqlalchemy import DateTime, Date
-
 
 class CategoryBase(BaseModel):
     id: int
@@ -70,8 +68,8 @@ class SubQuestionResponse(BaseModel):
     number: int
     author: Optional[str] = None
     count: Optional[int] = 0
-    created_at: datetime  # Используем datetime напрямую
-    updated_at: datetime  # Используем datetime напрямую
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
     parent_question_id: int
     depth: int
     parent_subquestion_id: Optional[int] = 0

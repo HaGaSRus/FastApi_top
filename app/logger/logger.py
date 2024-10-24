@@ -1,42 +1,40 @@
-from pythonjsonlogger import jsonlogger
+from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler
 import logging
+from pythonjsonlogger import jsonlogger
 from datetime import datetime
 import pytz
-from app.config import settings
 import os
+
+from app.config import settings
 
 
 class CustomJsonFormatter(jsonlogger.JsonFormatter):
     def __init__(self, *args, **kwargs):
         kwargs['json_ensure_ascii'] = False
-        super(CustomJsonFormatter, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def add_fields(self, log_record, record, message_dict):
-        super(CustomJsonFormatter, self).add_fields(log_record, record, message_dict)
+        super().add_fields(log_record, record, message_dict)
+
         if not log_record.get("timestamp"):
-            yekaterinburg_tz = pytz.timezone('Asia/Yekaterinburg')
-            now = datetime.now(yekaterinburg_tz)
-            formatted_time = now.strftime("%Y-%m-%d %H:%M:%S")
-            log_record["timestamp"] = formatted_time
-        if log_record.get("level"):
-            log_record["level"] = log_record["level"].upper()
-        else:
-            log_record["level"] = record.levelname
+            tz = pytz.timezone('Asia/Yekaterinburg')
+            log_record["timestamp"] = datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
+
+        level = log_record.get("level") or record.levelname
+        log_record["level"] = level.upper() if level else "NOTSET"
 
 
-formatter = CustomJsonFormatter(
-    "%(timestamp)s %(level)s %(message)s %(module)s %(funcName)s"
-)
-
-logHandler = logging.StreamHandler()
-logHandler.setFormatter(formatter)
+formatter = CustomJsonFormatter("%(timestamp)s %(level)s %(message)s %(module)s %(funcName)s")
 
 log_file_path = os.path.join(os.path.dirname(__file__), 'app_logs.json')
-
-fileHandler = logging.FileHandler(log_file_path)
+fileHandler = RotatingFileHandler(log_file_path, maxBytes=5 * 1024 * 1024, backupCount=5)
 fileHandler.setFormatter(formatter)
 
+streamHandler = logging.StreamHandler()
+streamHandler.setFormatter(formatter)
+
 logger = logging.getLogger()
-logger.addHandler(logHandler)
 logger.addHandler(fileHandler)
+logger.addHandler(streamHandler)
 logger.setLevel(settings.LOG_LEVEL)
+
