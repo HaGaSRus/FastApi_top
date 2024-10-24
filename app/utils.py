@@ -73,8 +73,8 @@ http://hotline.dz72.ru/reset-password?token={token}
     try:
         await fm.send_message(message)
     except SMTPException as smtp_err:
-        logger.error(f"Ошибка SMTP при отправке письма на адрес {email}: {str(smtp_err)}", exc_info=True)
+        logger.warning(f"Ошибка SMTP при отправке письма на адрес {email}: {str(smtp_err)}", exc_info=True)
         raise HTTPException(status_code=500, detail="Ошибка при отправке письма. Пожалуйста, попробуйте позже.")
     except Exception as e:
-        logger.error(f"Ошибка при отправке письма на адрес {email}: {str(e)}", exc_info=True)
+        logger.warning(f"Ошибка при отправке письма на адрес {email}: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Произошла ошибка при отправке письма: {str(e)}")

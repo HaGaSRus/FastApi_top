@@ -39,7 +39,7 @@ async def get_category_by_id(category_id: int, db: AsyncSession):
         category = await db.execute(select(Category).filter_by(id=category_id))
         return category.scalars().first()
     except Exception as e:
-        logger.error(f"Ошибка при получении категории: {e}")
+        logger.warning(f"Ошибка при получении категории: {e}")
         raise HTTPException(status_code=500, detail="Не удалось получить категорию")
 
 
@@ -90,10 +90,10 @@ async def get_category_data(request: Request) -> List[UpdateCategoryData]:
         validated_data = [UpdateCategoryData(**item) for item in category_data_list]
         return validated_data
     except json.JSONDecodeError:
-        logger.error(f"Ошибка декодирования JSON: {body_str}")
+        logger.warning(f"Ошибка декодирования JSON: {body_str}")
         raise JSONDecodingError
     except ValidationError as e:
-        logger.error(f"Ошибка валидации данных: {e}")
+        logger.warning(f"Ошибка валидации данных: {e}")
         raise ValidationErrorException(error_detail=str(e))
 
 
@@ -102,7 +102,7 @@ def validate_category_data(category_data: dict) -> UpdateCategoryData:
     try:
         return UpdateCategoryData(**category_data)
     except ValidationError as e:
-        logger.error(f"Ошибка валидации данных: {e}")
+        logger.warning(f"Ошибка валидации данных: {e}")
         raise ValidationErrorException(error_detail=str(e))
 
 
@@ -151,6 +151,6 @@ async def process_subcategory_updates(db: AsyncSession, subcategory_data_list: L
             updated_category = await update_category(db, category, subcategory_data)
             updated_subcategories.append(updated_category)
         except Exception as e:
-            logger.error(f"Ошибка при обновлении подкатегории с id {subcategory_data.id}: {e}")
+            logger.warning(f"Ошибка при обновлении подкатегории с id {subcategory_data.id}: {e}")
             raise
     return updated_subcategories

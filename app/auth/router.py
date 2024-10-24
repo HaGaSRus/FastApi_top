@@ -36,27 +36,27 @@ async def login_user(response: Response, user_data: SUserSignUp, db: AsyncSessio
     users_dao = UsersDAO()
     try:
         if not user_data.email and not user_data.username:
-            logger.error("Имя пользователя или почта не введены")
+            logger.warning("Имя пользователя или почта не введены")
             raise EmptyUserNameOrEmailError
 
         if not user_data.password:
-            logger.error("Пароль не может быть пустым")
+            logger.warning("Пароль не может быть пустым")
             raise EmptyPasswordError()
 
         user = (await users_dao.find_one_or_none(email=user_data.email)
                 or await users_dao.find_one_or_none(username=user_data.username))
 
         if not user:
-            logger.error("Пользователь не найден")
+            logger.warning("Пользователь не найден")
             raise EmailOrUsernameWasNotFound()
 
         if not verify_password(user_data.password, user.hashed_password):
-            logger.error("Неверный пароль")
+            logger.warning("Неверный пароль")
             raise InvalidPassword
 
         user_with_roles = await users_dao.get_user_with_roles(user.id)
         if not user_with_roles:
-            logger.error("Не удалось получить роли пользователя")
+            logger.warning("Не удалось получить роли пользователя")
             raise FailedToGetUserRoles()
 
         access_token = create_access_token({
@@ -95,10 +95,10 @@ async def login_user(response: Response, user_data: SUserSignUp, db: AsyncSessio
 
         return {"access_token": access_token, "refresh_token": refresh_token, "status_code": 200}
     except ValueError as ve:
-        logger.error(f"Ошибка ввода данных: {ve}")
+        logger.warning(f"Ошибка ввода данных: {ve}")
         return {"error": str(ve), "status_code": 400}
     except Exception as e:
-        logger.error(f"Ошибка при авторизации: {e}")
+        logger.warning(f"Ошибка при авторизации: {e}")
         return ErrorGettingUser
 
 
@@ -131,21 +131,21 @@ async def reset_password(reset_password_request: ResetPasswordRequest):
 
         email: str = payload.get("sub")
         if email is None:
-            logger.error("Токен не содержит допустимой темы (email)")
+            logger.warning("Токен не содержит допустимой темы (email)")
             raise IncorrectTokenFormatException
 
     except ExpiredSignatureError:
-        logger.error("Токен истёк")
+        logger.warning("Токен истёк")
         raise TokenExpiredException
 
     except PyJWTError as e:
-        logger.error(f"Ошибка JWT: {e}")
+        logger.warning(f"Ошибка JWT: {e}")
         raise IncorrectTokenFormatException
 
     users_dao = UsersDAO()
     user = await users_dao.get_user_by_email(email)
     if user is None:
-        logger.error(f"Пользователь не найден по электронной почте: {email}")
+        logger.warning(f"Пользователь не найден по электронной почте: {email}")
         raise UserIsNotPresentException
 
     hashed_password = get_password_hash(new_password)
@@ -174,5 +174,5 @@ async def logout_user(response: Response):
         return {"message": "Успешный выход из системы"}
 
     except Exception as e:
-        logger.error(f"Ошибка при выходе пользователя: {e}")
+        logger.warning(f"Ошибка при выходе пользователя: {e}")
         raise HTTPException(status_code=400, detail=f"Ошибка при выходе пользователя {e}")

@@ -68,18 +68,18 @@ async def refresh_access_token(refresh_token: str):
 
         user_id = int(payload.get("sub"))
         if user_id is None:
-            logger.error("Рефреш токен не содержит идентификатор пользователя")
+            logger.warning("Рефреш токен не содержит идентификатор пользователя")
             raise InvalidRefreshToken
 
         users_dao = UsersDAO()
         user = await users_dao.find_one_or_none(id=user_id)
         if user is None:
-            logger.error(f"Пользователь с id '{user_id}' не найден")
+            logger.warning(f"Пользователь с id '{user_id}' не найден")
             raise EmailOrUsernameWasNotFound
 
         user_with_roles = await users_dao.get_user_with_roles(user.id)
         if not user_with_roles:
-            logger.error("Не удалось получить роли пользователя")
+            logger.warning("Не удалось получить роли пользователя")
             raise FailedToGetUserRoles()
 
 
@@ -91,10 +91,10 @@ async def refresh_access_token(refresh_token: str):
 
         return {"access_token": access_token}
     except jwt.ExpiredSignatureError:
-        logger.error("Рефреш токен истек")
+        logger.warning("Рефреш токен истек")
         raise RefreshTokenHasExpired
     except jwt.JWTError as e:
-        logger.error(f"Ошибка JWT: {e}")
+        logger.warning(f"Ошибка JWT: {e}")
         raise InvalidRefreshToken
 
 

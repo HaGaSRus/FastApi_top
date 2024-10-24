@@ -74,7 +74,7 @@ async def catch_exceptions_middleware(request: Request, call_next):
             content={"detail": ex.detail}
         )
     except Exception as ex:
-        logger.error(f"Непредвиденная ошибка: {ex}")
+        logger.warning(f"Непредвиденная ошибка: {ex}")
         return JSONResponse(
             status_code=500,
             content={"detail": "Внутренняя ошибка сервера"}

@@ -31,7 +31,7 @@ class UsersDAO(BaseDAO):
                 return new_user
             except SQLAlchemyError as e:
                 await session.rollback()
-                logger.error(f"Ошибка при добавлении пользователя: {e}")
+                logger.warning(f"Ошибка при добавлении пользователя: {e}")
                 raise
 
     @classmethod
@@ -49,7 +49,7 @@ class UsersDAO(BaseDAO):
                 user = result.scalar()
                 return user
             except SQLAlchemyError as e:
-                logger.error(f"Ошибка при поиске пользователя: {e}")
+                logger.warning(f"Ошибка при поиске пользователя: {e}")
                 raise
 
     @classmethod
@@ -73,7 +73,7 @@ class UsersDAO(BaseDAO):
                 logger.warning(f"Пользователь с id={user_id} не найден.")
                 return None
             except SQLAlchemyError as e:
-                logger.error(f"Ошибка при получении пользователя с ролями: {e}")
+                logger.warning(f"Ошибка при получении пользователя с ролями: {e}")
                 raise
 
     @classmethod
@@ -85,7 +85,7 @@ class UsersDAO(BaseDAO):
                 user = result.scalar_one_or_none()
                 return user
             except SQLAlchemyError as e:
-                logger.error(f"Ошибка при поиске пользователя по email: {e}")
+                logger.warning(f"Ошибка при поиске пользователя по email: {e}")
                 raise
 
     @classmethod
@@ -98,7 +98,7 @@ class UsersDAO(BaseDAO):
                 user = result.scalar()
 
                 if not user:
-                    logger.error(f"Пользователь с id={model_id} не найден.")
+                    logger.warning(f"Пользователь с id={model_id} не найден.")
                     raise ValueError("Пользователь не найден.")
 
                 if username is not None:
@@ -114,7 +114,7 @@ class UsersDAO(BaseDAO):
                 return user
 
             except SQLAlchemyError as e:
-                logger.error(f"Ошибка при обновлении пользователя с id={model_id}: {e}")
+                logger.warning(f"Ошибка при обновлении пользователя с id={model_id}: {e}")
                 await session.rollback()
                 raise
 
@@ -149,7 +149,7 @@ class UsersRolesDAO(BaseDAO):
 
             except SQLAlchemyError as e:
                 await session.rollback()
-                logger.error(f"Ошибка при добавлении роли {role_name} пользователю с id={user_id}: {e}")
+                logger.warning(f"Ошибка при добавлении роли {role_name} пользователю с id={user_id}: {e}")
                 raise
 
     @classmethod
@@ -165,7 +165,7 @@ class UsersRolesDAO(BaseDAO):
 
             except SQLAlchemyError as e:
                 await session.rollback()
-                logger.error(f"Ошибка при удалении ролей у пользователя с id={user_id}: {e}")
+                logger.warning(f"Ошибка при удалении ролей у пользователя с id={user_id}: {e}")
                 raise
 
     @classmethod
@@ -179,7 +179,7 @@ class UsersRolesDAO(BaseDAO):
                     role = role.scalar_one_or_none()
 
                     if not role:
-                        logger.error(f"Роль {role_name} не найдена")
+                        logger.warning(f"Роль {role_name} не найдена")
                         continue
 
                     existing_association = await session.execute(
@@ -198,7 +198,7 @@ class UsersRolesDAO(BaseDAO):
 
             except SQLAlchemyError as e:
                 await session.rollback()
-                logger.error(f"Ошибка при добавлении ролей пользователю с id={user_id}: {e}")
+                logger.warning(f"Ошибка при добавлении ролей пользователю с id={user_id}: {e}")
                 raise
 
 
@@ -218,5 +218,5 @@ class QuestionsDAO(BaseDAO):
             questions = result.scalars().all()
             return questions
         except SQLAlchemyError as e:
-            logger.error(f"Ошибка при получении вопросов: {e}")
+            logger.warning(f"Ошибка при получении вопросов: {e}")
             raise

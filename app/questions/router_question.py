@@ -66,7 +66,7 @@ async def get_questions(db: AsyncSession = Depends(get_db),
 
         return question_responses
     except Exception as e:
-        logger.error(f"Ошибка в get_questions: {e}")
+        logger.warning(f"Ошибка в get_questions: {e}")
         raise ErrorInGetQuestions(detail=str(e))
 
 
@@ -164,7 +164,7 @@ async def get_question_with_subquestions(
         return question_response
 
     except Exception as e:
-        logger.error(f"Ошибка в get_question_with_subquestions: {e}")
+        logger.warning(f"Ошибка в get_question_with_subquestions: {e}")
         raise ErrorInGetQuestionWithSubquestions(detail=str(e))
 
 
@@ -197,15 +197,15 @@ async def create_question(
         return response
 
     except ValidationError as ve:
-        logger.error(f"Ошибка валидации данных ответа: {ve}")
+        logger.warning(f"Ошибка валидации данных ответа: {ve}")
         raise HTTPException(status_code=422, detail=f"Validation error: {ve.errors()}")
     except IntegrityError as e:
         await db.rollback()
-        logger.error("IntegrityError при создании вопроса: %s", e)
+        logger.warning("IntegrityError при создании вопроса: %s", e)
         raise HTTPException(status_code=409, detail="Ошибка целостности данных: возможно, такой вопрос уже существует.")
     except Exception as e:
-        logger.error("Ошибка при создании вопроса: %s", e)
-        logger.error(traceback.format_exc())
+        logger.warning("Ошибка при создании вопроса: %s", e)
+        logger.warning(traceback.format_exc())
         raise HTTPException(status_code=500, detail="Не удалось создать вопрос")
 
 
@@ -246,7 +246,7 @@ async def delete_question(
         return QuestionOrSubQuestionSuccessfullyDeleted
     except Exception as e:
         await db.rollback()
-        logger.error(f"Ошибка при удалении вопроса: {e}")
+        logger.warning(f"Ошибка при удалении вопроса: {e}")
         raise ErrorWhenDeletingQuestion
 
 
@@ -268,7 +268,7 @@ async def update_question(
 
     except Exception as e:
         await db.rollback()
-        logger.error(f"Ошибка при обновлении вопроса: {e}")
+        logger.warning(f"Ошибка при обновлении вопроса: {e}")
         raise ErrorWhenUpdatingQuestion
 
 
@@ -298,7 +298,7 @@ async def search_questions(
 
         return question_responses
     except Exception as e:
-        logger.error(f"Ошибка при поиске вопросов: {e}")
+        logger.warning(f"Ошибка при поиске вопросов: {e}")
         raise HTTPException(status_code=500, detail="Ошибка поиска вопросов")
 
 
@@ -330,9 +330,8 @@ async def get_top_questions_count(
         }
 
     except Exception as e:
-        logger.error(f"Ошибка при получении count верхнеуровневых вопросов: {e}")
+        logger.warning(f"Ошибка при получении count верхнеуровневых вопросов: {e}")
         raise HTTPException(status_code=500, detail="Ошибка получения данных для дашборта")
-
 
 
 @router_question.post('/upload-binary')
@@ -367,5 +366,5 @@ async def add_photo_router(file: UploadFile = File(...), current_user=Depends(ge
         return {"url": f"https://ht-server.dz72.ru/{file_location}"}
 
     except Exception as e:
-        logger.error(f"Ошибка при сохранении: {str(e)}")
+        logger.warning(f"Ошибка при сохранении: {str(e)}")
         raise HTTPException(status_code=400, detail=f"Ошибка: {str(e)}")

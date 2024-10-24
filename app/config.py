@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     VALIDATE_CERTS: bool = True
     TIMEOUT: int = DEFAULT_TIMEOUT
 
+    TELEGRAM_TOKEN: str
+    CHAT_ID: int
+
     class Config:
         env_file = ".env"
         from_attributes = True

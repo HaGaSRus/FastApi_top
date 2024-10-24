@@ -88,7 +88,7 @@ async def update_user(
             firstname=firstname,
         )
     except Exception as e:
-        logger.error(f"Ошибка при обновлении пользователя: {e}")
+        logger.warning(f"Ошибка при обновлении пользователя: {e}")
         raise ErrorUpdatingUser
 
     if update_roles is not None:

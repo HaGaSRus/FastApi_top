@@ -37,13 +37,13 @@ async def update_user(
     if update_data.username:
         existing_user = await users_dao.find_one_or_none(username=update_data.username)
         if existing_user and existing_user.id != current_user.id:
-            logger.error(f"Имя пользователя {update_data.username} уже используется.")
+            logger.warning(f"Имя пользователя {update_data.username} уже используется.")
             raise UserNameAlreadyExistsException
 
     if update_data.email:
         existing_user = await users_dao.find_one_or_none(email=update_data.email)
         if existing_user and existing_user.id != current_user.id:
-            logger.error(f"Email {update_data.email} уже используется.")
+            logger.warning(f"Email {update_data.email} уже используется.")
             raise UserEmailAlreadyExistsException
 
     hashed_password = pwd_context.hash(update_data.password) if update_data.password else None
@@ -65,7 +65,7 @@ async def update_user(
             firstname=update_data.firstname,
         )
     except Exception as e:
-        logger.error(f"Ошибка обновления пользователя: {e}")
+        logger.warning(f"Ошибка обновления пользователя: {e}")
         raise ErrorUpdatingUser
 
     return UpdateUser

@@ -67,8 +67,8 @@ async def get_categories(db: AsyncSession = Depends(get_db), current_user=Depend
         logger.debug(f"Полученные категории с полем редактирования: {category_responses}")
         return category_responses
     except Exception as e:
-        logger.error(f"Ошибка при получении категорий: {e}")
-        logger.error(traceback.format_exc())
+        logger.warning(f"Ошибка при получении категорий: {e}")
+        logger.warning(traceback.format_exc())
         raise ErrorGettingCategories
 
 
@@ -94,11 +94,11 @@ async def create_category(
         return CategoryCreateResponse.model_validate(new_category)
     except IntegrityError as e:
         await db.rollback()
-        logger.error(f"IntegrityError при создании категории: {e}")
+        logger.warning(f"IntegrityError при создании категории: {e}")
         raise CategoryWithTheSameNameAlreadyExists
     except Exception as e:
-        logger.error(f"Ошибка при создании категории: {e}")
-        logger.error(traceback.format_exc())
+        logger.warning(f"Ошибка при создании категории: {e}")
+        logger.warning(traceback.format_exc())
         raise ErrorCreatingCategory
 
 
@@ -133,12 +133,12 @@ async def create_subcategory(
 
     except IntegrityError as e:
         await db.rollback()
-        logger.error(f"Ошибка IntegrityError при создании подкатегории: {e}")
+        logger.warning(f"Ошибка IntegrityError при создании подкатегории: {e}")
         raise CategoryWithTheSameNameAlreadyExists
 
     except Exception as e:
-        logger.error(f"Ошибка при создании подкатегории: {e}")
-        logger.error(traceback.format_exc())
+        logger.warning(f"Ошибка при создании подкатегории: {e}")
+        logger.warning(traceback.format_exc())
         raise FailedTGetDataFromDatabase
 
 
@@ -162,15 +162,15 @@ async def update_categories(
         return updated_categories
 
     except CategoryWithSameNameAlreadyExists as e:
-        logger.error(f"Ошибка при обновлении категорий: {e.detail}")
+        logger.warning(f"Ошибка при обновлении категорий: {e.detail}")
         raise e
     except IntegrityError as e:
         await db.rollback()
-        logger.error(f"Ошибка IntegrityError при обновлении категорий: {e}")
+        logger.warning(f"Ошибка IntegrityError при обновлении категорий: {e}")
         raise ErrorUpdatingCategories
     except Exception as e:
-        logger.error(f"Ошибка при обновлении категорий: {e}")
-        logger.error(traceback.format_exc())
+        logger.warning(f"Ошибка при обновлении категорий: {e}")
+        logger.warning(traceback.format_exc())
         raise FailedToUpdateCategories
 
 
@@ -188,11 +188,11 @@ async def update_subcategory(
         return updated_subcategories
 
     except HTTPException as e:
-        logger.error(f"Ошибка при обновлении подкатегорий: {e.detail}")
+        logger.warning(f"Ошибка при обновлении подкатегорий: {e.detail}")
         raise e
 
     except Exception as e:
-        logger.error(f"Ошибка при обновлении подкатегорий: {e}")
+        logger.warning(f"Ошибка при обновлении подкатегорий: {e}")
         raise HTTPException(status_code=500, detail="Неизвестная ошибка.")
 
 
@@ -226,8 +226,8 @@ async def delete_category(
         return CategoryResponse.model_validate(category)
 
     except Exception as e:
-        logger.error(f"Ошибка при удалении категории: {e}")
-        logger.error(traceback.format_exc())
+        logger.warning(f"Ошибка при удалении категории: {e}")
+        logger.warning(traceback.format_exc())
         await db.rollback()
         raise FailedToDeleteCategory
 

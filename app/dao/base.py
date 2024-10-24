@@ -21,7 +21,7 @@ class BaseDAO:
                     logger.warning(f"Экземпляр с идентификатором {model_id} не найден.")
                 return instance
             except SQLAlchemyError as e:
-                logger.error(f"Ошибка поиска по идентификатору {model_id}: {e}")
+                logger.warning(f"Ошибка поиска по идентификатору {model_id}: {e}")
                 raise
 
     @classmethod
@@ -33,7 +33,7 @@ class BaseDAO:
                 instance = result.scalar_one_or_none()
                 return instance
             except SQLAlchemyError as e:
-                logger.error(f"Ошибка при поиске с помощью фильтра {filter_by}: {e}")
+                logger.warning(f"Ошибка при поиске с помощью фильтра {filter_by}: {e}")
                 raise
 
     @classmethod
@@ -45,7 +45,7 @@ class BaseDAO:
                 instances = result.scalars().all()
                 return instances
             except SQLAlchemyError as e:
-                logger.error(f"Ошибка при поиске всех с помощью фильтра {filter_by}: {e}")
+                logger.warning(f"Ошибка при поиске всех с помощью фильтра {filter_by}: {e}")
                 raise
 
     @classmethod
@@ -59,7 +59,7 @@ class BaseDAO:
                 return instance
             except SQLAlchemyError as e:
                 await session.rollback()
-                logger.error(f"Ошибка при добавлении экземпляра с данными. {data}: {e}")
+                logger.warning(f"Ошибка при добавлении экземпляра с данными. {data}: {e}")
                 raise
 
     @classmethod
@@ -79,7 +79,7 @@ class BaseDAO:
                 await session.commit()
             except SQLAlchemyError as e:
                 await session.rollback()
-                logger.error(f"Ошибка удаления экземпляра с идентификатором {model_id}: {e}")
+                logger.warning(f"Ошибка удаления экземпляра с идентификатором {model_id}: {e}")
                 raise
 
     @classmethod
@@ -96,5 +96,5 @@ class BaseDAO:
                 await session.commit()
             except SQLAlchemyError as e:
                 await session.rollback()
-                logger.error(f"Ошибка обновления экземпляра с идентификатором {model_id}: {e}")
+                logger.warning(f"Ошибка обновления экземпляра с идентификатором {model_id}: {e}")
                 raise

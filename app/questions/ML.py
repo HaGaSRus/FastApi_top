@@ -66,6 +66,6 @@ def calculate_similarity(text1: str, text2: str) -> float:
         cosine_sim = cosine_similarity(vectors)
         return float(cosine_sim[0][1])
     except Exception as e:
-        logger.error(f"Ошибка при расчете сходства между '{text1}' и '{text2}': {e}")
+        logger.warning(f"Ошибка при расчете сходства между '{text1}' и '{text2}': {e}")
         return 0.0
 

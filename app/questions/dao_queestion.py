@@ -57,8 +57,8 @@ class QuestionService:
             return new_question
 
         except Exception as e:
-            logger.error(f"Ошибка при создании вопроса: {e}")
-            logger.error(traceback.format_exc())
+            logger.warning(f"Ошибка при создании вопроса: {e}")
+            logger.warning(traceback.format_exc())
             raise FailedToCreateQuestionDynamic(detail=f"Не удалось создать вопрос: {str(e)}")
 
     @staticmethod
@@ -67,7 +67,7 @@ class QuestionService:
             parent_question = await db.get(Question, question.parent_question_id)
             if not parent_question:
                 error_message = f"Родительский вопрос с ID {question.parent_question_id} не найден."
-                logger.error(error_message)
+                logger.warning(error_message)
                 raise ParentQuestionIDNotFound(detail=error_message)
 
             depth = parent_question.depth + 1
@@ -78,12 +78,12 @@ class QuestionService:
                     depth = parent_subquestion.depth + 1
                 else:
                     error_message = f"Родительский подвопрос с ID {question.parent_subquestion_id} не найден."
-                    logger.error(error_message)
+                    logger.warning(error_message)
                     raise ParentQuestionIDNotFound(detail=error_message)
 
             if question.parent_subquestion_id is not None and not isinstance(question.parent_subquestion_id, int):
                 error_message = "Некорректное значение parent_subquestion_id, ожидается число."
-                logger.error(error_message)
+                logger.warning(error_message)
                 raise IncorrectParentSubquestionIdValueNumberExpected(detail=error_message)
 
             new_sub_question = SubQuestion(
@@ -108,12 +108,12 @@ class QuestionService:
             return new_sub_question
 
         except HTTPException as e:
-            logger.error(f"HTTP ошибка: {e.detail}")
+            logger.warning(f"HTTP ошибка: {e.detail}")
             raise e
 
         except Exception as e:
-            logger.error(f"Ошибка при создании подвопроса: {e}")
-            logger.error(traceback.format_exc())
+            logger.warning(f"Ошибка при создании подвопроса: {e}")
+            logger.warning(traceback.format_exc())
             raise ErrorCreatingSubquestion(detail=f"Не удалось создать подвопрос: {str(e)}")
 
 
@@ -187,7 +187,7 @@ async def get_sub_questions(db: AsyncSession, parent_question_id: int) -> List[S
 
         return sub_question_responses
     except Exception as e:
-        logger.error(f"Ошибка в get_sub_questions: {e}")
+        logger.warning(f"Ошибка в get_sub_questions: {e}")
         raise
 
 
