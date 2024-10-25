@@ -4,7 +4,6 @@ from datetime import datetime, timezone
 from app.database import Base
 import pytz
 
-
 Yekaterinburg_tz = pytz.timezone('Asia/Yekaterinburg')
 
 
@@ -46,8 +45,10 @@ class Question(Base):
     depth = Column(Integer, nullable=False, default=0)
 
     author = Column(String, nullable=True)
+    author_edit = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(Yekaterinburg_tz), nullable=True)
-    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(Yekaterinburg_tz), onupdate=lambda: datetime.now(Yekaterinburg_tz), nullable=True)
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(Yekaterinburg_tz),
+                        onupdate=lambda: datetime.now(Yekaterinburg_tz), nullable=True)
 
     parent = relationship("Question", remote_side=[id], backref="children")
 
@@ -73,12 +74,17 @@ class SubQuestion(Base):
     number = Column(Integer, nullable=True)
 
     author = Column(String, nullable=True)
+    author_edit = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(Yekaterinburg_tz), nullable=True)
-    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(Yekaterinburg_tz), onupdate=lambda: datetime.now(Yekaterinburg_tz), nullable=True)
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(Yekaterinburg_tz),
+                        onupdate=lambda: datetime.now(Yekaterinburg_tz), nullable=True)
 
-    parent_subquestion_id = Column(Integer, ForeignKey('sub_questions.id', name='fk_subquestions_parent_subquestion_id'), nullable=True)
+    parent_subquestion_id = Column(Integer,
+                                   ForeignKey('sub_questions.id', name='fk_subquestions_parent_subquestion_id'),
+                                   nullable=True)
 
     question = relationship("Question", back_populates="sub_questions")
+
     # parent_subquestion = relationship("SubQuestion", remote_side=[id], backref="children")
 
     def __repr__(self):

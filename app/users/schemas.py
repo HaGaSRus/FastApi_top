@@ -51,4 +51,3 @@ class AllUserResponse(BaseModel):
 
     class Config:
         from_attributes = True
-

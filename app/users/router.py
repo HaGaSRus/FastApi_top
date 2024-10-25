@@ -33,7 +33,6 @@ async def update_user(
     """Обновление информации о пользователе"""
     users_dao = UsersDAO()
 
-    # Проверка, существует ли такой пользователь
     if update_data.username:
         existing_user = await users_dao.find_one_or_none(username=update_data.username)
         if existing_user and existing_user.id != current_user.id:
@@ -48,15 +47,7 @@ async def update_user(
 
     hashed_password = pwd_context.hash(update_data.password) if update_data.password else None
 
-    # Логирование перед обновлением
-    logger.info(
-        f"Обновление пользователя с id={current_user.id}: "
-        f"username={update_data.username}, email={update_data.email}, "
-        f"hashed_password={'Yes' if hashed_password else 'No'}"
-    )
-
     try:
-        # Обновляем данные пользователя
         await users_dao.update(
             model_id=current_user.id,
             username=update_data.username,

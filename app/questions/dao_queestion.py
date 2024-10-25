@@ -40,6 +40,7 @@ class QuestionService:
             new_question = Question(
                 text=question.text,
                 author=question.author,
+                author_edit=question.author_edit,
                 answer=question.answer,
                 category_id=category_id,
                 subcategory_id=question.subcategory_id,
@@ -88,6 +89,7 @@ class QuestionService:
 
             new_sub_question = SubQuestion(
                 author=question.author,
+                author_edit=question.author_edit,
                 text=question.text,
                 answer=question.answer,
                 parent_question_id=parent_question.id,
@@ -121,6 +123,7 @@ async def build_question_response(question: Question) -> QuestionResponse:
     response = QuestionResponse(
         id=question.id,
         author=question.author,
+        author_edit=question.author_edit,
         text=question.text,
         answer=question.answer,
         number=question.number,
@@ -145,6 +148,7 @@ async def build_subquestion_response(sub_question: SubQuestion) -> SubQuestionRe
     return SubQuestionResponse(
         id=sub_question.id,
         author=sub_question.author,
+        author_edit=sub_question.author_edit,
         text=sub_question.text,
         answer=sub_question.answer,
         number=sub_question.number,
@@ -169,6 +173,7 @@ async def get_sub_questions(db: AsyncSession, parent_question_id: int) -> List[S
             SubQuestionResponse(
                 id=sub_question.id,
                 author=sub_question.author,
+                author_edit=sub_question.author_edit,
                 text=sub_question.text,
                 answer=sub_question.answer,
                 number=sub_question.number,
@@ -234,12 +239,6 @@ def update_fields(question_obj, update_request: UpdateQuestionRequest):
     if update_request.answer is not None:
         question_obj.answer = update_request.answer
 
-    if update_request.author is not None:
-        question_obj.author = update_request.author
-
-
-def format_datetime(dt: datetime) -> str:
-    if dt:
-        return dt.strftime("%d %B %Y, %H:%M")  # Пример: 24 October 2024, 15:36
-    return None
+    if update_request.author_edit is not None:
+        question_obj.author_edit = update_request.author_edit
 

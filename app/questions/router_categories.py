@@ -5,7 +5,7 @@ from sqlalchemy import select, inspect
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy.exc import IntegrityError
-from app.dao.dependencies import get_current_user, get_current_admin_or_moderator_user
+from app.dao.dependencies import get_current_user, get_current_admin_or_moderator_user, get_current_admin_user
 from app.database import get_db
 from app.exceptions import ErrorGettingCategories, CategoryWithTheSameNameAlreadyExists, ErrorCreatingCategory, \
     ParentCategoryNotFound, FailedTGetDataFromDatabase, CategoryWithSameNameAlreadyExists, ErrorUpdatingCategories, \
@@ -201,7 +201,7 @@ async def update_subcategory(
 async def delete_category(
         request: DeleteCategoryRequest,
         db: AsyncSession = Depends(get_db),
-        current_user=Depends(get_current_admin_or_moderator_user)
+        current_user=Depends(get_current_admin_user)
 ):
     """Форма удаления по id категории, при условии отсутствия подкатегории"""
     category_id = request.category_id

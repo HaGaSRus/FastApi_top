@@ -52,6 +52,10 @@ async def get_questions(db: AsyncSession = Depends(get_db),
 
             question_response = QuestionResponse(
                 id=question.id,
+                author=question.author,
+                author_edit=question.author_edit,
+                created_at=question.created_at,
+                updated_at=question.updated_at,
                 text=question.text,
                 category_id=question.category_id,
                 subcategory_id=question.subcategory_id,
@@ -101,6 +105,10 @@ async def get_all_questions_or_search(params: CustomParams = Depends(),
         question_responses = [
             QuestionResponseForPagination(
                 id=question.id,
+                author=question.author,
+                author_edit=question.author_edit,
+                created_at=question.created_at,
+                updated_at=question.updated_at,
                 text=question.text,
                 category_id=question.category_id,
                 subcategory_id=question.subcategory_id,
@@ -150,6 +158,10 @@ async def get_question_with_subquestions(
 
         question_response = QuestionResponse(
             id=question.id,
+            author=question.author,
+            author_edit=question.author_edit,
+            created_at=question.created_at,
+            updated_at=question.updated_at,
             text=question.text,
             category_id=question.category_id,
             subcategory_id=question.subcategory_id,

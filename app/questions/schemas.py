@@ -33,6 +33,7 @@ class CategoryCreateResponse(CategoryBase):
 
 class SubQuestionCreate(BaseModel):
     author: Optional[str] = None
+    author_edit: Optional[str] = None
     text: str
     answer: Optional[str] = None
     number: Optional[int] = 0
@@ -47,6 +48,7 @@ class SubQuestionCreate(BaseModel):
 
 class QuestionCreate(BaseModel):
     author: Optional[str] = None
+    author_edit: Optional[str] = None
     text: str
     answer: Optional[str] = None
     number: Optional[int] = 0
@@ -67,6 +69,7 @@ class SubQuestionResponse(BaseModel):
     answer: Optional[str] = None
     number: int
     author: Optional[str] = None
+    author_edit: Optional[str] = None
     count: Optional[int] = 0
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
@@ -89,6 +92,7 @@ class QuestionResponse(BaseModel):
     answer: Optional[str] = None
     number: int
     author: Optional[str] = None
+    author_edit: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     depth: int
@@ -128,6 +132,7 @@ class UpdateQuestionRequest(BaseModel):
     text: Optional[str] = Field(None, description="Новый текст вопроса или под-вопроса")
     answer: Optional[str] = Field(None, description="Новый ответ вопроса или под-вопроса")
     author: Optional[str] = None
+    author_edit: Optional[str] = None
 
 
 class DeleteQuestionRequest(BaseModel):
@@ -141,6 +146,10 @@ class QuestionIDRequest(BaseModel):
 
 class QuestionResponseForPagination(BaseModel):
     id: int
+    author: Optional[str] = None
+    author_edit: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
     text: str
     category_id: int
     subcategory_id: Optional[int] = None
