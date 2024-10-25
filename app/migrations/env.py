@@ -12,6 +12,7 @@ from app.config import settings
 from app.database import Base, get_db
 from app.users.models import Users, Roles, Permissions
 from app.questions.models import Question, Category
+from app.analytics.models import Analytics
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

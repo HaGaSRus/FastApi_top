@@ -10,9 +10,9 @@ from app.database import get_db
 from app.exceptions import ErrorGettingCategories, CategoryWithTheSameNameAlreadyExists, ErrorCreatingCategory, \
     ParentCategoryNotFound, FailedTGetDataFromDatabase, CategoryWithSameNameAlreadyExists, ErrorUpdatingCategories, \
     FailedToUpdateCategories, CategoryNotFound, CategoryContainsSubcategoriesDeletionIsNotPossible, \
-    FailedToDeleteCategory
+    FailedToDeleteCategory, CategoryContainsQuestionsDeletionIsNotPossible
 from app.logger.logger import logger
-from app.questions.models import Category
+from app.questions.models import Category, Question
 from app.questions.schemas import CategoryResponse, CategoryCreateResponse, CategoryCreate, UpdateCategoriesRequest, \
     UpdateCategoryData, DeleteCategoryRequest
 from fastapi_versioning import version
@@ -203,7 +203,7 @@ async def delete_category(
         db: AsyncSession = Depends(get_db),
         current_user=Depends(get_current_admin_user)
 ):
-    """Форма удаления по id категории, при условии отсутствия подкатегории"""
+    """Удаление категории по id, при условии отсутствия подкатегорий или привязанных вопросов"""
     category_id = request.category_id
     try:
         logger.debug(f"Удаление категории с id: {category_id}")
@@ -220,14 +220,26 @@ async def delete_category(
             logger.warning(f"Категория с id {category_id} содержит подкатегории, удаление невозможно")
             raise CategoryContainsSubcategoriesDeletionIsNotPossible
 
+        questions = await db.execute(
+            select(Question).where((Question.category_id == category_id) | (Question.subcategory_id == category_id))
+        )
+        if questions.scalars().first():
+            logger.warning(f"Категория с id {category_id} содержит привязанные вопросы, удаление невозможно")
+            raise CategoryContainsQuestionsDeletionIsNotPossible
+
         await db.delete(category)
         await db.commit()
 
         return CategoryResponse.model_validate(category)
 
+    except CategoryContainsQuestionsDeletionIsNotPossible as e:
+        raise e
+    except CategoryContainsSubcategoriesDeletionIsNotPossible as e:
+        raise e
     except Exception as e:
         logger.warning(f"Ошибка при удалении категории: {e}")
         logger.warning(traceback.format_exc())
         await db.rollback()
         raise FailedToDeleteCategory
+
 

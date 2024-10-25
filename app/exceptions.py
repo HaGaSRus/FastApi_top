@@ -324,3 +324,21 @@ class DatabaseConnectionLost(HootLineException):
     status_code = status.HTTP_503_SERVICE_UNAVAILABLE  # 503: Сервис недоступен
     detail = "Соединение с базой данных потеряно."
 
+
+class CategoryContainsQuestionsDeletionIsNotPossible(HTTPException):
+    def __init__(self):
+        super().__init__(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Категория содержит привязанные вопросы, удаление невозможно"
+        )
+
+
+class AuthorIsNotPresentException(HootLineException):
+    status_code = status.HTTP_404_NOT_FOUND
+    detail = "Автор не существует"
+
+
+class FailedToCreateAnalyticsEntry(HootLineException):
+    status_code = status.HTTP_404_NOT_FOUND
+    detail = "Не удалось создать запись аналитики."
+
