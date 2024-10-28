@@ -1,13 +1,11 @@
 import html
-from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler
+from logging.handlers import RotatingFileHandler
 import logging
 import requests
 from pythonjsonlogger import jsonlogger
 from datetime import datetime
 import pytz
 import os
-from telegram import Bot
-from telegram.error import TelegramError
 from app.config import settings
 
 TELEGRAM_TOKEN = settings.TELEGRAM_TOKEN
