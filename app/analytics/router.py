@@ -7,7 +7,7 @@ from app.analytics.schemas import AnalyticsCreate
 from app.database import get_db
 from app.exceptions import QuestionNotFound, AuthorIsNotPresentException, FailedToCreateAnalyticsEntry
 from app.logger.logger import logger
-from app.questions.models import Question
+from app.questions.models import Question, SubQuestion
 from app.users.models import Users
 
 router_analytics = APIRouter(
@@ -16,7 +16,7 @@ router_analytics = APIRouter(
 )
 
 
-@router_analytics.post("/write", status_code=status.HTTP_201_CREATED, summary="Запись в бд данных для анализа")
+@router_analytics.post("/write", status_code=status.HTTP_201_CREATED, summary="Запись в БД данных для анализа")
 @version(1)
 async def create_analytics_entry(
         analytics_data: AnalyticsCreate,
@@ -26,13 +26,24 @@ async def create_analytics_entry(
         # Логируем входящие данные
         logger.info(f"Получены данные аналитики: {analytics_data}")
 
-        # Проверка существования вопроса
-        query = select(Question).where(Question.id == analytics_data.question_id)
-        result = await db.execute(query)
-        question = result.scalars().first()
-        if not question:
-            logger.warning(f"Вопрос с id {analytics_data.question_id} не обнаружен")
-            raise QuestionNotFound
+        # Проверка существования вопроса или подвопроса
+        question = None
+        if analytics_data.question_id:
+            query = select(Question).where(Question.id == analytics_data.question_id)
+            result = await db.execute(query)
+            question = result.scalars().first()
+            if not question:
+                logger.warning(f"Вопрос с id {analytics_data.question_id} не обнаружен")
+                raise QuestionNotFound
+
+        subquestion = None
+        if analytics_data.subquestion_id:
+            query = select(SubQuestion).where(SubQuestion.id == analytics_data.subquestion_id)
+            result = await db.execute(query)
+            subquestion = result.scalars().first()
+            if not subquestion:
+                logger.warning(f"Подвопрос с id {analytics_data.subquestion_id} не обнаружен")
+                raise QuestionNotFound
 
         # Проверка существования автора
         query = select(Users).where(Users.id == analytics_data.author_id)
@@ -45,21 +56,19 @@ async def create_analytics_entry(
         # Создание новой записи
         new_entry = Analytics(
             question_id=analytics_data.question_id,
+            subquestion_id=analytics_data.subquestion_id,
             author=author.username,
         )
         logger.info(f"Создание новой записи аналитики: {new_entry}")
 
         db.add(new_entry)
-        await db.commit()  # Не забудьте использовать await для коммита
+        await db.commit()
         await db.refresh(new_entry)
 
-        logger.info(f"Запись Аналитики успешно создана: {new_entry}")
+        logger.info(f"Запись аналитики успешно создана: {new_entry}")
         return new_entry
 
     except Exception as e:
         logger.warning(f"Не удалось создать запись аналитики: {e}")
         await db.rollback()
         raise FailedToCreateAnalyticsEntry
-
-
-

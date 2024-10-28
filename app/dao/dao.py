@@ -63,6 +63,7 @@ class UsersDAO(BaseDAO):
 
                 if user:
                     user_data = UserResponse(
+                        id=user_id,
                         username=user.username,
                         email=user.email,
                         firstname=user.firstname,
