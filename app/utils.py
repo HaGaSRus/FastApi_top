@@ -8,7 +8,6 @@ from app.users.models import Roles
 from aiosmtplib.errors import SMTPException
 
 
-
 async def init_roles():
     async with async_session_maker() as session:
         roles = ["user", "admin", "moderator"]

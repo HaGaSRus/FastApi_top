@@ -163,3 +163,14 @@ class QuestionResponseForPagination(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class QuestionSearchResponse(BaseModel):
+    id: int
+    text: str
+    answer: Optional[str]
+    march_percentage: float
+
+    class Config:
+        from_attributes = True
+

@@ -6,7 +6,7 @@ import traceback
 from PIL import Image
 from typing import List, Optional
 from fastapi_versioning import version
-from fastapi import APIRouter, Depends, File ,HTTPException, status, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, status, UploadFile, Query
 from fastapi_pagination import Page, paginate
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,10 +24,11 @@ from app.questions.dao_queestion import build_question_response, QuestionService
     build_subquestions_hierarchy, build_subquestion_response, update_main_question, update_sub_question
 from app.questions.models import Question, SubQuestion
 from app.questions.schemas import QuestionResponse, QuestionCreate, DeleteQuestionRequest, UpdateQuestionRequest, \
-    QuestionIDRequest, QuestionResponseForPagination
+    QuestionIDRequest, QuestionResponseForPagination, QuestionSearchResponse
 from pydantic import ValidationError
 from sqlalchemy import func
-from app.questions.search_questions import QuestionSearchService, build_question_response_from_search
+from app.questions.search_questions import build_question_response_from_search, QuestionSearchService, \
+    perform_fts_search
 
 router_question = APIRouter(
     prefix="/question",
@@ -314,7 +315,36 @@ async def search_questions(
         raise HTTPException(status_code=500, detail="Ошибка поиска вопросов")
 
 
+@router_question.get("/search-fuzzy_search", response_model=List[QuestionSearchResponse])
+@version(1)
+async def search_questions(query: str, db: AsyncSession = Depends(get_db)):
+    try:
+        results = await QuestionSearchService.search_questions_fuzzy_search(db, query)
+        if not results:
+            raise HTTPException(status_code=404, detail="Вопросы не найдены")
+        return results
+    except Exception as e:
+        print(f"Ошибка при поиске: {e}")
+        raise HTTPException(status_code=500, detail="Ошибка поиска вопросов")
+
+
+@router_question.get("/search-fts", response_model=List[QuestionResponse])
+@version(1)
+async def search_questions(query: str = Query(...), session: AsyncSession = Depends(get_db)):
+    results = await perform_fts_search(session, query)
+    if not results:
+        raise HTTPException(status_code=404, detail="No matching questions found")
+
+    # Преобразование найденных вопросов в формат ответа
+    question_responses = [
+        await build_question_response_from_search(question, session) for question in results
+    ]
+
+    return question_responses
+
+
 @router_question.get("/top_question_count", summary="Получить count верхнеуровневых вопросов с количеством запросов")
+@version(1)
 async def get_top_questions_count(
         db: AsyncSession = Depends(get_db),
         current_user=Depends(get_current_admin_or_moderator_user)

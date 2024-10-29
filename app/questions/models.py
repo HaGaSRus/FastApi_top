@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Index
+from sqlalchemy.dialects.postgresql import TSVECTOR
 from sqlalchemy.orm import relationship, backref
 from datetime import datetime, timezone
 from app.database import Base
@@ -44,6 +45,8 @@ class Question(Base):
     parent_question_id = Column(Integer, ForeignKey('questions.id', name='fk_questions_parent_id'), nullable=True)
     depth = Column(Integer, nullable=False, default=0)
 
+    tsv_content = Column(TSVECTOR)
+
     author = Column(String, nullable=True)
     author_edit = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(Yekaterinburg_tz), nullable=True)
@@ -53,8 +56,12 @@ class Question(Base):
     parent = relationship("Question", remote_side=[id], backref="children")
 
     category = relationship("Category", back_populates="questions", foreign_keys=[category_id])
-
+    subcategory = relationship("Category", foreign_keys=[subcategory_id])
     sub_questions = relationship("SubQuestion", back_populates="question", lazy='selectin')
+
+    __table_args__ = (
+        Index('ix_questions_tsv_content', 'tsv_content', postgresql_using='gin'),  # GIN индекс для ускорения поиска
+    )
 
     def __repr__(self):
         return f"<Question(id={self.id}, text={self.text}, number={self.number}, answer={self.answer}, category_id={self.category_id}, count={self.count})>"
