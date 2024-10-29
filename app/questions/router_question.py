@@ -6,7 +6,7 @@ import traceback
 from PIL import Image
 from typing import List, Optional
 from fastapi_versioning import version
-from fastapi import APIRouter, Depends, File, HTTPException, status, UploadFile, Query
+from fastapi import APIRouter, Depends, File, HTTPException, status, UploadFile
 from fastapi_pagination import Page, paginate
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,7 +18,8 @@ from app.database import get_db, async_session_maker
 from app.exceptions import QuestionNotFound, ErrorInGetQuestions, \
     ErrorInGetQuestionWithSubquestions, SubQuestionNotFound, TheSubQuestionDoesNotBelongToTheSpecifiedMainQuestion, \
     CannotDeleteSubQuestionWithNestedSubQuestions, QuestionOrSubQuestionSuccessfullyDeleted, ErrorWhenDeletingQuestion, \
-    SubQuestionSuccessfullyUpdated, QuestionSuccessfullyUpdated, ErrorWhenUpdatingQuestion
+    SubQuestionSuccessfullyUpdated, QuestionSuccessfullyUpdated, ErrorWhenUpdatingQuestion, ErrorSearchingQuestions, \
+    ErrorReceivingDataForDashboard, ErrorWhileSaving, QuestionSearchNotFound
 from app.logger.logger import logger
 from app.questions.dao_queestion import build_question_response, QuestionService, get_sub_questions, \
     build_subquestions_hierarchy, build_subquestion_response, update_main_question, update_sub_question
@@ -27,8 +28,7 @@ from app.questions.schemas import QuestionResponse, QuestionCreate, DeleteQuesti
     QuestionIDRequest, QuestionResponseForPagination, QuestionSearchResponse
 from pydantic import ValidationError
 from sqlalchemy import func
-from app.questions.search_questions import build_question_response_from_search, QuestionSearchService, \
-    perform_fts_search
+from app.questions.search_questions import build_question_response_from_search, QuestionSearchService
 
 router_question = APIRouter(
     prefix="/question",
@@ -315,32 +315,23 @@ async def search_questions(
         raise HTTPException(status_code=500, detail="Ошибка поиска вопросов")
 
 
-@router_question.get("/search-fuzzy_search", response_model=List[QuestionSearchResponse])
+@router_question.get("/search-fuzzy_search", status_code=status.HTTP_200_OK, response_model=List[QuestionSearchResponse])
 @version(1)
-async def search_questions(query: str, db: AsyncSession = Depends(get_db)):
+async def search_questions(
+        query: str,
+        db: AsyncSession = Depends(get_db),
+        current_user=Depends(get_current_user)
+    ):
     try:
         results = await QuestionSearchService.search_questions_fuzzy_search(db, query)
         if not results:
-            raise HTTPException(status_code=404, detail="Вопросы не найдены")
+            raise QuestionSearchNotFound
         return results
+    except QuestionSearchNotFound:
+        raise
     except Exception as e:
-        print(f"Ошибка при поиске: {e}")
-        raise HTTPException(status_code=500, detail="Ошибка поиска вопросов")
-
-
-@router_question.get("/search-fts", response_model=List[QuestionResponse])
-@version(1)
-async def search_questions(query: str = Query(...), session: AsyncSession = Depends(get_db)):
-    results = await perform_fts_search(session, query)
-    if not results:
-        raise HTTPException(status_code=404, detail="No matching questions found")
-
-    # Преобразование найденных вопросов в формат ответа
-    question_responses = [
-        await build_question_response_from_search(question, session) for question in results
-    ]
-
-    return question_responses
+        logger.warning(f"Ошибка при поиске: {e}")
+        raise ErrorSearchingQuestions
 
 
 @router_question.get("/top_question_count", summary="Получить count верхнеуровневых вопросов с количеством запросов")
@@ -373,7 +364,7 @@ async def get_top_questions_count(
 
     except Exception as e:
         logger.warning(f"Ошибка при получении count верхнеуровневых вопросов: {e}")
-        raise HTTPException(status_code=500, detail="Ошибка получения данных для дашборта")
+        raise ErrorReceivingDataForDashboard
 
 
 @router_question.post('/upload-binary')
@@ -409,4 +400,4 @@ async def add_photo_router(file: UploadFile = File(...), current_user=Depends(ge
 
     except Exception as e:
         logger.warning(f"Ошибка при сохранении: {str(e)}")
-        raise HTTPException(status_code=400, detail=f"Ошибка: {str(e)}")
+        raise ErrorWhileSaving(f"Ошибка сохранения: {str(e)}")

@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List, Tuple
+from typing import Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, text
+from sqlalchemy import select
 from app.questions.models import Question, SubQuestion
 from app.questions.schemas import QuestionResponse, SubQuestionResponse, QuestionSearchResponse
 from sqlalchemy import or_
@@ -27,18 +27,6 @@ class QuestionSearchService:
             )
         )
 
-        result = await db.execute(stmt)
-        return result.scalars().all()
-
-    @staticmethod
-    async def search_questions_fts(
-            db: AsyncSession, query: str
-    ) -> List[Question]:
-        stmt = select(Question).where(
-            func.to_tsvector(
-                'russian', func.coalesce(Question.text, '') + ' ' + func.coalesce(Question.answer, '')
-            ).op('@@')(func.plainto_tsquery('russian', query))
-        )
         result = await db.execute(stmt)
         return result.scalars().all()
 
@@ -133,21 +121,3 @@ def build_subquestions_hierarchy_from_search(sub_questions, parent_question_id=N
             sub_question.sub_questions = build_subquestions_hierarchy_from_search(sub_questions, sub_question.id)
             hierarchy.append(sub_question)
     return hierarchy
-
-
-async def perform_fts_search(session: AsyncSession, query: str) -> List[Question]:
-    try:
-        sql_query = text(""" 
-        SELECT * 
-        FROM questions 
-        WHERE to_tsvector('russian', text || ' ' || tsv_content) 
-              @@ plainto_tsquery('russian', :query)
-        """)
-
-        result = await session.execute(sql_query, {"query": query})
-        questions = result.scalars().all()
-        print(f"Found questions: {questions}")  # Для отладки
-        return questions
-    except Exception as e:
-        print(f"Ошибка при выполнении FTS-запроса: {e}")
-        raise

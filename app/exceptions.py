@@ -342,3 +342,26 @@ class FailedToCreateAnalyticsEntry(HootLineException):
     status_code = status.HTTP_404_NOT_FOUND
     detail = "Не удалось создать запись аналитики."
 
+
+class ErrorSearchingQuestions(HootLineException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    detail = "Ошибка поиска вопросов"
+
+
+class ErrorReceivingDataForDashboard(HootLineException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    detail = "Ошибка получения данных для дашборта"
+
+
+class ErrorWhileSaving(HootLineExceptionDynamic):
+
+    def __init__(self, e: str):
+        detail = "Ошибка при сохранении"
+        super().__init__(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
+
+
+class QuestionSearchNotFound(HootLineException):
+    status_code = status.HTTP_200_OK
+    detail = "Вопрос не найден"
+
+
