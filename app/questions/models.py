@@ -1,5 +1,4 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Index
-from sqlalchemy.dialects.postgresql import TSVECTOR
 from sqlalchemy.orm import relationship, backref
 from datetime import datetime, timezone
 from app.database import Base

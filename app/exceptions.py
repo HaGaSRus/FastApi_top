@@ -361,7 +361,7 @@ class ErrorWhileSaving(HootLineExceptionDynamic):
 
 
 class QuestionSearchNotFound(HootLineException):
-    status_code = status.HTTP_200_OK
+    status_code = status.HTTP_204_NO_CONTENT
     detail = "Вопрос не найден"
 
 

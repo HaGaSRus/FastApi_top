@@ -170,6 +170,8 @@ class QuestionSearchResponse(BaseModel):
     text: str
     answer: Optional[str]
     march_percentage: float
+    match_start: Optional[int] = None
+    match_end: Optional[int] = None
 
     class Config:
         from_attributes = True
