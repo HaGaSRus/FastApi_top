@@ -186,10 +186,10 @@ class QuestionSearchResponse(BaseModel):
     count: Optional[int] = 0
     parent_question_id: Optional[int] = 0
 
-    sub_questions: List[SubQuestionResponse] = []
-
     march_percentage: float
     match_positions: List[MatchPosition]
+
+    sub_questions: List[SubQuestionResponse] = []
 
     class Config:
         from_attributes = True

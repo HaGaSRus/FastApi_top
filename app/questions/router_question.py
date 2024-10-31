@@ -334,34 +334,34 @@ async def search_questions(
         raise ErrorSearchingQuestions()
 
 
-@router_question.get("/search-combined", status_code=status.HTTP_200_OK, response_model=List[QuestionSearchResponse])
-@version(1)
-async def questions_combined(
-    query: str,
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user),
-):
-    try:
-        # Шаг 1: Выполняем семантический поиск
-        vectorized_results = await QuestionSearchService.search_questions_vectorized(db, query)
-
-        if vectorized_results:
-            return vectorized_results
-
-        # Шаг 2: Если семантический поиск пуст, выполняем нечеткий поиск
-        logger.info("Семантический поиск не дал результатов. Выполняется нечеткий поиск.")
-        fuzzy_results = await QuestionSearchService.search_questions_fuzzy_search(db, query)
-
-        if not fuzzy_results:
-            raise QuestionSearchNotFound()
-
-        return fuzzy_results
-
-    except QuestionSearchNotFound as not_found:
-        raise not_found
-    except Exception as e:
-        logger.warning(f"Ошибка при поиске: {e}")
-        raise ErrorSearchingQuestions()
+# @router_question.get("/search-combined", status_code=status.HTTP_200_OK, response_model=List[QuestionSearchResponse])
+# @version(1)
+# async def questions_combined(
+#     query: str,
+#     db: AsyncSession = Depends(get_db),
+#     current_user=Depends(get_current_user),
+# ):
+#     try:
+#         # Шаг 1: Выполняем семантический поиск
+#         vectorized_results = await QuestionSearchService.search_questions_vectorized(db, query)
+#
+#         if vectorized_results:
+#             return vectorized_results
+#
+#         # Шаг 2: Если семантический поиск пуст, выполняем нечеткий поиск
+#         logger.info("Семантический поиск не дал результатов. Выполняется нечеткий поиск.")
+#         fuzzy_results = await QuestionSearchService.search_questions_fuzzy_search(db, query)
+#
+#         if not fuzzy_results:
+#             raise QuestionSearchNotFound()
+#
+#         return fuzzy_results
+#
+#     except QuestionSearchNotFound as not_found:
+#         raise not_found
+#     except Exception as e:
+#         logger.warning(f"Ошибка при поиске: {e}")
+#         raise ErrorSearchingQuestions()
 
 
 @router_question.get("/top_question_count", summary="Получить count верхнеуровневых вопросов с количеством запросов")

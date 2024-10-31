@@ -11,8 +11,8 @@ from sqlalchemy import or_
 from rapidfuzz import fuzz, process
 from transformers import AutoTokenizer, AutoModel
 
-tokenizer = AutoTokenizer.from_pretrained("DeepPavlov/rubert-base-cased-sentence")
-model = AutoModel.from_pretrained("DeepPavlov/rubert-base-cased-sentence")
+# tokenizer = AutoTokenizer.from_pretrained("DeepPavlov/rubert-base-cased-sentence")
+# model = AutoModel.from_pretrained("DeepPavlov/rubert-base-cased-sentence")
 
 
 class SearchQuestionRequest(BaseModel):
@@ -88,6 +88,9 @@ class QuestionSearchService:
             if match_position_answer:
                 match_positions.append(match_position_answer)
 
+            # Извлекаем под-вопросы для текущего вопроса
+            sub_questions = await get_sub_questions_for_question_from_search(db, parent_question_id=question.id)
+
             # Создаем объект ответа с полными деталями вопроса
             question_response = QuestionSearchResponse(
                 id=question.id,
@@ -102,57 +105,58 @@ class QuestionSearchService:
                 subcategory_id=question.subcategory_id,
                 number=question.number,
                 depth=question.depth,
+                sub_questions=build_subquestions_hierarchy_from_search(sub_questions)  # Добавляем под-вопросы
             )
 
             response.append(question_response)
 
         return response
 
-    @staticmethod
-    def encode_text(text: str):
-        inputs = tokenizer(text, return_tensors="pt", padding=True, truncation=True)
-        with torch.no_grad():
-            embeddings = model(**inputs).last_hidden_state.mean(dim=1)
-        return embeddings
-
-    @staticmethod
-    async def search_questions_vectorized(
-            db: AsyncSession,
-            query: str,
-            top_n: int = 5,
-            threshold: float = 0.73
-    ) -> List[QuestionSearchResponse]:
-        normalized_query = normalize(query)
-        query_embedding = QuestionSearchService.encode_text(normalized_query)
-        logger.warning(f"Query embedding: {query_embedding}")
-
-        stmt = select(Question)
-        result = await db.execute(stmt)
-        questions = result.scalars().all()
-
-        questions_map = {q: normalize(q.text) for q in questions}
-        question_embeddings = {q: QuestionSearchService.encode_text(text) for q, text in questions_map.items()}
-
-        scores = [
-            (q, torch.cosine_similarity(query_embedding, emb).item())
-            for q, emb in question_embeddings.items()
-        ]
-        logger.warning(f"Scores: {scores}")
-        top_matches = sorted(
-            [(q, score) for q, score in scores if score >= threshold],
-            key=lambda x: x[1],
-            reverse=True
-        )[:top_n]
-
-        return [
-            QuestionSearchResponse(
-                id=match[0].id,
-                text=match[0].text,
-                answer=match[0].answer,
-                march_percentage=match[1] * 100,
-            )
-            for match in top_matches if match[1]
-        ]
+    # @staticmethod
+    # def encode_text(text: str):
+    #     inputs = tokenizer(text, return_tensors="pt", padding=True, truncation=True)
+    #     with torch.no_grad():
+    #         embeddings = model(**inputs).last_hidden_state.mean(dim=1)
+    #     return embeddings
+    #
+    # @staticmethod
+    # async def search_questions_vectorized(
+    #         db: AsyncSession,
+    #         query: str,
+    #         top_n: int = 5,
+    #         threshold: float = 0.73
+    # ) -> List[QuestionSearchResponse]:
+    #     normalized_query = normalize(query)
+    #     query_embedding = QuestionSearchService.encode_text(normalized_query)
+    #     logger.warning(f"Query embedding: {query_embedding}")
+    #
+    #     stmt = select(Question)
+    #     result = await db.execute(stmt)
+    #     questions = result.scalars().all()
+    #
+    #     questions_map = {q: normalize(q.text) for q in questions}
+    #     question_embeddings = {q: QuestionSearchService.encode_text(text) for q, text in questions_map.items()}
+    #
+    #     scores = [
+    #         (q, torch.cosine_similarity(query_embedding, emb).item())
+    #         for q, emb in question_embeddings.items()
+    #     ]
+    #     logger.warning(f"Scores: {scores}")
+    #     top_matches = sorted(
+    #         [(q, score) for q, score in scores if score >= threshold],
+    #         key=lambda x: x[1],
+    #         reverse=True
+    #     )[:top_n]
+    #
+    #     return [
+    #         QuestionSearchResponse(
+    #             id=match[0].id,
+    #             text=match[0].text,
+    #             answer=match[0].answer,
+    #             march_percentage=match[1] * 100,
+    #         )
+    #         for match in top_matches if match[1]
+    #     ]
 
 
 async def build_question_response_from_search(question: Question,
@@ -161,10 +165,14 @@ async def build_question_response_from_search(question: Question,
     response = QuestionResponse(
         id=question.id,
         text=question.text,
+        author=question.author,
+        author_edit=question.author_edit,
         answer=question.answer,
         number=question.number,
         count=question.count,
         depth=question.depth,
+        created_at=question.created_at,
+        updated_at=question.updated_at,
         parent_question_id=question.parent_question_id,
         category_id=question.category_id,
         subcategory_id=question.subcategory_id,
@@ -194,6 +202,10 @@ async def get_sub_questions_for_question_from_search(db: AsyncSession, parent_qu
             depth=sub_question.depth,
             category_id=sub_question.category_id,
             subcategory_id=sub_question.subcategory_id,
+            author=sub_question.author,
+            author_edit=sub_question.author_edit,
+            created_at=sub_question.created_at,
+            updated_at=sub_question.updated_at,
             parent_subquestion_id=sub_question.parent_subquestion_id,
             sub_questions=[]
         )
