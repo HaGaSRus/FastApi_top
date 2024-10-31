@@ -165,13 +165,31 @@ class QuestionResponseForPagination(BaseModel):
         from_attributes = True
 
 
+class MatchPosition(BaseModel):
+    field: str
+    start: int
+    end: int
+
+
 class QuestionSearchResponse(BaseModel):
     id: int
     text: str
     answer: Optional[str]
+    category_id: int
+    subcategory_id: Optional[int] = 0
+    number: int
+    author: Optional[str] = None
+    author_edit: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    depth: int
+    count: Optional[int] = 0
+    parent_question_id: Optional[int] = 0
+
+    sub_questions: List[SubQuestionResponse] = []
+
     march_percentage: float
-    match_start: Optional[int] = None
-    match_end: Optional[int] = None
+    match_positions: List[MatchPosition]
 
     class Config:
         from_attributes = True

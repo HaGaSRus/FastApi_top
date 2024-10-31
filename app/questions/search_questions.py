@@ -55,15 +55,15 @@ class QuestionSearchService:
         result = await db.execute(stmt)
         questions = result.scalars().all()
 
-        question_map = {q: normalize(q.text) for q in questions}
+        question_map = {q: normalize(f"{q.text} {q.answer}") for q in questions}
 
-        def find_best_match_position(text: str, query: str) -> Optional[tuple]:
+        def find_best_match_positions(text: str, query: str, field_name: str) -> Optional[dict]:
             parts = [query[:i] for i in range(len(query), 2, -1)]
             for part in parts:
                 start = text.find(part)
                 if start != -1:
-                    return start, start + len(part)
-            return None, None
+                    return {"field": field_name, "start": start, "end": start + len(part)}
+            return None
 
         matches = process.extract(
             normalized_query,
@@ -77,15 +77,34 @@ class QuestionSearchService:
         for match in matches:
             question = match[2]
             match_score = match[1]
-            match_start, match_end = find_best_match_position(question_map[question], normalized_query)
-            response.append(QuestionSearchResponse(
+
+            match_positions = []
+
+            match_position_text = find_best_match_positions(normalize(question.text), normalized_query, "text")
+            if match_position_text:
+                match_positions.append(match_position_text)
+
+            match_position_answer = find_best_match_positions(normalize(question.answer), normalized_query, "answer")
+            if match_position_answer:
+                match_positions.append(match_position_answer)
+
+            # Создаем объект ответа с полными деталями вопроса
+            question_response = QuestionSearchResponse(
                 id=question.id,
                 text=question.text,
                 answer=question.answer,
                 march_percentage=match_score,
-                match_start=match_start if match_start is not None else -1,
-                match_end=match_end if match_end is not None else -1
-            ))
+                match_positions=match_positions,
+                author=question.author,
+                created_at=question.created_at,
+                updated_at=question.updated_at,
+                category_id=question.category_id,
+                subcategory_id=question.subcategory_id,
+                number=question.number,
+                depth=question.depth,
+            )
+
+            response.append(question_response)
 
         return response
 
