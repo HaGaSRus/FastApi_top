@@ -24,6 +24,38 @@ def normalize(text: str) -> str:
     return re.sub(r"\s+", " ", text.strip().lower())
 
 
+def is_latin(text: str) -> bool:
+    return all(ord(c) < 128 for c in text)  # Проверка, являются ли все символы латиницей
+
+
+def is_cyrillic(text: str) -> bool:
+    return any('\u0400' <= c <= '\u04FF' for c in text)  # Проверка, содержит ли текст кириллицу
+
+
+def transliterate(text: str) -> str:
+    layout_mapping = {
+        'q': 'й', 'w': 'ц', 'e': 'у', 'r': 'к', 't': 'е', 'y': 'н', 'u': 'г', 'i': 'ш', 'o': 'щ', 'p': 'з',
+        '[': 'х', ']': 'ъ', 'a': 'ф', 's': 'ы', 'd': 'в', 'f': 'а', 'g': 'п', 'h': 'р', 'j': 'о', 'k': 'л',
+        'l': 'д', ';': 'ж', '\'': 'э', 'z': 'я', 'x': 'ч', 'c': 'с', 'v': 'м', 'b': 'и', 'n': 'т', 'm': 'ь',
+        ',': 'б', '.': 'ю', '/': '.',
+
+        'й': 'q', 'ц': 'w', 'у': 'e', 'к': 'r', 'е': 't', 'н': 'y', 'г': 'u', 'ш': 'i', 'щ': 'o', 'з': 'p',
+        'х': '[', 'ъ': ']', 'ф': 'a', 'ы': 's', 'в': 'd', 'а': 'f', 'п': 'g', 'р': 'h', 'о': 'j', 'л': 'k',
+        'д': 'l', 'ж': ';', 'э': '\'', 'я': 'z', 'ч': 'x', 'с': 'c', 'м': 'v', 'и': 'b', 'т': 'n', 'ь': 'm',
+        'б': ',', 'ю': '.', '.': '/',
+    }
+    return ''.join(layout_mapping.get(char, char) for char in text)
+
+
+def find_best_match_positions(text: str, query: str, field_name: str) -> Optional[dict]:
+    parts = [query[:i] for i in range(len(query), 2, -1)]
+    for part in parts:
+        start = text.find(part)
+        if start != -1:
+            return {"field": field_name, "start": start, "end": start + len(part)}
+    return None
+
+
 class QuestionSearchService:
     @staticmethod
     async def search_questions(
@@ -51,47 +83,61 @@ class QuestionSearchService:
 
         normalized_query = normalize(query)
 
+        # Проверяем, используется ли латиница
+        if is_latin(normalized_query):
+            # Выполняем транслитерацию и сохраняем результат
+            transliterated_query = transliterate(normalized_query)
+            logger.info(f"Транслитерированный запрос: {transliterated_query}")
+        else:
+            transliterated_query = normalized_query  # Если кириллица, используем нормализованный запрос
+
+        # Выполняем первый этап поиска с оригинальным и транслитерированным запросом
+        queries_to_search = [normalized_query, transliterated_query]
+
         stmt = select(Question)
         result = await db.execute(stmt)
         questions = result.scalars().all()
 
         question_map = {q: normalize(f"{q.text} {q.answer}") for q in questions}
+        matches = []
 
-        def find_best_match_positions(text: str, query: str, field_name: str) -> Optional[dict]:
-            parts = [query[:i] for i in range(len(query), 2, -1)]
-            for part in parts:
-                start = text.find(part)
-                if start != -1:
-                    return {"field": field_name, "start": start, "end": start + len(part)}
-            return None
+        # Проводим поиск для каждого варианта запроса (оригинал и транслитерация)
+        for search_query in queries_to_search:
+            matches.extend([
+                (match[0], match[1], match[2], search_query)  # Добавляем сам запрос для отслеживания
+                for match in process.extract(
+                    search_query,
+                    question_map,
+                    scorer=fuzz.partial_ratio,
+                    score_cutoff=threshold,
+                    limit=top_n
+                )
+            ])
 
-        matches = process.extract(
-            normalized_query,
-            question_map,
-            scorer=fuzz.partial_ratio,
-            score_cutoff=threshold,
-            limit=top_n
-        )
+        if not matches:
+            return []
 
+        # Убираем дубли и продолжаем обработку совпадений
+        unique_matches = {match[2].id: match for match in matches}.values()
         response = []
-        for match in matches:
+
+        for match in unique_matches:
             question = match[2]
             match_score = match[1]
+            used_query = match[3]  # Запрос, который сработал
 
             match_positions = []
-
-            match_position_text = find_best_match_positions(normalize(question.text), normalized_query, "text")
+            # Для корректных позиций используем тот запрос, который привел к совпадению
+            match_position_text = find_best_match_positions(normalize(question.text), used_query, "text")
             if match_position_text:
                 match_positions.append(match_position_text)
 
-            match_position_answer = find_best_match_positions(normalize(question.answer), normalized_query, "answer")
+            match_position_answer = find_best_match_positions(normalize(question.answer), used_query, "answer")
             if match_position_answer:
                 match_positions.append(match_position_answer)
 
-            # Извлекаем под-вопросы для текущего вопроса
             sub_questions = await get_sub_questions_for_question_from_search(db, parent_question_id=question.id)
 
-            # Создаем объект ответа с полными деталями вопроса
             question_response = QuestionSearchResponse(
                 id=question.id,
                 text=question.text,
@@ -105,7 +151,7 @@ class QuestionSearchService:
                 subcategory_id=question.subcategory_id,
                 number=question.number,
                 depth=question.depth,
-                sub_questions=build_subquestions_hierarchy_from_search(sub_questions)  # Добавляем под-вопросы
+                sub_questions=build_subquestions_hierarchy_from_search(sub_questions)
             )
 
             response.append(question_response)
@@ -118,7 +164,7 @@ class QuestionSearchService:
     #     with torch.no_grad():
     #         embeddings = model(**inputs).last_hidden_state.mean(dim=1)
     #     return embeddings
-    #
+
     # @staticmethod
     # async def search_questions_vectorized(
     #         db: AsyncSession,
@@ -154,6 +200,7 @@ class QuestionSearchService:
     #             text=match[0].text,
     #             answer=match[0].answer,
     #             march_percentage=match[1] * 100,
+    #
     #         )
     #         for match in top_matches if match[1]
     #     ]

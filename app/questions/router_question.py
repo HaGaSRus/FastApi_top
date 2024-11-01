@@ -285,7 +285,7 @@ async def update_question(
         raise ErrorWhenUpdatingQuestion
 
 
-@router_question.get("/search", response_model=List[QuestionResponse])
+@router_question.get("/search", response_model=List[QuestionResponse], summary="Обычный поиск")
 @version(1)
 async def search_questions(
         query: str,
@@ -315,7 +315,7 @@ async def search_questions(
         raise HTTPException(status_code=500, detail="Ошибка поиска вопросов")
 
 
-@router_question.get("/search-fuzzy_search", status_code=status.HTTP_200_OK, response_model=List[QuestionSearchResponse])
+@router_question.get("/search-fuzzy_search", status_code=status.HTTP_200_OK, response_model=List[QuestionSearchResponse], summary="Нечеткий поиск")
 @version(1)
 async def search_questions(
     query: str,
